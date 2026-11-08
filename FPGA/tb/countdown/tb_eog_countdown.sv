@@ -1,9 +1,10 @@
 // tb_eog_countdown.sv — bit-exact replay of the golden vectors for eog_countdown (Verify role, task T1.countdown.fv).
 //   bash scripts/sim.sh countdown          (runs from FPGA/, so vector paths are tb/vectors/...)
 //
-// Written from spec/modules/eog_countdown.md, spec/numerics.md §7 and spec/conventions.md (spec v4: prefilled
-// 16-entry ring of signed INFLOW, mean = sum >>> 4, NOT_FILLING = mean <= 0, m(q) = q <= 0 ? 0xFFFF :
-// min((K·Δ) // (q << 8), 0xFFFF)); the expected outputs come from model/eog_ref.py through model/gen_vectors.py
+// Written from spec/modules/eog_countdown.md, spec/numerics.md §7 and spec/conventions.md (spec v4 with Lucas's
+// rulings #20/#21 in TASKS.md: prefilled 16-entry ring of max(INFLOW, 0), mean = sum >>> 4; tripped -> CD = 0 and
+// NOT_FILLING = 0; else NOT_FILLING = mean <= 0, m(q) = q <= 0 ? 0xFFFF : min((K·Δ) // (q << 8), 0xFFFF));
+// the expected outputs come from model/eog_ref.py through model/gen_vectors.py
 // (spec v4 vectors: task T0.2b; vectors generated for spec v1/v2 do not match a v4 DUT). The DUT runs at its default
 // parameters (N_FAC = 32, II = 16, CD_LOG2 = 4), like the model.
 //

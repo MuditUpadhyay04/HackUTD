@@ -34,7 +34,7 @@ bmc:       read_verilog -formal -sv -I .            eog_fv_props.sv eog_mul_abst
 bmc_stage: read_verilog -formal -sv -I . -DFV_STAGE eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
 bmc_arith: read_verilog -formal -sv -I . -DFV_ARITH eog_fv_props.sv eog_mul.sv eog_div.sv eog_countdown.sv fv_eog_countdown.sv
 cover:     read_verilog -formal -sv -I . -DFV_COVER eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
-prove:     chparam -set LAT_CHK 0 fv_eog_countdown
+prove:     chparam -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 prove_one: chparam -set II 64 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 bmc:       chparam -set PAYLOAD 0 -set N_IB 5 fv_eog_countdown
 bmc_stage: chparam -set PAYLOAD 0 fv_eog_countdown

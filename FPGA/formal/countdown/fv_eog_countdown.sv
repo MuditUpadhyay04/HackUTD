@@ -89,6 +89,7 @@ module fv_eog_countdown #(
     parameter integer N_LB    = 16,    // LEVEL  sign-extended from N_LB bits
     parameter integer N_KB    = 24,    // K_CD < 2^N_KB (spec: < 2^24)
     parameter integer N_SB    = 16,    // SHUT_LVL < 2^N_SB
+    parameter integer READY1  = 0,     // 1: assume out_ready = 1 (no back-pressure; deep history tasks)
     parameter integer PAYLOAD = 1      // 0: input bits the countdown does not interpret (IN_LAST, FAC_RAW, TS, REASON,
                                        // SINCE_RESET, FEAT, RULES4, REC_NO above RW) are tied to 0; used by the
                                        // history tasks, whose pass-through is covered by `prove` (H_*)
@@ -238,6 +239,7 @@ module fv_eog_countdown #(
                           i_st == EOG_ST_DROPPED);
         a_hrdrop: assume (!(i_st == EOG_ST_DROPPED && i_hr));
     end
+    always_comb if (READY1 != 0) a_ready: assume (out_ready);
 
     // ---------------------------------------------------------------------------------------------------------
     // Shadow ring of every slot (not in FV_PROVE: history is not port-inductive). Slot s, entry i (0 = newest) at
