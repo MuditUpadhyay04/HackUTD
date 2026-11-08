@@ -336,7 +336,7 @@ def case_slots():
     rows[7] = facility_row(7, 1000, 1500, 2, 600, 1000, 85, 92, enable=False)
     rows[8] = facility_row(8, 1000, 1500, 2, 600, 1000, 85, 92)
     sims8 = SimFac(8, 1000, 1500, 2, 600, 1000, rng)
-    steps = [("hb",)]
+    steps = [("hb",), ("touch", 2)]                  # touch before any record: nothing to clear, not flagged
     fs0b = SimFac(0, 1800, 2700, 2, 900, 1000, rng, 50)
     for t in range(40):
         ts = TS0 + 300 * t
@@ -359,8 +359,8 @@ def case_slots():
                 steps.append(("rec", rec(fid, ts, d), True))
             steps.append(("rec", rec(8, ts, sims8.step()), True))
     return Case("slots", "synthetic: unknown ids (32, 40, 63, 0xFFFF), disabled and unconfigured slots, slot 31, "
-                "CONFIG touch and row rewrite mid-stream, disable/re-enable a slot", global_record(), rows,
-                w_hand(), steps)
+                "CONFIG touch and row rewrite mid-stream (flagged HIST_RESET), touch before a slot's first record "
+                "(not flagged), disable/re-enable a slot", global_record(), rows, w_hand(), steps)
 
 
 def case_swap():
@@ -383,19 +383,20 @@ def case_swap():
         if s == 0:
             t += 1
         mut = {}
-        if i % 17 == 5:
-            mut = dict(present=0)                       # INVALID: logits 0, WVER = active
+        if i % 17 in (5, 8, 11, 14):
+            mut = dict(present=0)                       # same slot: HELD, HELD, INVALID (reset), INVALID
         if i % 23 == 7:
-            mut = dict(rsv1=1)                          # DROPPED: WVER 0
+            mut = dict(rsv1=1)                          # DROPPED (FRAMING): WVER still the active VER
         steps.append(("rec", rec(s, TS0 + 300 * t, fs[s].step(), **mut), True))
-    return Case("swap", "synthetic: no model at start (NO_MODEL), weight writes + swaps mid-stream (random sets, "
-                "S_OUT 0 and 31, saturating set, back-to-back swaps, back to VER 0), INVALID/DROPPED records",
+    return Case("swap", "synthetic: no model at start (VER 0, logits 0), weight writes + swaps mid-stream (random "
+                "sets, S_OUT 0 and 31, saturating set, back-to-back swaps, back to VER 0), HELD/INVALID/DROPPED "
+                "records",
                 global_record(), rows, w_zero(), steps)
 
 
 def case_sat():
     """Saturation and arithmetic corners: extreme CONFIG multipliers and readings, countdown clamps, logits."""
-    wide_lo, wide_hi = (-32768,) * 6 + (0,), (32767,) * 6 + (0,)
+    wide_lo, wide_hi = (-32768,) * 7, (32767,) * 7
     big = (1 << 32) - 1
 
     def row(slot, **kw):
@@ -428,8 +429,9 @@ def case_sat():
             steps += [("wts", w_random(301, s_out=1)), ("swap",)]
     return Case("sat", "synthetic: extreme CONFIG multipliers (2^32-1, 0, 2^31), N_WELLS 0/1/8/12, wide LO/HI, "
                 "readings at +-32767/-32768 (every channel saturates), level jumps for channel 11, countdown with "
-                "K_CD 2^24-1 / 0, SHUT_LVL 0 / 0xFFFF, inflow 1 (clamp to 0xFFFF), saturated logits",
-                global_record(), rows, w_const(32767, (1 << 31) - 1, 0, 2), steps)
+                "K_CD 2^24-1 / 0, SHUT_LVL 0 / 0xFFFF, signed inflow ring (mean <= 0, clamp to 0xFFFF), saturated "
+                "logits (S_OUT 1, then 0 after a swap)",
+                global_record(), rows, w_const(32767, (1 << 31) - 1, 1, 2), steps)
 
 
 def _arr(vals):
@@ -443,7 +445,7 @@ def case_alarm():
     fs = _nets(rng)
     use = (0, 1, 2, 5)
     rows = {s: fs[s].row() for s in use}
-    glb = global_record(PERSIST_K=2, LOGIT_THR=(100, 0, -50, 200), GAP_THR=492)
+    glb = global_record(PERSIST_K=2, PERSIST_K4=(0, 3, 1, 0), LOGIT_THR=(100, 0, -50, 200), GAP_THR=492)
     for s in use:
         fs[s].running = True
         fs[s].level = 6000
@@ -476,9 +478,10 @@ def case_alarm():
                 mut = dict(absent=[1])                                  # HELD record still counts
             steps.append(("rec", rec(s, ts, d, **mut), True))
     steps.append(("ack",))               # trailing ack after the last record
-    return Case("alarm", "synthetic: PERSIST_K=2, per-class thresholds, leak -> NS+E-STOP raise, CLEARED, ACKED "
-                "sweeps over several slots, rule-only NS, INVALID resets counters, autonomous (hb_expire) source "
-                "bit, trailing ack", glb, rows, w_hand(), steps)
+    return Case("alarm", "synthetic: PERSIST_K=2 with PERSIST_K4=(0,3,1,0) (K = 2,3,1,2), per-class thresholds "
+                "(strict >), leak -> latched NS + E-STOP, CLEARED per latch type, ACKED sweeps over several slots, "
+                "rule-only NS, INVALID resets counters, autonomous (hb_expire) source bit, trailing ack",
+                glb, rows, w_hand(), steps)
 
 
 def case_random(n=1500, seed=18):
@@ -486,8 +489,8 @@ def case_random(n=1500, seed=18):
     fs = _nets(rng)
     slots = (0, 1, 2, 5, 31)
     rows = {s: fs[s].row() for s in slots}
-    glb = global_record(HOLD_MAX=3, PERSIST_K=0, LOGIT_THR=(-200, 300, 0, -1000), GAP_THR=200,
-                        SHUTIN_WATER_MAX=10, HB_TIMEOUT_MS=1)
+    glb = global_record(HOLD_MAX=3, PERSIST_K=0, PERSIST_K4=(0, 2, 0, 5), LOGIT_THR=(-200, 300, 0, -1000),
+                        GAP_THR=200, HB_TIMEOUT_MS=1)
     last = {s: TS0 + 11 * s for s in slots}
     steps = [("hb",)]
     i = 0
@@ -533,8 +536,8 @@ def case_random(n=1500, seed=18):
         steps.append(("rec", rec(s, last[key], d, **mut), rng.random() < 0.2))
         i += 1
     return Case("random", "synthetic fuzz (seed %d): %d records over 5 slots + random ids, random field faults, "
-                "time deltas, IN_LAST, CONFIG rewrites, touches, weight swaps, acks, heartbeats; HOLD_MAX=3, "
-                "PERSIST_K=0" % (seed, n), glb, rows, w_random(seed), steps)
+                "time deltas, IN_LAST, CONFIG rewrites, touches, weight swaps, acks, heartbeats; HOLD_MAX=3 (clamped "
+                "to 2), PERSIST_K=0 with PERSIST_K4=(0,2,0,5) (K = 1,2,1,5)" % (seed, n), glb, rows, w_random(seed), steps)
 
 
 def synthetic_cases():
