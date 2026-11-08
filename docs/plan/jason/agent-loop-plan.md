@@ -1,6 +1,7 @@
 # Closed-loop Nemotron agents: plan and proof of concept
 
-Status: **PROPOSED** (Nick, Sun Nov 8 2026, ~05:30 CST). Not in [`global_plan.md`](../../../global_plan.md) yet: it
+Status: **PROPOSED** (Nick, Sun Nov 8 2026, ~05:30 CST). **P0 and P1 done; checkpoint C1 passed Sun 05:39 CST**
+(§7); P2–P5 not started. Not in [`global_plan.md`](../../../global_plan.md) yet: it
 gets promoted there, with a changelog row, only after the fakeboard checkpoint passes and the team agrees. Agents
 and Nemotron are Jason's domain (C12, final say), so this plan sits in his folder, the way
 [`START_HERE.md`](START_HERE.md) does; edit or move it.
@@ -167,7 +168,8 @@ Done when: the CLI prints v1 and v2 held-out scores, and the champion changes on
 
 ### P5 Demo hardening (Must; 1.5 h est.)
 
-1. A held-out dry run. Where `mock_test_*` lives is unknown; the public reference repo has only `full_week`.
+1. A held-out dry run. The reference repo has one: `HackUTD-ZeroDay/history/mock_test_2026-10-10T1530` (there
+   are also `snapshot_*` folders).
 2. Rule audit:
    - `rg -n answer_key apps packages frontend`;
    - `rg -n "S[0-9]_FACILITY" apps/api/src -g '!*.test.ts'`;
@@ -205,3 +207,129 @@ Done when: the CLI prints v1 and v2 held-out scores, and the champion changes on
   `NEMOTRON_MODEL` and `NVIDIA_API_KEY` are all set; the URL must be HTTPS.
 - Never put them in `frontend/.env.local` or in a `NEXT_PUBLIC_` variable (rule 13).
 - Get the key from Jason (`~/.nemotron/api_key` on the Brev instance); never commit or log it.
+
+## 7. Checkpoint C1 results (Sun Nov 8, 05:31–05:39 CST)
+
+Setup: the box (Linux, Bun 1.4.4), branch `feat/agent-loop-poc`, API in memory mode, provider from the root `.env`
+(`NEMOTRON_THINKING=off`, `NEMOTRON_CONTEXT_WINDOW=1048576`, `NEMOTRON_MAX_OUTPUT_TOKENS` default 2048). The
+fakeboard and `listen.py` ran the whole time, and the replay of steps 1000–1030 sent 465 results (31 × 15) twice,
+the second time while analyses were running. Run: `full_week` at `at=1791467400` (step 1030), software runtime;
+three ongoing S2 pump failures and two resolved S1 incidents.
+
+| Check | Result |
+| --- | --- |
+| `bun run test` | **110 pass, 1 skip** (opt-in provider test), **0 fail**, 111 tests across 16 files (baseline: 88 pass, 1 skip, 2 fail) |
+| `bun run typecheck` | clean |
+| `/api/health` | `agents: configured-unverified`, `agentModel: { thinking: off, contextWindow: 1048576, maxOutputTokens: 2048 }` |
+| Live analyses after the fixes | **8 of 8 accepted**, all `source: nemotron` (libfx path); the AI SDK fallback was not needed |
+| First-try finalize accepted | 6 of 8 (4 rejected calls in total, each repaired using the validator's message) |
+| Wall time, POST to completed | 3.6 / 5.1 / 10.7 s (min / median / max) |
+| Tokens per analysis | input 7,685 / 8,034 / 21,703; output 536 / 738 / 1,954 (min / median / max) |
+| Model calls per analysis | 3 to 6 (budget 10) |
+| Before the last fixes (same day) | 2 of 6 accepted. libfx parsed cut-off `tool_end` text, thinking was still on for libfx (bytes body), and the model read item by item until the budget ran out |
+
+Sample accepted handoff (verbatim; the last sentence is the service's caveat):
+
+> Ongoing pump failures at S2_FACILITY_A, S2_FACILITY_B, and S2_FACILITY_C require operator review. S2_PUMP_A,
+> S2_PUMP_B, and S2_PUMP_C each show fault (2) in their latest status. Plans include do_nothing and shut_in options
+> with validated feasibility; operator to select and execute. Classifier capability is limited; health is unknown
+> where evidence is unavailable.
+
+Its steps include `coordinator`: "Written by the language model through libfx, 3 model calls, 2 tool calls, 0
+rejected finalizations, 7863 input / 536 output tokens, 3.2 s."
+
+Not good enough yet (for P3/P4, the critic loop's first targets):
+
+- 2 of 8 handoffs copy raw unix times ("since 1791450000") or plan IDs into the prose. These are grounded, so
+  they pass, but they're unreadable.
+- Labels appear as written (`do_nothing`, `shut_in`).
+- Board detections are not in the facts yet (P2).
+
+Not done in this checkpoint:
+
+- P2 (board JSON into API runs). C1 only needs the fakeboard running; the fakeboard → `listen.py` → JSONL path
+  was checked, but the API does not read it yet.
+- The console with a live analysis wasn't opened. `nemotron.tsx` now labels `ai-sdk` output as model-written.
+- The frontend's own `tsc` reports the existing `PageProps` errors in `src/app/page.tsx`; the generated Next types
+  are missing without a build. Not touched.
+
+## 8. Reproduce on a Mac
+
+Not run on a Mac yet; these are the same commands as §7. You need Bun, Python 3.10+, the key from Jason, and the
+practice data.
+
+```sh
+git fetch origin && git switch feat/agent-loop-poc
+bun install
+git clone https://github.com/nihaal419/HackUTD-ZeroDay ../HackUTD-ZeroDay
+export DATA=$PWD/../HackUTD-ZeroDay/history/full_week
+```
+
+Make the repo-root `.env`, next to `.env.example`, never in `frontend/`:
+
+```sh
+cat > .env <<'ENV'
+NVIDIA_BASE_URL=https://hackutd-26-llm.jasonaa.me/v1
+NEMOTRON_MODEL=nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+NVIDIA_API_KEY=paste-the-key-here
+NEMOTRON_CONTEXT_WINDOW=1048576
+NEMOTRON_THINKING=off
+STORAGE_MODE=memory
+ALLOW_INSECURE_LOCAL=1
+ENV
+chmod 600 .env
+git check-ignore -v .env     # must print: .gitignore:2:.env  .env
+bun run test && bun run typecheck   # expect 110 pass, 1 skip, 0 fail; tsc clean
+```
+
+The fakeboard listens on 127.0.0.2, which macOS doesn't have by default. Add it once (undo with
+`sudo ifconfig lo0 -alias 127.0.0.2`):
+
+```sh
+sudo ifconfig lo0 alias 127.0.0.2 up
+cd ml && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
+```
+
+Four terminals, each from `ml/` with the venv active, except the API (repo root):
+
+```sh
+# 1. software board
+python -m hutd_ml.fakeboard
+# 2. board results as JSON lines
+python -m hutd_ml.listen --data $DATA --board 127.0.0.2 --weights-json artifacts/v4/weights.json \
+  --config artifacts/v4/global_config.json --jsonl /tmp/results.jsonl
+# 3. stream steps 1000-1030 (the three S2 pump failures)
+python -m hutd_ml.replay --data $DATA --board 127.0.0.2 --local 127.0.0.1 --weights artifacts/v4/weights.bin \
+  --weights-version 4 --config artifacts/v4/global_config.json --step-seconds 0.2 --start-step 1000 --steps 31
+grep -c '"type": "result"' /tmp/results.jsonl     # expect 465
+# 4. API (repo root; Bun reads .env from here)
+bun run dev:api
+```
+
+What to look for:
+
+- The API prints `[API] Config loaded, provider: { baseUrl: …, model: … }`. The key must never appear.
+- `curl -s 127.0.0.1:3001/api/health` shows `"agents":"configured-unverified"` and
+  `"agentModel":{"thinking":"off","contextWindow":1048576,"maxOutputTokens":2048}`.
+
+Then, in a fifth terminal (`jq` from Homebrew):
+
+```sh
+API=http://127.0.0.1:3001/api
+DS=$(curl -s -X POST $API/datasets -F network=@$DATA/network.json -F ops=@$DATA/ops.json \
+  -F telemetry=@$DATA/telemetry.csv -F label=full_week | jq -r .id)
+RUN=$(curl -s -X POST $API/runs -H 'content-type: application/json' -H "idempotency-key: $(uuidgen)" \
+  -d "{\"datasetId\":\"$DS\",\"at\":1791467400,\"runtime\":\"software\"}" | jq -r .id)
+sleep 3; curl -s $API/runs/$RUN | jq .status                    # "ready"
+AN=$(curl -s -X POST $API/runs/$RUN/analyses -H "idempotency-key: $(uuidgen)" | jq -r .id)
+sleep 12; curl -s $API/analyses/$AN | jq '{state, source, model, error, handoff, step: .steps[0].text}'
+```
+
+Pass:
+
+- `state: "completed"`, `source: "nemotron"` (or `"ai-sdk"`), `error: null`;
+- a handoff naming S2_FACILITY_A/B/C;
+- `steps[0]` begins "Written by the language model through libfx".
+
+`source: "draft"` means it fell back; `error` says why: the last validator rejection, a timeout, or a provider
+error. Repeat the last two lines a few times to see the acceptance rate.
