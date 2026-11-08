@@ -290,7 +290,8 @@ def case_time(hold):
     fs, steps = _time_steps()
     rows = {0: fs[0].row(), 1: fs[1].row()}
     return Case("time_h%d" % hold, "synthetic: step gaps of 1/2/3 missing steps, odd deltas, duplicates, out of "
-                "order, unsigned wrap, gaps combined with field holds; GLOBAL HOLD_MAX=%d" % hold,
+                "order, TS jumps of +2^31 and back (exact u32 difference, no 32-bit wrap), gaps combined with field "
+                "holds; GLOBAL HOLD_MAX=%d" % hold,
                 global_record(HOLD_MAX=hold), rows, w_hand(), steps)
 
 
