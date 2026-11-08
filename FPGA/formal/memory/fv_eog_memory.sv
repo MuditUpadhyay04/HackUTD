@@ -21,8 +21,8 @@
 //                min/max of their inputs (M2), plus harness lemmas L_* about the shadow. Expensive (hidden low bits),
 //                so it runs at full rate (FV_FULLRATE) in its own task.
 //   FV_FULLRATE  one reset in cycle 0, then in_valid = out_ready = 1; data free.
-//   FV_DEEP      FV_FULLRATE with every value field 0 and only STATUS/FAC/HIST_RESET/PUMP_RUN/SINCE_RESET free
-//                (64+ record stretches). With FV_COVER64 also FAC = 0, HIST_RESET = 0, STATUS = VALID.
+//   FV_DEEP      FV_FULLRATE with every value field 0 and only STATUS/FAC[0]/HIST_RESET/PUMP_RUN/SINCE_RESET free
+//                (64+ record stretches). With FV_COVER64 a fixed stimulus instead (see below).
 //   FV_COVER     short cover goals.   FV_COVER64  the spec's cover: a slot that ran, stopped 64+ records, ran again.
 //
 // Property labels: H_* header pass-through, C_* copies, M1..M6 per the module spec, Q1 = TASKS.md #1, L_* harness
@@ -30,10 +30,16 @@
 
 `default_nettype none
 
-module fv_eog_memory (
-    input logic clk
-);
+// Top-level inputs are free (the solver drives them). They are module ports rather than $anyseq wires so that the
+// abc engines' counterexamples map back onto the design (an $anyseq driving the DUT's in_data breaks sby's witness
+// replay). Non-ANSI ports because the widths come from eog_defs.svh, included inside the module body.
+module fv_eog_memory (clk, i_rst_n, i_in_valid, i_out_ready, i_in_data);
 `include "eog_defs.svh"
+    input logic                clk;
+    input logic                i_rst_n;
+    input logic                i_in_valid;
+    input logic                i_out_ready;
+    input logic [EOG_BF_W-1:0] i_in_data;
 
     localparam integer FV_N_FAC   = 2;
     localparam integer FV_II      = 4;
@@ -55,11 +61,11 @@ module fv_eog_memory (
  `define FV_FR
 `endif
 `ifndef FV_FR
-    // prove, bmc, cover: everything free (the solver drives it)
-    assign rst_n     = $anyseq;
-    assign in_valid  = $anyseq;
-    assign out_ready = $anyseq;
-    assign in_data   = $anyseq;
+    // prove, bmc, cover: everything free
+    assign rst_n     = i_rst_n;
+    assign in_valid  = i_in_valid;
+    assign out_ready = i_out_ready;
+    assign in_data   = i_in_data;
 `else
     // one reset in cycle 0, then in_valid = out_ready = 1 from cycle 2 on: records follow each other at the DUT's
     // own rate (back-to-back records of one slot are the hazard case); gaps and back-pressure are covered by the
@@ -71,20 +77,23 @@ module fv_eog_memory (
     assign in_valid  = (d_t >= 2'd2);
     assign out_ready = 1'b1;
  `ifndef FV_DEEP
-    assign in_data   = $anyseq;
+    assign in_data   = i_in_data;
  `else
     // FV_DEEP: the 64-record nsr cap needs ~66 records of one slot (~200 cycles), too deep for free data. Every
     // value field is 0 and REC_NO = the acceptance count.
     logic [2:0] d_st;
     logic       d_fac, d_hr, d_run;
     logic [7:0] d_since;
-    assign d_run   = $anyseq;
   `ifndef FV_COVER64
-    assign d_st    = $anyseq;
-    assign d_fac   = $anyseq;
-    assign d_hr    = $anyseq;
-    assign d_since = $anyseq;
+    assign d_run   = i_in_data[EOG_BF_PUMP_RUN];
+    assign d_st    = i_in_data[EOG_BF_STATUS +: 3];
+    assign d_fac   = i_in_data[EOG_BF_FAC];
+    assign d_hr    = i_in_data[EOG_BF_HIST_RESET];
+    assign d_since = i_in_data[EOG_BF_SINCE_RESET +: 8];
   `else
+    // cover64: a fixed stimulus (slot 0 VALID records: record 0 running, records 1..64 not, record 65 running);
+    // with any free input the ~200-step search costs over an hour, the goal only needs reachability
+    assign d_run   = (f_in_cnt == 8'd0) || (f_in_cnt == 8'd65);
     assign d_st    = EOG_ST_VALID;
     assign d_fac   = 1'b0;
     assign d_hr    = 1'b0;

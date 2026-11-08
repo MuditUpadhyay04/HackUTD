@@ -29,8 +29,10 @@
 #          (first value, then updates from states whose hidden low bits are nonzero, other records interleaved).
 # cover    (-DFV_COVER, depth 30) first run, EMA update, idle -> run, INVALID, DROPPED, FAC >= N_FAC, both slots,
 #          back-pressure, an INVALID HIST_RESET clearing a slot that had run (#44). All reached by step 13.
-# cover64  (-DFV_COVER64 -DFV_DEEP, depth 215) the spec's cover: a slot that has run, stopped 64+ records, and run
-#          again (~200 cycles at II 3; only PUMP_RUN is free, every value 0). btormc: smtbmc needs > 1 h here.
+# cover64  (-DFV_COVER64 -DFV_DEEP, depth 240) the spec's cover: a slot that has run, stopped 64+ records, and run
+#          again. Fixed stimulus (slot 0 VALID records, running at record 0 and 65 only, values 0), so the ~200
+#          steps are a directed run, not a search: btormc reaches it at step 201 in seconds (smtbmc: > 1 h, and
+#          > 30 min even with PUMP_RUN free). The simulation also counts this goal (21 times in g1).
 # bmc64    (-DFV_BMC -DFV_DEEP; after `--`, not in the default run: `sby -f eog_memory.sby bmc64`) the bmc
 #          asserts over 64+ record stretches with zero values (M4_nsr through the FEAT[28] cap). ~20 min.
 #
@@ -60,7 +62,7 @@ bmc64:    depth 215
 cover:    mode cover
 cover:    depth 30
 cover64:  mode cover
-cover64:  depth 215
+cover64:  depth 240
 
 [engines]
 prove:    smtbmc yices
