@@ -22,7 +22,7 @@ Implements numerics.md §5.
 
 ## Behavior
 
-Header copied. `FEAT[0..11] = FEAT0_11`; `FEAT[12..30]` per numerics.md §5. `RULES4`, `INFLOW`, `LEVEL` copied.
+Header copied. `FEAT[0..11] = FEAT0_11` for a record that updates a slot (VALID/HELD with `FAC < N_FAC`), else 0 (#93; the model and numerics §5); `FEAT[12..30]` per numerics.md §5. `RULES4`, `INFLOW`, `LEVEL` copied.
 A non-DROPPED `HIST_RESET` record (even INVALID) clears that slot's state first; only VALID/HELD records update it.
 
 ## Required properties (verifier)

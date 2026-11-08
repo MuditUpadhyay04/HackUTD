@@ -33,9 +33,9 @@ A non-DROPPED `HIST_RESET` record clears the "has ring" bit first. VALID/HELD: f
 Stage contract (conventions §3).
 
 - C1 INVALID/DROPPED → `CD = 3 × 0xFFFF`, `NOT_FILLING = 0`, no ring change (INVALID may only clear via `HIST_RESET`).
-- C2 `LEVEL ≥ SHUT_LVL` → `CD = 0` (all three); `NOT_FILLING = (mean ≤ 0)`.
+- C2 `LEVEL ≥ SHUT_LVL` → `CD = 0` (all three); `NOT_FILLING = 0` (ruling #21).
 - C3 First VALID/HELD record after a reset: all ring entries equal its `INFLOW` (so p10 = p50 = p90).
-- C4 Ring contents: after the first fill, the ring holds the last 16 VALID/HELD `INFLOW` values (shadow model for
+- C4 Ring contents: after the first fill, the ring holds the last 16 VALID/HELD `max(INFLOW, 0)` values (ruling #20) (shadow model for
   one anyconst slot with `CD_LOG2 = 2`).
 - C5 `q ≤ 0` → that value is `0xFFFF`; `p10 ≤ p50 ≤ p90` whenever all three are finite and level is below shutdown.
 - C6 With the real divider in bmc at reduced widths, each value equals `m(q)` from numerics.md §7.
