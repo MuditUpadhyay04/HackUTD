@@ -308,6 +308,7 @@ module tb_eog_head;
         bank_k[68] = 1'b1;
         bank_k[69 + 68] = 1'b1;
         #1;
+        if (active_bank !== 1'b0 && active_bank !== 1'b1) fail("active_bank is X after reset");
         if (active_ver !== 8'd0) fail("active_ver is not 0 after reset");
         if (swap_pending !== 1'b0) fail("swap_pending is not 0 after reset");
         if (out_valid !== 1'b0) fail("out_valid is not 0 after reset");
