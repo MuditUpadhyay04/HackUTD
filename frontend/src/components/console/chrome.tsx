@@ -205,6 +205,11 @@ export function Toolbar({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const wall = (
+    <Link href={`/live?${new URLSearchParams({ dataset: current.id })}`} className="shrink-0 rounded-lg bg-[#0a0e13] px-2.5 py-1 text-[13px] font-semibold text-white hover:opacity-90">
+      Night shift view
+    </Link>
+  );
   const nemotron = (
     <Link
       href={`/how-it-works?${new URLSearchParams({ dataset: current.id, ...(atUnix ? { at: String(atUnix) } : {}) })}`}
@@ -275,12 +280,14 @@ export function Toolbar({
       {board === undefined ? (
         <>
           {nemotron}
+          {wall}
           <ThemeToggle />
         </>
       ) : (
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <BoardChip board={board} />
           {nemotron}
+          {wall}
           <ThemeToggle />
         </div>
       )}

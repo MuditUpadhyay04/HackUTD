@@ -18,6 +18,7 @@ type Timeline = SimulationTimeline;
 export interface BoardFeed {
   configured: boolean; online: boolean; source: string | null; weightsVersion: number | null; lastTsUnix: number | null; firstTsUnix: number | null; results: number; facilities: number;
   recent?: { facility: string; tsUnix: number; status: string; active: string[]; top: { head: string; p: number } | null }[];
+  flagged?: { facility: string; tsUnix: number; active: string[] }[];
   stats?: { recordsIn: number; resultsOut: number; seqGaps: number; badPackets: number; mode: string; uptimeS: number } | null;
 }
 type Pt = { x: number; y: number };
@@ -211,7 +212,7 @@ function truckPos(j: Timeline["trucks"][number], at: number, yard: Pt, fac: Pt, 
   return yard;
 }
 
-export function FieldMap({ tl, at, ongoing }: { tl: Timeline; at: number; ongoing: Timeline["incidents"] }) {
+export function FieldMap({ tl, at, ongoing, bare }: { tl: Timeline; at: number; ongoing: Timeline["incidents"]; bare?: boolean }) {
   // Schematic, one tile per system (any number of systems): the disposal site in the middle, each facility around it
   // in its real compass direction from the site, the truck yard in the tile's corner. Trucks drive yard -> facility.
   const n = tl.systems.length, cols = n <= 2 ? n : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
@@ -244,8 +245,8 @@ export function FieldMap({ tl, at, ongoing }: { tl: Timeline; at: number; ongoin
   };
   const color = { crit: "var(--crit)", warn: "var(--warn-fill)", ok: "var(--water)" } as const;
   return (
-    <section className="glass overflow-hidden" aria-label="Field map">
-      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-3 text-[13px]">
+    <section className={cn("overflow-hidden", !bare && "glass")} aria-label="Field map">
+      <div className={cn("flex flex-wrap items-center justify-between gap-2 px-4 pt-3 text-[13px]", bare && "hidden")}>
         <span className="font-semibold">The field</span>
         <span className="flex flex-wrap gap-3 text-faint"><span><Dot c="var(--crit)" /> pump down</span><span><Dot c="var(--warn-fill)" /> leak or worn</span><span><Dot c="var(--water)" /> running</span><span><Truck small /> truck</span><span>◆ disposal</span></span>
       </div>
