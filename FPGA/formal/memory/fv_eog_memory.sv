@@ -47,6 +47,7 @@ module fv_eog_memory (
     logic                rst_n, in_valid, out_ready;
     logic [EOG_BF_W-1:0] in_data;
     logic [RW-1:0]       f_in_cnt, f_out_cnt;   // from u_stage below
+    logic                f_past_valid;          // from u_init below
 `ifdef FV_DEEP
  `define FV_FR
 `endif
@@ -60,14 +61,19 @@ module fv_eog_memory (
     assign out_ready = $anyseq;
     assign in_data   = $anyseq;
 `else
-    // one reset in cycle 0, then in_valid = out_ready = 1 from cycle 2 on: records follow each other at the DUT's
-    // own rate (back-to-back records of one slot are the hazard case); gaps and back-pressure are covered by the
-    // prove and bmc tasks.
-    logic [1:0] d_t;
+    // one reset of free length at the start (cycle 0 is a reset cycle, eog_fv_init), never again; then in_valid =
+    // out_ready = 1 from the second cycle after the reset on: records follow each other at the DUT's own rate
+    // (back-to-back records of one slot are the hazard case); gaps and back-pressure are covered by the prove and
+    // bmc tasks. The free reset length lets any shorter trace be padded to the full depth (see the .sby `skip`).
+    logic [1:0] d_t;   // cycles since the reset was released (saturating)
     initial d_t = 2'd0;
-    always_ff @(posedge clk) if (d_t != 2'd3) d_t <= d_t + 2'd1;
-    assign rst_n     = (d_t != 2'd0);
-    assign in_valid  = (d_t >= 2'd2);
+    always_ff @(posedge clk) begin
+        if (!rst_n)            d_t <= 2'd0;
+        else if (d_t != 2'd3)  d_t <= d_t + 2'd1;
+    end
+    assign rst_n     = $anyseq;
+    always_ff @(posedge clk) if (f_past_valid && $past(rst_n)) A_onerst: assume (rst_n);
+    assign in_valid  = rst_n && (d_t >= 2'd1);
     assign out_ready = 1'b1;
  `ifndef FV_DEEP
     assign in_data   = $anyseq;
@@ -126,7 +132,6 @@ module fv_eog_memory (
 
     // ---------------------------------------------------------------------------------------------------------
     // Stage contract (conventions §2, §3) with the shared checkers
-    logic f_past_valid;
     eog_fv_init u_init (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid));
 
     eog_fv_axis #(.W(EOG_BF_W), .ASSUME(1)) u_in (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),

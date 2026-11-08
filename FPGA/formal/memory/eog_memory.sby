@@ -1,67 +1,75 @@
 # SymbiYosys job for eog_memory (Verify role, task T1.memory.fv).   bash scripts/formal.sh memory
-# Harness: fv_eog_memory.sv (spec v2: spec/modules/eog_memory.md, numerics.md §5, conventions §1-3 and §7, TASKS.md
-# spec answers 1-2). Instance N_FAC = 2, II = 4; anyconst slot f_slot and anyconst gated channel f_chan.
-# eog_memory has no multiplier (numerics.md §5 is shifts and adds), so no eog_mul file is read in any task.
+# Harness: fv_eog_memory.sv, spec v4 (spec/modules/eog_memory.md, numerics.md §5, conventions §1-3 and §7, TASKS.md
+# answers #1, #43, #44). Instance N_FAC = 2, II = 4; anyconst slot f_slot and anyconst gated channel f_chan. No
+# multiplier is involved (numerics.md §5 is shifts and adds), so no eog_mul file is read.
 #
-# Split. Per-slot state can sit untouched for unbounded time and the low 8 bits of every EMA never reach the
+# Split. Per-slot state can sit untouched for unbounded time and the low 8 bits of every average never reach the
 # ports, so history-dependent values are not port-only inductive: they are checked by bmc from reset.
 #
-# prove   (-DFV_PROVE, k-induction, unbounded) every property that depends only on the record being output:
-#           stage contract u_out.ax_reset/ax_hold/ax_data, u_stage.st_order/st_no_ghost/st_inflight (<= 2)/st_cnt/
-#           st_link_n/st_link_r/st_ii (II <= 16 after the N_FAC + 8 sweep)/st_lat (latency <= 128); H_* header
-#           pass-through; C_* copies; M1_zero; Q1_zero; M3_has/M3_hasfmt/M3_last/M3_hr_f/M3_hr_s/M3_hr_net/
-#           M3_hr_idle; M4_since/M4_shape/M4_run0/M4_norun (the last also catches an nsr counter that wraps at
-#           255 instead of saturating: induction starts from any stored nsr).
-#           Depth 20 > II_MAX = 16, so st_ii/st_lat close without RTL-internal phase invariants as long as the
-#           RTL cannot sit 20 cycles in a hidden non-presenting state (the stub closed at induction length 3).
-# bmc     (-DFV_BMC, from reset, free inputs) everything above plus the shadow of slot f_slot:
-#           M5_last/M5_emaf/M5_emas/M5_net/M5_has and M4_nsr (exact equations at every output; with f_slot and
-#           f_chan anyconst this is every slot and channel, and it is also M1 "no state change for any slot" and
-#           M6 slot independence: the shadow absorbs only f_slot's VALID/HELD records), M3_first (first running
-#           record after a reset, after idle records), M2_norun/M2_last/M2_emaf/M2_emas/M2_net (min/max
-#           trackers; net_ema's start value 0 counts as absorbed, spec answer 2).
-#           Depth BMC_DEPTH (see [options]): the reset sweep (<= N_FAC + 8 = 10 cycles) plus about 8 records at the
-#           RTL's II of 3: enough for first run -> fast/slow EMA updates -> idle records -> HIST_RESET, with
-#           INVALID/DROPPED/FAC >= N_FAC/other-slot records interleaved, under any valid gaps and back-pressure.
-# bmc64   (-DFV_BMC -DFV_DEEP, from reset) the same asserts with in_valid = out_ready = 1, every value field 0 and
-#           STATUS/FAC/HIST_RESET/PUMP_RUN/SINCE_RESET free: M4_nsr through the 64-record cap of FEAT[28]
-#           (needs >= 65 non-running records of one slot).
-# cover   (-DFV_COVER) short goals: first run, EMA update, idle -> run, INVALID, DROPPED, FAC >= N_FAC, both slots,
-#           back-pressure.
-# cover64 (-DFV_COVER64 -DFV_DEEP) the spec's cover: a slot that has run, stopped 64+ records, and run again.
+# prove    (-DFV_PROVE, k-induction, unbounded, free inputs) everything that depends only on the record being
+#          output: u_out.ax_reset/ax_hold/ax_data; u_stage.st_order/st_no_ghost/st_inflight (<= 2)/st_cnt/st_link_n/
+#          st_link_r/st_ii (II <= 16 after the N_FAC + 8 sweep)/st_lat (latency <= 128); H_* header pass-through;
+#          C_feat/C_feat0/C_rules/C_inflow/C_level; M1_zero (every status but VALID/HELD, #44); Q1_zero (#1);
+#          M3_has/M3_hasfmt/M3_last/M3_hr_f/M3_hr_s/M3_hr_net (#43)/M3_hr_idle; M4_since/M4_shape/M4_run0/M4_norun
+#          (M4_norun also catches an nsr counter that wraps at 255: induction starts from any stored nsr).
+#          Depth 20 > II_MAX = 16: st_ii/st_lat close without RTL phase invariants unless the RTL can sit 20 cycles
+#          in a hidden non-presenting state (the stub closed at induction length 3).
 #
-# Run times against a throwaway one-record-at-a-time stub (II 3, latency 2, N_FAC-cycle sweep) on the WSL box:
-# see the report of task T1.memory.fv.
+# The bmc tasks use `skip`: assertions are checked only in the last steps. That loses nothing, because rst_n is
+# free (one reset of free length in the full-rate tasks): any violating trace of length k <= depth can be padded
+# with extra reset cycles at the start to end at the checked steps (a synchronous reset maps every state to the
+# same set of post-reset states). Checking every step costs 5-10x more on this design.
+#
+# bmc      (-DFV_BMC, free inputs: gaps, back-pressure, every status code, FAC 0..31, any int16) everything above
+#          plus the shadow of slot f_slot: M5_last, M5_has, M4_nsr (harness nsr counter), M3_first, M3_net0 (#43),
+#          M2_norun, M2_last, lemmas L_last/L_clr. With f_slot anyconst the shadow is every slot, and since it absorbs
+#          only f_slot's own records (VALID/HELD update, non-DROPPED HIST_RESET clears) this is also M1 "DROPPED
+#          changes no state, INVALID only by its HIST_RESET, FAC >= N_FAC touches nothing" and M6 slot independence.
+#          Depth 24: up to ~7 records after the N_FAC-cycle sweep at II 3 (first run, updates, idle records, a
+#          HIST_RESET on INVALID/DROPPED/VALID, the other slot and FAC >= N_FAC interleaved, under back-pressure).
+# bmcarith (-DFV_BMC -DFV_ARITH -DFV_FULLRATE) the averages: M5_emaf/M5_emas (channel f_chan, so every channel),
+#          M5_net, M2_emaf/M2_emas/M2_net, lemmas L_ef/L_es/L_clre/L_net/L_net0, plus everything in bmc; in_valid =
+#          out_ready = 1 after one reset of free length, data free. Depth 20: ~5 back-to-back records (first value,
+#          then updates from states with nonzero hidden low bits, interleaved with other records).
+# bmc64    (-DFV_BMC -DFV_DEEP; after `--`, so not in the default run: `sby -f eog_memory.sby bmc64`) the bmc asserts over 64+ record stretches with
+#          zero values: M4_nsr through the cap of FEAT[28].
+# cover    (-DFV_COVER, depth 40) first run, EMA update, idle -> run, INVALID, DROPPED, FAC >= N_FAC, both slots,
+#          back-pressure, and an INVALID HIST_RESET clearing a slot that had run (#44).
+# cover64  (-DFV_COVER64 -DFV_DEEP, depth 215) the spec's cover: a slot that has run, stopped 64+ records, and run
+#          again (~200 cycles at II 3). Covers are checked from step 190 on only (skip).
+#
+# The long histories (tens of thousands of records, the FEAT[28] cap, every average over long pump-off stretches)
+# are checked bit-exactly by the simulation (tb/memory, Mudit's golden sets and the practice week).
 
 [tasks]
 prove
 bmc
 bmcarith
-bmc64
 cover
 cover64
+--
+bmc64
 
 [options]
 prove:    mode prove
 prove:    depth 20
 bmc:      mode bmc
-bmc:      depth 40
+bmc:      depth 24
+bmc:      skip 21
 bmcarith: mode bmc
 bmcarith: depth 20
+bmcarith: skip 17
 bmc64:    mode bmc
 bmc64:    depth 215
+bmc64:    skip 190
 cover:    mode cover
 cover:    depth 40
 cover64:  mode cover
 cover64:  depth 215
+cover64:  skip 205
 
 [engines]
-prove:    smtbmc yices
-bmc:      abc bmc3
-bmcarith: abc bmc3
-bmc64:    abc bmc3
-cover:    smtbmc yices
-cover64:  smtbmc yices
+smtbmc yices
 
 [script]
 prove:    read_verilog -formal -sv -DFV_PROVE                         eog_fv_props.sv eog_memory.sv fv_eog_memory.sv
