@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 
 // Only expose the public operator API, never arbitrary upstream paths.
-const allowed = /^api\/(health|datasets|runs(?:\/[^/]+(?:\/(?:snapshot|analyses|events|export|actions|scenarios|cancel|agents|agent-runs))?)?|analyses\/[^/]+(?:\/cancel)?|scenarios\/[^/]+|agent-runs\/[^/]+|agents\/learning)$/;
+const allowed = /^api\/(health|board|datasets|runs(?:\/[^/]+(?:\/(?:snapshot|analyses|events|export|actions|scenarios|cancel|agents|agent-runs))?)?|analyses\/[^/]+(?:\/cancel)?|scenarios\/[^/]+|agent-runs\/[^/]+|agents\/learning)$/;
 const maxBody = 64 * 1024 * 1024;
 
 function originsEqual(a: string | null, b: string | null): boolean {

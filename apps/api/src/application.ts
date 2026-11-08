@@ -3,6 +3,7 @@ import { DomainError, type AnalysisRecord, type ImportedDataset, type OperatorAc
 import type { Job, Store } from "./store";
 import { importDataset } from "./features/datasets/service";
 import { buildRunSnapshot, planningInputForSnapshot, readBoardIndex } from "./features/runtimes/service";
+import { BoardFeed } from "./features/runtimes/board-status";
 import type { RegisteredModel } from "./features/runtimes/model";
 import { validateSystemPlan } from "./features/planning/validator";
 import { createAnalysisService } from "./features/agents/service";
@@ -14,9 +15,12 @@ export class Application {
   readonly agentLoop: AgentLoopService;
   readonly cancellations = new Map<string, AbortController>();
   readonly modelFingerprint: string | null;
+  /** Live status of the listen.py results file (BOARD_JSONL) for the console. */
+  readonly boardFeed: BoardFeed;
   constructor(readonly store: Store, readonly config: AppConfig, readonly model?: RegisteredModel) {
     this.agents = createAnalysisService({ store, provider: config.provider, sessionDir: config.sessionDir });
     this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl, boardSource: config.boardSource });
+    this.boardFeed = new BoardFeed(config.boardJsonl, config.boardSource);
     this.modelFingerprint = model ? createHash("sha256").update(JSON.stringify(model)).digest("hex") : null;
   }
   async upload(files: { network: string; ops: string; telemetry: string }, label?: string) {

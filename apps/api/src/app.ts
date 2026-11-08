@@ -46,6 +46,7 @@ export function createApp(service: Application) {
     .group("/api", api => api
       .get("/health", () => ({ status: "ok", storage: service.config.memory ? "memory-nonpersistent" : "postgresql", agents: service.config.provider ? "configured-unverified" : "draft-only",
         ...(service.config.provider ? { agentModel: { thinking: service.config.provider.thinking?.mode ?? "off", contextWindow: service.config.provider.contextWindow ?? null, maxOutputTokens: service.config.provider.maxOutputTokens ?? null } } : {}), hardware: "not-verified", hardwareBatches: "unsupported-sink-documented" }))
+      .get("/board", () => service.boardFeed.status())
       .get("/datasets", () => service.store.listDatasets())
       .post("/datasets", async ({ body, set }) => {
         if (body.network.name !== "network.json" || body.ops.name !== "ops.json" || body.telemetry.name !== "telemetry.csv") throw new DomainError("INVALID_FILES", "Upload network.json, ops.json and telemetry.csv with their original filenames");

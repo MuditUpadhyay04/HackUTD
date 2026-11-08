@@ -295,14 +295,14 @@ function BoardChip({ board }: { board: BoardStatus | null }) {
           : "online";
   const simulated = board?.source === "simulated";
   const label =
-    state === "online" ? "Board online" : state === "own" ? "Board on its own" : state === "software" ? "Software runtime" : "Board offline";
+    state === "online" ? "Board online" : state === "own" ? "Board on its own" : state === "software" ? "Software board" : "Board offline";
   const detail =
     state === "offline"
       ? "The server is running the checks in software"
       : state === "own"
         ? "The board lost the server and is watching on its own"
         : state === "software"
-          ? "The board isn't connected; the server's software copy of the board model is classifying"
+          ? "Results come from the software copy of the board (fakeboard), not the FPGA"
         : board?.weightsVersion != null
           ? board.weightsVersion === 240
             ? "Untrained test weights (v240)"

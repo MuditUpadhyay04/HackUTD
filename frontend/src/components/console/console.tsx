@@ -30,7 +30,12 @@ export function Console({
   datasets,
   followsBoard = false,
   controls,
+  notice,
+  onDismissNotice,
 }: {
+  /** One-line message from the workspace, e.g. a newly detected dataset. */
+  notice?: string | null;
+  onDismissNotice?: () => void;
   /** Runtime and dataset upload, shown at the bottom of the sidebar. */
   controls?: ReactNode;
   snapshot: Snapshot;
@@ -188,9 +193,20 @@ export function Console({
             { label: "Last reading", value: clockFrom(s.nowUnix, s.nowUnix) },
             {
               label: "Checks run on",
-              value: s.board?.provenance === "fpga" && s.board.online ? "FPGA board" : s.runtime?.effective === "fpga" ? "FPGA board" : "Server software",
+              value:
+                s.board?.online && s.board.provenance === "fpga"
+                  ? "FPGA board"
+                  : s.board?.online
+                    ? "Software board"
+                    : s.runtime?.effective === "fpga"
+                      ? "FPGA board"
+                      : "Server software",
+              tone: s.board?.online ? ("ok" as const) : undefined,
             },
-            ...(s.runtime ? [{ label: "Leak and wear model", value: s.runtime.scoresAvailable ? (s.runtime.modelVersion ? `v${s.runtime.modelVersion}` : "Loaded") : "Not loaded", tone: s.runtime.scoresAvailable ? undefined : ("warn" as const) }] : []),
+            ...(s.board
+              ? [{ label: "Board", value: s.board.online ? `Live, ${s.board.lastSeenUnix != null ? clockFrom(s.board.lastSeenUnix, s.nowUnix) : "now"}` : "Quiet", tone: s.board.online ? ("ok" as const) : ("warn" as const) }]
+              : []),
+            ...(s.runtime ? [{ label: "Leak and wear model", value: s.runtime.scoresAvailable ? (s.runtime.modelVersion ? s.runtime.modelVersion.replace(/^weights v/i, "Weights v") : "Loaded") : "Not loaded", tone: s.runtime.scoresAvailable ? undefined : ("warn" as const) }] : []),
             {
               label: "Trucks free",
               value: `${s.systems.reduce((t, sys) => t + trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix), 0)} of ${s.systems.reduce((t, sys) => t + sys.fleetSize, 0)}`,
@@ -223,6 +239,16 @@ export function Console({
             {view === "handoff" ? "What the next operator needs to know." : view === "agents" ? "Chip detects. Server plans. Nemotron explains." : headline}
           </p>
         </header>
+        {notice && (
+          <p role="status" className="glass mt-4 flex items-center justify-between gap-3 px-4 py-2.5 text-[13.5px]">
+            <span>{notice}</span>
+            {onDismissNotice && (
+              <button type="button" onClick={onDismissNotice} className="text-[13px] font-medium text-water hover:underline">
+                Dismiss
+              </button>
+            )}
+          </p>
+        )}
 
         {view === "replay" && (
           <div className="mt-5">
