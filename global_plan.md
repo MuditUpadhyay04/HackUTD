@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 07:15 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 07:25 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -28,10 +28,12 @@ ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **S
   | --- | --- |
   | Spec, FPGA, RTL, wire format, numerics | **Lucas** |
   | Model, features, training, weights, ingest and board tooling (`ml/`) | **Mudit** |
-  | Operator API / server, agents, Nemotron | **Jason** |
+  | Operator API / server | **Jason** |
+  | Agents and Nemotron (C12, C13) | **Mudit + Jason**, jointly (Sun 07:25) |
 
-  **Open (O18):** Jason's PR #9 hands the agent / Nemotron path to Mudit, and the agent loop POC is Nick's work
-  (`docs/plan/jason/agent-loop-plan.md`). Until the team records a change here, the row above stands.
+  **Agents and Nemotron (O18, decided Sun 07:25):** Mudit and Jason own them together (Jason's PR #9 had proposed
+  handing them to Mudit alone).
+  Nick built the closed-loop POC (`docs/plan/jason/agent-loop-plan.md`) on Mudit's side.
 
   Lucas's spec v4 names `features_int.py` the normative integer reference. Where the two disagree, it is a spec
   question Lucas rules on, and the ML side follows. The rule doesn't name the web console: UI-only matters are
@@ -143,7 +145,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state), `FPGA/reports/` (board bring-up, lead response) | Board bring-up: B1–B3 PASS on hardware (50 MHz); B4 (O16) and the clock decision (O17); SD boot; live runs with `board_suite` / `win_live*.bat` |
 | Model, features, ingest, board tooling | Mudit | `docs/plan/mudit/ml_architecture.md` (frozen), `ml/README.md`, `ml/INTEGRATION.md` | Weights v4 deployed; board run with Lucas on the v4 golden sets; ingest via `listen.py` with Jason / Gurneal |
-| Operator API, agents, Nemotron | Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, **`agent-loop-plan.md`** (closed-loop agents, Nick), `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Agent loop POC (Nick): board ingest into runs (I-1 / plan P2), handoff acceptance (I-17), Postgres learning store (I-16); ownership O18 |
+| Operator API (Jason); agents and Nemotron (Mudit + Jason; POC by Nick) | Jason; Mudit + Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, **`agent-loop-plan.md`** (closed-loop agents, Nick), `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Agent loop POC (Nick): board ingest into runs (I-1 / plan P2), handoff acceptance (I-17), Postgres learning store (I-16); ownership O18 |
 | Web console | Gurneal (Jimmy), with Jason | `frontend/`, `frontend/docs/live-api.md` | Board view from the operator API's snapshot (I-2) |
 
 ## 5. Interface contracts
@@ -225,6 +227,10 @@ flowchart LR
    write the shift handoff over incidents from step 2. Built and run on the software board, reading board results
    from a JSONL file. Missing: board results inside API runs (I-1, plan P2). Watch it:
    `docs/plan/jason/agent-loop-plan.md` §10.
+   **Next: the combined Nemotron + v4 + FPGA test**, right after the v4 board suite passes:
+   [`docs/plan/mudit/nemotron_v4_fpga_test.md`](docs/plan/mudit/nemotron_v4_fpga_test.md). Its core finding: v4's
+   leak and degradation detections don't become API incidents yet (the runtime has no model), so step 2 there makes
+   the board's `active` heads open incidents.
 4. **Judging dry run:**
    - `mock_test_*` end to end;
    - then a fresh folder;
@@ -242,8 +248,8 @@ If that fails, the operator API's own software runtime, labeled "not FPGA bit-ex
 | Weights, thresholds, K (C8 values) | **Mudit** (tell Lucas the version) | New `ml/artifacts/vN/`, golden sets, loopback test |
 | Board JSON (C11) | **Mudit** for what `listen.py` emits; **Jason** for how the server ingests it; Gurneal consulted | Update `ml/INTEGRATION.md` |
 | Events, actions, server ↔ web API (C9, C10) | Jason + Gurneal (**Jason** breaks a tie) | Update `docs/plan/jason/` and this file |
-| Agent scope, Nemotron (C12) | **Jason** | Update `docs/plan/jason/` and this file |
-| Closed-loop agents (C13) | **Jason** for agents; **Mudit** for any weights proposal | Promotions only on a measured win; weights only through `train.py`, golden sets and `board_suite`; a human deploys |
+| Agent scope, Nemotron (C12) | **Mudit + Jason** | Update `docs/plan/jason/` and this file |
+| Closed-loop agents (C13) | **Mudit + Jason** for agents; **Mudit** for any weights proposal | Promotions only on a measured win; weights only through `train.py`, golden sets and `board_suite`; a human deploys |
 | Alarm semantics (C8 logic) vs. recommended actions (C9) | Lucas + Jason; UI wording with Gurneal | Re-check hard rules 4 and 8 |
 | Hard rules (§2), this section, "How this file works" | Whole team | — |
 | Anything that would change FPGA spec v4 or the RTL | **Lucas**, and only to fix something broken ("How this file works") | Prefer a fix outside the FPGA |
@@ -291,10 +297,10 @@ Mudit's integration branch; `main` receives merges from them.
 | O15 | With **no model** loaded (`weights_ver` 0) the logits are 0, and v4's leak / degradation thresholds are negative (−128 / −64), so the board's alarm stage would count every record as a hit. Spec v4 as written (the FPGA is fixed). **Guarded:** `replay.py` refuses to stream unless the board confirms the pushed weights, and `listen.py` reports no detections at `weights_ver` 0. **SD boot** (Lucas, `FPGA/docs/SD_BOOT_WEIGHTS.md`) now loads a default model at power-on: put `ml/artifacts/v4/weights.eog` on the card. GLOBAL / Facility CONFIG are not on the card, so after a reset `replay.py` must run again. | Lucas (informational) + Mudit | Found Sun 03:40; SD boot Sun ~04:20 |
 | O16 | **B4 on the board:** after a 6 s heartbeat gap, 10 of 30,240 buffered-and-replayed RESULTs come back with 8-byte words overwritten by old data; ALERTs are fine (71 / 71). The FPGA lead rules out the RTL and the ARM protocol logic; the suspect is the board's PS memory system (cache / DMA / lwIP) or the PC's receive path. Experiments E0–E5 proposed (`FPGA/reports/LEAD_board_response.md`). Normal streaming (B1–B3, the demo path) is bit-exact. Until fixed, don't demo the server-down replay. | Lucas | Board run Sun ~04:40 |
 | O17 | **Clock:** 100 MHz misses timing by 8.1 ns (validate); the demo build runs at 50 MHz, which still handles more records/s than 1 GbE delivers. Lead recommends 50 MHz plus a validate pipelining fix for margin (decision D2); about a dozen doc lines name 100 MHz. Any rebuild: re-run `board_suite`. | Lucas | Lead response D2 / D5 |
-| O18 | **Who owns agents and Nemotron.** `global_plan.md` says Jason (final say). Jason's PR #9 (`MUDIT_CONTINUE_HERE.md`, unmerged and partly out of date) hands the path to Mudit, and the agent loop POC is Nick's. Record the decision in "How this file works" and §4. | Whole team | PR #9 |
 
 Resolved since the last version:
 
+- **O18:** agents and Nemotron are owned by Mudit + Jason jointly (Sun 07:25; PR #9 had proposed Mudit alone).
 - **O2:** values = v4 (C8).
 - **O13:** leak false alarms with missing readings under R7 C: fixed by weights v4 (0.21 → 0.03 per facility-day at
   2 % missing), no RTL change.
@@ -323,6 +329,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 07:25 | **Agents and Nemotron: Mudit + Jason jointly** (O18 resolved). **Combined-test plan** (`docs/plan/mudit/nemotron_v4_fpga_test.md`). The deep dive found that v4's leak and degradation detections never become API incidents: without a registered model the runtime opens only pump failures. At step 1080 the API shows nothing while the board flags 3 problems. Board facts are always labeled `fakeboard` and carry no staleness or model version. Steps 0–8 with owners, sizes and pass criteria. |
 | Sun Nov 8 07:15 | **Closed-loop Nemotron agents (Nick, with Grok) integrated** from `feat/agent-loop-poc`: a deterministic orchestrator with scoped sub-agents and bounded recursive delegation; a prompt registry, outcome records and a weekly champion / challenger loop; a console Agents view. Promoted as **PROPOSED**: C12 updated (grounded check), new C13; the architecture shows the loop. Live, single runs: 8 / 8 analyses accepted from Nemotron. I-10 and I-15 done; I-8 done except the `nowUnix` default; new I-16 … I-19; O18 (who owns agents). Merged tree: API 124 pass / 1 skip / 0 fail, typecheck clean, console build OK, ML 14 / 14. |
 | Sun Nov 8 06:50 | **The engine runs on the board.** Lucas's first hardware run (50 MHz build, Sun ~04:40): golden B1–B3 bit-exact (bad blobs refused, 41 edge cases, the full week with 71 ALERTs). B4 = O16 (buffered replay after a heartbeat gap; not the RTL, per the lead). Every FPGA module signed off (`3560bda`); `fpga_sync` PASS there. 100 MHz misses timing: O17. SD boot with a default model: `ml/artifacts/v4/weights.eog` (and v3) made with Lucas's `make_weights_sd.py`. **One-command board suite** `python -m hutd_ml.board_suite`: golden sets plus the live demo path (`replay.py` → board → `listen.py`) checked field by field against the reference, the v3 → v4 swap, and every other dataset folder; all PASS on the software board. `listen.py` no longer lags the board (select-based receive). |
 | Sun Nov 8 03:55 | **Board test suite** (`ml/BOARD_CHECKLIST.md`): pre-flight clash checks, golden tests B1–B6 with pass criteria (now also every ALERT and four rejected weight blobs), fault finding by module, live checks L1–L5. **Live swap fixed:** `replay.py --swap-config` sends the new model's GLOBAL (thresholds, K) right after the swap, and `listen.py --model` reads each result with its own model's settings. Rehearsed on the software board: B1–B4 PASS; v3 → v4 swap exact at one step boundary (900 results, 0 mismatches against the offline engine). |
