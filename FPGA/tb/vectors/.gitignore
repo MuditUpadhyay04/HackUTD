@@ -1,4 +1,7 @@
-# Large per-module practice-week vectors are not committed (top_week.* is).
-# Regenerate everything with:  python FPGA/model/gen_vectors.py   (needs EOG_DATA=/path/to/HackUTD-ZeroDay)
+# Large per-module vectors (practice week, Mudit's golden G1) are not committed (top_week.*, top_g1.* are).
+# Regenerate everything with:  python FPGA/model/gen_vectors.py
+#   (needs EOG_DATA=/path/to/HackUTD-ZeroDay and Mudit's branch ml: EOG_ML=/path/to/ml-checkout/ml)
 *_week.*
 !top_week.*
+*_g1.*
+!top_g1.*
