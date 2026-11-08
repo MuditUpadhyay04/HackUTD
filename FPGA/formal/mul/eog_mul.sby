@@ -1,0 +1,53 @@
+# SymbiYosys job for eog_mul (spec/modules/eog_mul.md, spec v2). Verify role, task T1.mul.fv.
+#   bash scripts/formal.sh mul
+#
+# The DUT *is* the multiplier, so every task uses the real rtl/eog_mul.sv (the abstract one would prove nothing).
+# Harness: fv_eog_mul.sv (P1, P2, A1; see its header).
+#
+# prove     k-induction, AW=6 BW=8, all four A_SIGNED/B_SIGNED combinations, LAT 0,1,2: P1, P2, A1 unbounded
+#           (subsumes the spec's "P1 bmc at 6x8"). depth 4 = max LAT + 2: from any state, LAT steps flush the
+#           DUT pipeline and the harness delay line.
+# prove_w   same at AW=8 BW=5 (AW > BW, odd width): catches a swapped AW/BW or a width-specific sign extension.
+# bmc_feat  P2 at the feature widths 20x32, A_SIGNED=1 B_SIGNED=0, LAT 0.
+# bmc_head  P2 at the head widths 16x16, A_SIGNED=1 B_SIGNED=1, LAT 0.
+#           depth 2: one step of independent history is enough for a stateful LAT=0 design to differ.
+#           P1 at these widths is checked in simulation (tb/mul), as the spec asks: a 16x16 P1 bmc at depth 1
+#           against a reference multiplier did not finish in 300 s (multiplier equivalence is hard for SAT).
+# cover     AW=6 BW=8: per sign combination and LAT, the largest-magnitude product (C_max) and a negative
+#           product (C_neg) reach p. depth 4 (LAT + 1 steps needed).
+# Run time against a reference multiplier (WSL, yices): prove 9 s, prove_w 3 s, the rest < 2 s.
+
+[tasks]
+prove
+prove_w
+bmc_feat bmc
+bmc_head bmc
+cover
+
+[options]
+prove:   mode prove
+prove:   depth 4
+prove_w: mode prove
+prove_w: depth 4
+bmc:     mode bmc
+bmc:     depth 2
+cover:   mode cover
+cover:   depth 4
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal -sv eog_mul.sv
+read_verilog -formal -sv fv_eog_mul.sv
+prove:    chparam -set AW 6  -set BW 8  -set SMASK 15 -set P1_ON 1 fv_eog_mul
+prove_w:  chparam -set AW 8  -set BW 5  -set SMASK 15 -set P1_ON 1 fv_eog_mul
+bmc_feat: chparam -set AW 20 -set BW 32 -set SMASK 4  -set P1_ON 0 fv_eog_mul
+bmc_head: chparam -set AW 16 -set BW 16 -set SMASK 8  -set P1_ON 0 fv_eog_mul
+cover:    chparam -set AW 6  -set BW 8  -set SMASK 15 -set P1_ON 1 fv_eog_mul
+prep -top fv_eog_mul
+
+[files]
+../../rtl/eog_defs.svh
+../../rtl/eog_mul.sv
+fv_eog_mul.sv
