@@ -415,14 +415,15 @@ module eog_validate (
     assign f_osr  = od[EOG_BV_SINCE_RESET +: EOG_BV_SINCE_RESET_W];
 
     // Per-slot state (meaningful only once the slot is not fresh; the arrays are not reset):
-    // touch implies fresh, hold_run <= 2, stored enums legal.
+    // touch implies fresh, hold_run <= 2, stored enums legal. (No labels inside generate loops: Yosys names
+    // procedural assertions by label only, so a label repeated per slot collides.)
     genvar fs, fk;
     generate
         for (fs = 0; fs < N_FAC; fs = fs + 1) begin : g_fv_slot
             always_comb begin
                 if (rst_n) begin
-                    fi_touch_fresh: assert (!touch[fs] || fresh[fs]);
-                    if (!fresh[fs]) fi_hr: assert (hr_mem[fs] <= 2'd2);
+                    assert (!touch[fs] || fresh[fs]);
+                    if (!fresh[fs]) assert (hr_mem[fs] <= 2'd2);
                 end
             end
             for (fk = 0; fk < NF; fk = fk + 1) begin : g_fv_fld
