@@ -287,7 +287,7 @@ describe("projection (what-if past nowUnix, hard rule 6)", () => {
   });
   test("ticker NOW cell becomes a projected label", () => {
     const m = Object.fromEntries(tickerAt(s, NOW + 2 * H + 600, []).map((i) => [i.key, i]));
-    expect(m.now.value).toBe("PROJECTED +2H 10M");
+    expect(m.now.value).toBe("Projected +2h 10m");
     expect(m.now.projected).toBe(true);
     expect(m.firstShutdown.value).toBe(NOW + 2 * H);
     expect(Object.fromEntries(tickerAt(s, NOW + 600, ["pf"]).map((i) => [i.key, i.value])).firstShutdown).toBe("NONE");

@@ -13,7 +13,9 @@ import { useAnalysis } from "./use-analysis";
 import { FacilityBlock, GroupRow, Reveal } from "./tracks";
 import "./arrangement.css";
 
-const NOTE_ROW_PX = 22;
+const NOTE_ROW_PX = 28;
+
+const provLabel = (p: NoteView["provenance"]) => (p === "MODEL-WRITTEN" ? "Model written" : "Deterministic draft");
 
 function initialView(domainStart: number, domainEnd: number, winStart: number, minSpan: number): View {
   const t0 = Math.max(domainStart, winStart);
@@ -32,9 +34,10 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
   const home = useMemo(() => initialView(domain.start, domain.end, win.start, 3600), [domain, win]);
   const [view, setView] = useState<View>(home);
   const [width, setWidth] = useState(0);
+  // Less at once: only systems with a failing facility start expanded; the rest start collapsed.
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
     const withFailure = new Set(failures.map((f) => f.systemId));
-    return Object.fromEntries(snapshot.systems.map((s, i) => [s.id, withFailure.size > 0 ? withFailure.has(s.id) : i === 0]));
+    return Object.fromEntries(snapshot.systems.map((s) => [s.id, withFailure.has(s.id)]));
   });
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => Object.fromEntries(failures.map((f) => [f.facilityId, true])));
   const [animate, setAnimate] = useState(false);
@@ -117,7 +120,7 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
             <span className="arr-zoom">
               <button type="button" className="press" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.6)}>-</button>
               <button type="button" className="press" aria-label="Zoom in" onClick={() => zoomBy(1.6)}>+</button>
-              <button type="button" className="press" aria-label="Fit loaded window" onClick={() => setView(home)}>FIT</button>
+              <button type="button" className="press" aria-label="Fit loaded window" onClick={() => setView(home)}>Fit</button>
             </span>
           </div>
           <div
@@ -180,7 +183,7 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
 function TimeReadout({ snapshot }: { snapshot: Snapshot }) {
   const minute = usePlayhead((s) => Math.floor(s.t / 60));
   const projected = isProjected(snapshot, minute * 60);
-  return <span className="arr-time" data-projected={projected}>{stamp(minute * 60)}{projected ? ` PROJECTED ${projectedOffsetText(snapshot, minute * 60)}` : ""}</span>;
+  return <span className="arr-time" data-projected={projected}>{stamp(minute * 60)}{projected ? ` Projected ${projectedOffsetText(snapshot, minute * 60).toLowerCase()}` : ""}</span>;
 }
 
 const RulerTicks = memo(function RulerTicks() {
@@ -218,7 +221,7 @@ function Regions({ regions }: { regions: ReturnType<typeof unloadedRegions> }) {
         const left = Math.max(0, l);
         return (
           <div key={`${r.kind}:${r.start}`} className={`arr-region ${r.kind}`} style={{ left, width: Math.min(width, rr) - left }}>
-            <span>{r.kind === "notloaded" ? "NOT LOADED" : "PROJECTED, NOT RECORDED"}</span>
+            <span>{r.kind === "notloaded" ? "Not loaded" : "Projected, not recorded"}</span>
           </div>
         );
       })}
@@ -257,7 +260,7 @@ function NemotronTrack() {
   const [showAll, setShowAll] = useState(false);
   const [pop, setPop] = useState<PopoverState | null>(null);
 
-  const noteWidth = (n: NoteView) => Math.min(300, 118 + Math.min(n.title.length + n.text.length, 34) * 5.4);
+  const noteWidth = (n: NoteView) => Math.min(300, 150 + Math.min(n.title.length + n.text.length, 34) * 5.4);
   const maxRows = showAll ? 12 : 3;
   const { placed, hidden } = useMemo(() => stackNotes(
     notes,
@@ -265,7 +268,7 @@ function NemotronTrack() {
     noteWidth, maxRows,
   ), [notes, view, width, maxRows]);
   const rows = Math.max(1, ...placed.map((p) => p.row + 1));
-  const status = analysis.status === "loading" ? "READING" : analysis.status === "error" ? "NO NOTE" : `${notes.length} NOTE${notes.length === 1 ? "" : "S"}`;
+  const status = analysis.status === "loading" ? "Reading" : analysis.status === "error" ? "No note" : `${notes.length} ${notes.length === 1 ? "note" : "notes"}`;
 
   const openNote = (note: NoteView, e: MouseEvent<HTMLButtonElement>) => {
     if (pop?.note.id === note.id) { setPop(null); return; }
@@ -284,7 +287,7 @@ function NemotronTrack() {
   return (
     <div className="arr-row nem" style={{ height: rows * NOTE_ROW_PX }}>
       <div className="arr-hdr nem">
-        <span className="arr-nv">NEMOTRON</span>
+        <span className="arr-nv"><i className="arr-nvdot" aria-hidden />Nemotron</span>
         <em title={analysis.error ?? undefined}>{status}</em>
       </div>
       <div className="arr-lane">
@@ -301,17 +304,17 @@ function NemotronTrack() {
               style={{ left, width: w, top: row * NOTE_ROW_PX + 2 }}
               onClick={(e) => openNote(item, e)}
             >
-              <i className="arr-nvbar" />
-              <b>{outside}{item.provenance}</b>
+              <i className="arr-nvdot" aria-hidden />
+              <b>{outside}{provLabel(item.provenance)}</b>
               <span>{item.title}: {item.text}</span>
             </button>
           );
         })}
         {hidden.length > 0 && (
-          <button type="button" className="arr-more" onClick={() => setShowAll(true)}>+{hidden.length} MORE</button>
+          <button type="button" className="arr-more" onClick={() => setShowAll(true)}>+{hidden.length} more</button>
         )}
         {showAll && notes.length > 3 && (
-          <button type="button" className="arr-more less" onClick={() => setShowAll(false)}>FEWER</button>
+          <button type="button" className="arr-more less" onClick={() => setShowAll(false)}>Fewer</button>
         )}
       </div>
       {pop && <NotePopover pop={pop} snapshot={snapshot} onClose={() => setPop(null)} />}
@@ -345,22 +348,22 @@ function NotePopover({ pop, snapshot, onClose }: { pop: PopoverState; snapshot: 
       ref={ref}
       className="arr-pop"
       role="dialog"
-      aria-label={`${n.provenance} note`}
+      aria-label={`${provLabel(n.provenance)} note`}
       data-state={shown ? "open" : "closed"}
       data-instant={pop.instant}
       style={{ left: pop.left, [pop.vertical === "top" ? "top" : "bottom"]: pop.offset, maxHeight: pop.maxH, transformOrigin: pop.origin }}
     >
-      <div className="arr-pop-h"><i className="arr-nvbar" />{model ? "NEMOTRON, MODEL WRITTEN" : "DETERMINISTIC DRAFT, NOT MODEL WRITTEN"}</div>
-      <div className="arr-pop-r"><span>ABOUT</span><b>{n.title}</b></div>
-      <div className="arr-pop-r"><span>PINNED AT</span><b>{stamp(n.unix)}{n.unix === snapshot.nowUnix ? ", NOW" : ""}</b></div>
-      {n.model && <div className="arr-pop-r"><span>MODEL</span><b>{n.model}</b></div>}
+      <div className="arr-pop-h"><i className="arr-nvdot" aria-hidden />{model ? "Nemotron, model written" : "Deterministic draft, not model written"}</div>
+      <div className="arr-pop-r"><span>About</span><b>{n.title}</b></div>
+      <div className="arr-pop-r"><span>Pinned at</span><b className="arr-n">{stamp(n.unix)}{n.unix === snapshot.nowUnix ? ", now" : ""}</b></div>
+      {n.model && <div className="arr-pop-r"><span>Model</span><b>{n.model}</b></div>}
       <p className="arr-pop-t">{n.text}</p>
       {n.steps.length > 0 && (
         <ol className="arr-pop-steps">
           {n.steps.map((s, i) => <li key={i}><b>{s.agent}</b> {s.text}</li>)}
         </ol>
       )}
-      <div className="arr-pop-f">ADVISES ONLY, NEVER DISPATCHES</div>
+      <div className="arr-pop-f">Advises only, never dispatches</div>
     </div>
   );
 }

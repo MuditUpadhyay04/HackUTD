@@ -10,6 +10,9 @@ const STATUS_TEXT: Record<FacilityStatus, string> = {
   flowing: "Flowing", idle: "Idle", down: "Pump down", leak: "Inspect, leak", worn: "Inspect, worn pump", shut: "Shut in", nodata: "No data",
 };
 
+const TONE: Record<FacilityStatus, string> = { flowing: "neutral", idle: "neutral", down: "red", leak: "magenta", worn: "magenta", shut: "red", nodata: "nodata" };
+const SHORT: Record<FacilityStatus, string> = { flowing: "Flowing", idle: "Idle", down: "Pump down", leak: "Inspect", worn: "Inspect", shut: "Shut in", nodata: "No data" };
+
 /** Status glyph: color AND shape (never color alone). */
 export function StatusGlyph({ status, size = 12 }: { status: FacilityStatus; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 12 12", "aria-hidden": true } as const;
@@ -42,15 +45,15 @@ export function Rail({ snapshot, datasetId }: { snapshot: Snapshot; datasetId?: 
     <nav className="v4-rail" aria-label="Views and systems">
       <button type="button" className="rail-item press" data-active="true" aria-current="page" title="Pipe View">
         <svg {...iconProps}><path d="M3 6h6l3 6h9M3 18h8l2-3" /><circle cx="3" cy="6" r="1.5" /><circle cx="3" cy="18" r="1.5" /><circle cx="21" cy="12" r="2.5" /></svg>
-        <span>PIPE</span>
+        <span>Pipe</span>
       </button>
       <Link href={classic} className="rail-item press" title="Classic console (v3)">
         <svg {...iconProps}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M3 9h18M8 9v11" /></svg>
-        <span>CLASSIC</span>
+        <span>Classic</span>
       </Link>
       <Link href="/how-it-works" className="rail-item press" title="How it works">
         <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 1-1 1.7M12 17h.01" /></svg>
-        <span>HOW</span>
+        <span>How</span>
       </Link>
       <div className="rail-sep" role="separator" />
       {snapshot.systems.map((sys, i) => {
@@ -70,8 +73,11 @@ export function Rail({ snapshot, datasetId }: { snapshot: Snapshot; datasetId?: 
               pipeViewCommand({ action: "frame", index: i + 1 });
             }}
           >
-            <StatusGlyph status={st} />
-            <span>{sys.id}</span>
+            <span className="rail-pill" data-tone={TONE[st]}>
+              <StatusGlyph status={st} size={10} />
+              <span>{sys.id}</span>
+            </span>
+            <span className="rail-st">{SHORT[st]}</span>
           </button>
         );
       })}

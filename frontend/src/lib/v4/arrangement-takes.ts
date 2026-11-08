@@ -5,7 +5,7 @@ import type { Bounds } from "./arrangement-scale";
 
 const finiteCost = (o: PlanOption) => Number.isFinite(o.cost);
 
-/** Cheapest first; options with a missing cost go last (shown as UNKNOWN); ties keep the input order. */
+/** Cheapest first; options with a missing cost go last (shown as Unknown); ties keep the input order. */
 export function orderTakes(options: readonly PlanOption[]): PlanOption[] {
   return options
     .map((o, i) => ({ o, i }))
@@ -77,4 +77,15 @@ export function unloadedRegions(snapshot: Snapshot): Region[] {
   if (datasetEnd > win.end) out.push({ start: win.end, end: datasetEnd, kind: "notloaded" });
   if (dom.end > datasetEnd) out.push({ start: datasetEnd, end: dom.end, kind: "projected" });
   return out;
+}
+
+/**
+ * Takes shown by default under a failure: the recommended one (cheapest first) and "do nothing" (when it is not
+ * already the recommended one). `rest` is everything else, behind "Show N more options".
+ */
+export function splitTakes(takes: readonly PlanOption[]): { shown: { option: PlanOption; index: number }[]; rest: { option: PlanOption; index: number }[] } {
+  const all = takes.map((option, index) => ({ option, index }));
+  const nothing = all.find((t) => t.index > 0 && t.option.kind === "do_nothing");
+  const shown = all.filter((t) => t.index === 0 || t === nothing);
+  return { shown, rest: all.filter((t) => !shown.includes(t)) };
 }

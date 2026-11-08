@@ -14,6 +14,12 @@ export function provenanceOf(r: Pick<AnalysisRecord, "source" | "model" | "state
   return "DETERMINISTIC DRAFT";
 }
 
+/** "PLANNER_AGENT" or "planner" to "Planner agent": sentence case for display. */
+export function sentenceCase(s: string): string {
+  const t = s.replace(/[_-]+/g, " ").trim().toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
 export interface NoteStep { agent: string; model: string; text: string }
 export interface NoteView {
   id: string;
@@ -32,9 +38,9 @@ export function notesFromAnalysis(r: AnalysisRecord | null | undefined, nowUnix:
   const provenance = provenanceOf(r);
   const model = r.model ?? null;
   const out: NoteView[] = [];
-  if (r.handoff.trim()) out.push({ id: `${r.id}:handoff`, unix: nowUnix, title: "HANDOFF", text: r.handoff, provenance, model, steps: r.steps });
+  if (r.handoff.trim()) out.push({ id: `${r.id}:handoff`, unix: nowUnix, title: "Handoff", text: r.handoff, provenance, model, steps: r.steps });
   r.steps.forEach((s, i) => {
-    if (s.text.trim()) out.push({ id: `${r.id}:step${i}`, unix: nowUnix, title: s.agent.toUpperCase(), text: s.text, provenance, model: s.model || model, steps: [] });
+    if (s.text.trim()) out.push({ id: `${r.id}:step${i}`, unix: nowUnix, title: sentenceCase(s.agent), text: s.text, provenance, model: s.model || model, steps: [] });
   });
   return out;
 }

@@ -1,9 +1,9 @@
 // Mono-friendly formatters for the v4 UI. No middle dots or em dashes in any string.
 export { money, num, duration, minutes, clock, day, dayClock, clockFrom, systemNum, facilityName, assetName, facilityTitle, humanize, planText, categoryLabel } from "@/lib/format";
 
-export const UNKNOWN = "UNKNOWN";
+export const UNKNOWN = "Unknown";
 
-const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
 const fin = (n: number | null | undefined): n is number => n != null && Number.isFinite(n);
 
@@ -12,10 +12,10 @@ export function hhmm(unix: number): string {
   const d = new Date(Math.round(unix / 60) * 60 * 1000);
   return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
-/** "OCT 08 12:00" */
+/** "Oct 8, 12:00" */
 export function stamp(unix: number): string {
   const d = new Date(Math.round(unix / 60) * 60 * 1000);
-  return `${MONTHS[d.getUTCMonth()]} ${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
 }
 /** Remaining hours as a countdown "13:51" (h:mm) or "1d 02:10" past 24h. */
 export function countdownText(hours: number | null | undefined): string {
@@ -26,7 +26,7 @@ export function countdownText(hours: number | null | undefined): string {
   if (h >= 24) return `${Math.floor(h / 24)}d ${pad(h % 24)}:${pad(m)}`;
   return `${pad(h)}:${pad(m)}`;
 }
-/** "$41,200"; null stays UNKNOWN, never "$0". */
+/** "$41,200"; null stays Unknown, never "$0". */
 export function usd(n: number | null | undefined): string {
   return fin(n) ? `$${Math.round(n).toLocaleString("en-US")}` : UNKNOWN;
 }

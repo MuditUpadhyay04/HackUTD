@@ -122,18 +122,18 @@ const Strip = memo(function Strip({ snapshot, systemId }: { snapshot: Snapshot; 
   return (
     <div className="rd" role="group" aria-label={`Truck road, system ${systemId}`}>
       <div className="rd-head">
-        <div className="rd-title"><b>SYSTEM {systemId}</b><span>TRUCKS FREE {free}/{size}</span></div>
-        {projected && <span className="rd-tag" data-kind="projected">PROJECTED, NOT RECORDED</span>}
-        <span className="rd-tag" data-kind="plan">PLANNED, NOT DISPATCHED</span>
-        <span className="rd-tag" data-ok={approvedAll}>{approvedAll ? "APPROVED, ACKNOWLEDGED" : "RECOMMENDED, NOT APPROVED"}</span>
+        <div className="rd-title"><b>{systemId} trucks,</b><span><span className="num">{free}</span> of <span className="num">{size}</span> free</span></div>
+        {projected && <span className="rd-tag" data-kind="projected"><i aria-hidden="true" />Projection, not recorded</span>}
+        <span className="rd-tag" data-kind="plan"><i aria-hidden="true" />Planned, not dispatched</span>
+        <span className="rd-tag" data-ok={approvedAll}><i aria-hidden="true" />{approvedAll ? "Acknowledged" : "Recommended"}</span>
       </div>
       <div className="rd-lane" ref={laneRef}>
         <div className="rd-road" />
-        <span className="rd-yard-l">YARD</span>
+        <span className="rd-yard-l">Yard</span>
         <Depot />
         {stops.map((id, i) => (
           <div key={id} className="rd-stop" data-down={downs.has(id)} style={{ left: `calc(${YARD_W}px + (100% - ${PAD_R + YARD_W}px) * ${(i + 1) / stops.length})` }}>
-            <span className="rd-stop-l">{facilityName(id)}{downs.has(id) ? " DOWN" : ""}</span>
+            <span className="rd-stop-l">{facilityName(id)}{downs.has(id) ? " down" : ""}</span>
           </div>
         ))}
         {Array.from({ length: size }, (_, i) => (
@@ -151,7 +151,7 @@ export function TruckRoad({ snapshot }: { snapshot: Snapshot }) {
   const key = usePlayhead((s) => [...new Set(incidentsAt(snapshot, s.t).filter((i) => i.category === "pump_failure").map((i) => i.systemId))].join(","));
   if (!key) return null;
   return (
-    <div className="rd-stack">
+    <div className="rd-stack card">
       {key.split(",").map((id) => <Strip key={id} snapshot={snapshot} systemId={id} />)}
     </div>
   );

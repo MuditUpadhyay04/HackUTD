@@ -135,11 +135,11 @@ export function projectionFollowing(snapshot: Snapshot, approved: Approved = NO_
   return [...out].map(([systemId, following]) => ({ systemId, following }));
 }
 
-/** "+2H 10M" (rounded to the minute) for the projected clock. */
+/** "+2h 10m" (rounded to the minute) for the projected clock. */
 export function projectedOffsetText(snapshot: Snapshot, t: number): string {
   const total = Math.max(0, Math.round((t - snapshot.nowUnix) / 60));
   const h = Math.floor(total / 60), m = total % 60;
-  return h > 0 ? `+${h}H ${m}M` : `+${m}M`;
+  return h > 0 ? `+${h}h ${m}m` : `+${m}m`;
 }
 
 // ---------------------------------------------------------------------------
@@ -460,23 +460,23 @@ export function tickerAt(snapshot: Snapshot, t: number, approved: Approved = NO_
 
   return [
     isProjected(snapshot, t)
-      ? { key: "now", label: "NOW", value: `PROJECTED ${projectedOffsetText(snapshot, t)}`, unit: "text", projected: true }
-      : { key: "now", label: "NOW", value: t, unit: "datetime" },
-    { key: "pumpsDown", label: "PUMPS DOWN", value: failures.length, unit: "count" },
-    { key: "firstShutdown", label: "FIRST SHUTDOWN", value: firstShutdown, unit: typeof firstShutdown === "number" ? "clock" : "text" },
-    { key: "plan", label: "PLAN", value: plan, unit: "usd" },
-    { key: "ifNobodyActs", label: "IF NOBODY ACTS", value: ifNobody, unit: "usd" },
-    { key: "trucksFree", label: "TRUCKS FREE", value: snapshot.fleets.length === 0 ? null : `${free}/${size}`, unit: "text" },
-    { key: "inspect", label: "INSPECT", value: inspect.length, unit: "count" },
-    { key: "noData", label: "NO DATA", value: noData, unit: "count" },
-    { key: "board", label: "BOARD", value: board, unit: "text" },
-    { key: "alarms", label: "ALARMS LATCHED", value: latched, unit: "count" },
+      ? { key: "now", label: "Now", value: `Projected ${projectedOffsetText(snapshot, t)}`, unit: "text", projected: true }
+      : { key: "now", label: "Now", value: t, unit: "datetime" },
+    { key: "pumpsDown", label: "Pumps down", value: failures.length, unit: "count" },
+    { key: "firstShutdown", label: "First shutdown", value: firstShutdown, unit: typeof firstShutdown === "number" ? "clock" : "text" },
+    { key: "plan", label: "Plan cost", value: plan, unit: "usd" },
+    { key: "ifNobodyActs", label: "If nobody acts", value: ifNobody, unit: "usd" },
+    { key: "trucksFree", label: "Trucks free", value: snapshot.fleets.length === 0 ? null : `${free}/${size}`, unit: "text" },
+    { key: "inspect", label: "Inspect", value: inspect.length, unit: "count" },
+    { key: "noData", label: "No data", value: noData, unit: "count" },
+    { key: "board", label: "Board", value: board, unit: "text" },
+    { key: "alarms", label: "Alarms latched", value: latched, unit: "count" },
   ];
 }
 
 /** Text for a TickerItem value ("UNKNOWN" for null). */
 export function tickerText(item: TickerItem): string {
-  if (item.value == null) return "UNKNOWN";
+  if (item.value == null) return "Unknown";
   if (typeof item.value === "string") return item.value;
   if (item.unit === "datetime") return stamp(item.value);
   if (item.unit === "clock") return hhmm(item.value);

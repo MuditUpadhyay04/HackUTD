@@ -37,14 +37,14 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
           aria-expanded="true"
           aria-controls="v4-cp-list"
           aria-activedescendant={shown[active] ? `v4-cp-${shown[active].id}` : undefined}
-          placeholder="TYPE A COMMAND"
+          placeholder="Type a command"
           value={query}
           onChange={(e) => { setQuery(e.target.value); setActive(0); }}
           onKeyDown={onKey}
           autoComplete="off"
           spellCheck={false}
         />
-        {shown.length === 0 ? <div className="cp-empty label">NO MATCHING COMMAND</div> : (
+        {shown.length === 0 ? <div className="cp-empty label">No matching command</div> : (
           <ul className="cp-list" id="v4-cp-list" role="listbox" ref={list}>
             {shown.map((c, i) => (
               <li key={c.id} id={`v4-cp-${c.id}`} role="option" aria-selected={i === active} className="cp-item" onPointerMove={() => setActive(i)} onClick={() => run(c)}>

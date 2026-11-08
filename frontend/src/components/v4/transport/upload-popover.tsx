@@ -4,9 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import type { RunControls } from "@/lib/v4/use-run";
 
 const FIELDS = [
-  { key: "network", label: "NETWORK.JSON", accept: ".json,application/json" },
-  { key: "ops", label: "OPS.JSON", accept: ".json,application/json" },
-  { key: "telemetry", label: "TELEMETRY.CSV", accept: ".csv,text/csv" },
+  { key: "network", label: "network.json", accept: ".json,application/json" },
+  { key: "ops", label: "ops.json", accept: ".json,application/json" },
+  { key: "telemetry", label: "telemetry.csv", accept: ".csv,text/csv" },
 ] as const;
 type Key = (typeof FIELDS)[number]["key"];
 
@@ -40,19 +40,19 @@ export function UploadPopover({ run, onClose }: { run: RunControls; onClose: () 
 
   return (
     <div className="pop" ref={root} role="dialog" aria-label="Upload dataset" data-kbd="off">
-      <div className="label pop-title">UPLOAD DATASET</div>
+      <div className="label pop-title">Upload dataset</div>
       {FIELDS.map((f) => (
         <label key={f.key} className="pop-file" data-empty={!files[f.key]}>
           <span className="label">{f.label}</span>
-          <span className="mono">{files[f.key]?.name ?? "CHOOSE FILE"}</span>
+          <span>{files[f.key]?.name ?? "Choose file"}</span>
           <input type="file" accept={f.accept} aria-label={f.label} onChange={(e) => { const file = e.target.files?.[0]; setFiles((p) => ({ ...p, [f.key]: file })); }} />
         </label>
       ))}
-      <input className="pop-label" type="text" placeholder="LABEL (OPTIONAL)" aria-label="Dataset label" value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
+      <input className="pop-label" type="text" placeholder="Label (optional)" aria-label="Dataset label" value={label} maxLength={80} onChange={(e) => setLabel(e.target.value)} />
       {error && <p className="pop-err" role="alert">{error}</p>}
       <div className="pop-row">
-        <button type="button" className="tx-btn press" onClick={onClose}>CANCEL</button>
-        <button type="button" className="tx-btn press" data-on={!!ready} disabled={!ready || busy} onClick={submit}>{busy ? "UPLOADING" : "UPLOAD"}</button>
+        <button type="button" className="tx-btn press" onClick={onClose}>Cancel</button>
+        <button type="button" className="tx-btn press" data-on={!!ready} disabled={!ready || busy} onClick={submit}>{busy ? "Uploading" : "Upload"}</button>
       </div>
     </div>
   );

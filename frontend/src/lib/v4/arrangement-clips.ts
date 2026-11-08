@@ -15,10 +15,10 @@ export interface Clip {
 }
 
 const KIND: Record<Incident["category"], { kind: ClipKind; label: string }> = {
-  pump_failure: { kind: "pump_failure", label: "PUMP DOWN" },
-  pipeline_leak: { kind: "leak", label: "INSPECT LEAK" },
-  pump_degradation: { kind: "degradation", label: "INSPECT WORN PUMP" },
-  facility_shut_in: { kind: "shut_in", label: "SHUT IN" },
+  pump_failure: { kind: "pump_failure", label: "Pump down" },
+  pipeline_leak: { kind: "leak", label: "Inspect leak" },
+  pump_degradation: { kind: "degradation", label: "Inspect worn pump" },
+  facility_shut_in: { kind: "shut_in", label: "Shut in" },
 };
 
 /** Union of overlapping or touching intervals, sorted. */
@@ -55,12 +55,12 @@ export function nodataClips(snapshot: Snapshot, facility: FacilityState, window:
     ...seriesGaps(facility.series.level, window),
     ...seriesGaps(facility.series.pumpFlow, window),
   ]);
-  const out: Clip[] = gaps.map((g, i) => ({ id: `${facility.id}:nodata:${i}`, kind: "nodata", start: g.t0, end: g.t1, label: "NO DATA", incidentId: null, quality: "DROPPED" }));
+  const out: Clip[] = gaps.map((g, i) => ({ id: `${facility.id}:nodata:${i}`, kind: "nodata", start: g.t0, end: g.t1, label: "No data", incidentId: null, quality: "DROPPED" }));
   const q = facility.dataQuality.quality;
   if (q !== "VALID") {
     const s = snapshot.nowUnix - 300;
     if (!out.some((c) => c.start <= s && c.end >= snapshot.nowUnix)) {
-      out.push({ id: `${facility.id}:quality`, kind: "nodata", start: s, end: snapshot.nowUnix, label: q === "HELD" ? "HELD" : q === "INVALID" ? "INVALID" : "NO DATA", incidentId: null, quality: q });
+      out.push({ id: `${facility.id}:quality`, kind: "nodata", start: s, end: snapshot.nowUnix, label: q === "HELD" ? "Held" : q === "INVALID" ? "Invalid" : "No data", incidentId: null, quality: q });
     }
   }
   return out;
