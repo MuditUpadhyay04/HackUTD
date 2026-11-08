@@ -1,12 +1,14 @@
 // tb_eog_memory.sv — bit-exact replay of the golden vectors for eog_memory (Verify role, task T1.memory.fv).
 //   bash scripts/sim.sh memory          (runs from FPGA/, so vector paths are tb/vectors/...)
 //
-// Written from spec/modules/eog_memory.md, spec/numerics.md §5 and spec/conventions.md (spec v2); the expected
-// outputs come from model/eog_ref.py through model/gen_vectors.py. eog_memory reads no CONFIG, weights or
-// mid-stream events, so a case is just memory_<case>.in.hex (bus F) and memory_<case>.out.hex (bus M).
+// Written from spec/modules/eog_memory.md, spec/numerics.md §5 and spec/conventions.md (spec v4); the expected
+// outputs come from model/eog_ref.py (byte-for-byte equal to Mudit's features_int.py) through model/gen_vectors.py,
+// including Mudit's golden sets g0, g1, g2, g0v0, g2v0. eog_memory reads no CONFIG, weights or mid-stream events,
+// so a case is just memory_<case>.in.hex (bus F) and memory_<case>.out.hex (bus M).
 //
 // Cases: every `memory_<case>.in.hex` listed in tb/vectors/INDEX.txt. A case whose two files are missing is
-// skipped with a NOTE (memory_week.* is git-ignored: `python model/gen_vectors.py` with $EOG_DATA set makes it).
+// skipped with a NOTE (memory_week.* and memory_g1.* are git-ignored: `python model/gen_vectors.py` with $EOG_DATA
+// and $EOG_ML set makes them).
 // Every case starts from reset (the model runs each case from a fresh Engine), and runs three passes:
 //   abort   random gaps / back-pressure for a few records, then rst_n while records are in flight (the next
 //           pass must still match from record 0: reset clears every slot and anything in flight)
@@ -297,12 +299,12 @@ module tb_eog_memory;
     endfunction
 
     // input-side statistics of a case: status mix, resets, running records, longest non-running stretch
-    integer cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_run, cs_oob, cs_nsr64, cs_since64, cs_max_nsr;
+    integer cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_invhr, cs_run, cs_oob, cs_nsr64, cs_since64, cs_max_nsr;
     task automatic case_stats(input integer n);
         integer nsr [0:31];
         logic [2:0] st;
         logic [4:0] f;
-        cs_valid = 0; cs_held = 0; cs_inv = 0; cs_drop = 0; cs_hr = 0; cs_run = 0; cs_oob = 0;
+        cs_valid = 0; cs_held = 0; cs_inv = 0; cs_drop = 0; cs_hr = 0; cs_invhr = 0; cs_run = 0; cs_oob = 0;
         cs_nsr64 = 0; cs_since64 = 0; cs_max_nsr = 0;
         for (int s = 0; s < 32; s++) nsr[s] = 0;
         for (int k = 0; k < n; k++) begin
@@ -314,9 +316,14 @@ module tb_eog_memory;
                 EOG_ST_INVALID: cs_inv   = cs_inv + 1;
                 default:        cs_drop  = cs_drop + 1;
             endcase
+            // v4: HIST_RESET on any non-DROPPED record clears the slot (also INVALID, TASKS #44)
+            if (st != EOG_ST_DROPPED && vin[k][EOG_BF_HIST_RESET]) begin
+                cs_hr = cs_hr + 1;
+                if (!(st == EOG_ST_VALID || st == EOG_ST_HELD)) cs_invhr = cs_invhr + 1;
+                nsr[f] = 0;
+            end
             if (st == EOG_ST_VALID || st == EOG_ST_HELD) begin
                 if (f >= EOG_N_FAC) cs_oob = cs_oob + 1;
-                if (vin[k][EOG_BF_HIST_RESET]) begin cs_hr = cs_hr + 1; nsr[f] = 0; end
                 if (vin[k][EOG_BF_PUMP_RUN]) begin cs_run = cs_run + 1; nsr[f] = 0; end
                 else nsr[f] = nsr[f] + 1;
                 if (nsr[f] > cs_max_nsr) cs_max_nsr = nsr[f];
@@ -393,8 +400,8 @@ module tb_eog_memory;
             do_reset(1);
             run_pass(n, P_FULL, 0);
 
-            $display("case %-8s %6d records OK (abort/random/full) | VALID %0d HELD %0d INVALID %0d DROPPED %0d, HIST_RESET %0d, running %0d, FAC>=N_FAC %0d | longest non-running run %0d, FEAT28=16384 x%0d, FEAT30=16384 x%0d | full pass: first accept at cycle %0d, max II %0d, max latency %0d",
-                     cs, n, cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_run, cs_oob, cs_max_nsr, cs_nsr64,
+            $display("case %-8s %6d records OK (abort/random/full) | VALID %0d HELD %0d INVALID %0d DROPPED %0d, HIST_RESET %0d (on INVALID %0d), running %0d, FAC>=N_FAC %0d | longest non-running run %0d, FEAT28=16384 x%0d, FEAT30=16384 x%0d | full pass: first accept at cycle %0d, max II %0d, max latency %0d",
+                     cs, n, cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_invhr, cs_run, cs_oob, cs_max_nsr, cs_nsr64,
                      cs_since64, st_first_acc, st_max_ii, st_max_lat);
             total  = total + n;
             ncases = ncases + 1;
