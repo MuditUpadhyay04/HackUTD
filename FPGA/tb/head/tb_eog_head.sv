@@ -27,7 +27,9 @@
 //
 // Debug capture (D12): dbg_fac = the FAC of record 0 (mode 0) or record 1 (mode 1). Every output transfer of a
 // VALID/HELD record with that FAC must have been preceded (or accompanied) by exactly one dbg_valid pulse with its
-// REC_NO, its 31 input features and its output logits; no pulse for any other record.
+// REC_NO, its 31 input features and its output logits; no pulse for any other record. #94: while one record is held
+// (accepted, output not yet transferred) dbg_rec_no / dbg_feat show it, and dbg_logits = out_data LOGITS whenever
+// out_valid.
 //
 // Every output transfer is compared with the next .out.hex line on all EOG_BL_W bits; the handshake rules
 // (out_valid held, out_data stable until the transfer) are checked every cycle. Prints exactly one final line:
@@ -90,6 +92,7 @@ module tb_eog_head;
     integer      n_dbg = 0;             // debug captures checked, all cases and modes
     integer      acc_cyc [0:MAXREC-1];
     logic [495:0] in_feat [0:63];       // input FEAT of record i at [i % 64]
+    logic [31:0]  in_recno [0:63];      // input REC_NO of record i at [i % 64]
     integer      ii_wait = 0, ii_max = 0, lat_max = 0;
     logic        lat_done = 1'b0;
     logic        running = 1'b0;        // checker active (between a case's reset and its drain)
@@ -135,6 +138,14 @@ module tb_eog_head;
             if (out_valid !== 1'b0 && out_valid !== 1'b1) fail("out_valid is X");
             if (in_ready !== 1'b0 && in_ready !== 1'b1) fail("in_ready is X");
             if (dbg_valid !== 1'b0 && dbg_valid !== 1'b1) fail("dbg_valid is X");
+            // #94: while exactly one record is held (accepted before this edge, not yet transferred before it),
+            // dbg_rec_no / dbg_feat show it; dbg_logits = out_data LOGITS while out_valid
+            if (n_acc - n_out == 1) begin
+                if (dbg_rec_no !== in_recno[n_out % 64]) fail("dbg_rec_no does not show the held record (#94)");
+                if (dbg_feat !== in_feat[n_out % 64]) fail("dbg_feat does not show the held record (#94)");
+            end
+            if (out_valid && dbg_logits !== out_data[EOG_BL_LOGITS +: 64])
+                fail("dbg_logits differs from out_data LOGITS while out_valid (#94)");
             // debug pulses queue up until their record's output transfer
             if (dbg_valid) begin
                 if (dq_n >= DQ) fail("more than 8 debug captures ahead of the outputs");
@@ -409,6 +420,7 @@ module tb_eog_head;
             rr = $fscanf(fd_in, "%h\n", din);
             if (rr != 1) break;
             in_feat[i % 64] = din[EOG_BC_FEAT +: 496];
+            in_recno[i % 64] = din[EOG_BC_REC_NO +: 32];
             // present record i (we are at a falling edge: in mode 1 it follows the previous accept directly)
             if (mode == 0) begin
                 while (($unsigned($random(seed)) % 4) == 0) begin
