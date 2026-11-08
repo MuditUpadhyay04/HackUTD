@@ -68,7 +68,7 @@ export async function orchestrate(options: OrchestrateOptions): Promise<AgentRun
     const tools: ToolDef[] = [...spec.tools(ctx)];
     if (canRequest) tools.push(requestTool(n));
     const result = await runSubAgent(options.model, {
-      instructions: `${prompt.template}\n\n${contract(spec.submit.name, canRequest)}`, prompt: spec.task(ctx), tools,
+      instructions: `${prompt.template}\n\n${contract(spec.submit.name, canRequest, spec.requestHint)}`, prompt: spec.task(ctx), tools,
       submit: { ...spec.submit, validate: (input) => spec.validate(ctx, input) }, maxSteps: spec.maxSteps, signal: options.signal,
     });
     tokens += result.inputTokens + result.outputTokens;
