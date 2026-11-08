@@ -135,14 +135,14 @@ Bits 11, 13 and 14 follow the set/clear rules of `features_int.py` @ 8e67750 (ru
 
 ## 7. Countdown (eog_countdown)
 
-State per facility: a ring of 16 signed inflow values (`INFLOW`, s16). On a facility's first VALID/HELD record after
+State per facility: a ring of 16 inflow values `max(INFLOW, 0)` (ruling #20; was signed `INFLOW`). On a facility's first VALID/HELD record after
 a reset the whole ring is filled with that record's `INFLOW`; afterwards each VALID/HELD record shifts in its
 `INFLOW`. `sum` = ring sum (s20), `mean = sum >>> 4`, `max`/`min` over the ring.
 
 For a VALID/HELD record (after the push), with `K = CFG.K_CD`:
 
-- `NOT_FILLING = (mean ≤ 0)` (rule bit 4), in every case below.
-- If `LEVEL ≥ CFG.SHUT_LVL`: `p10 = p50 = p90 = 0`.
+- `NOT_FILLING = (mean ≤ 0)` (rule bit 4), except as below.
+- If `LEVEL ≥ CFG.SHUT_LVL`: `p10 = p50 = p90 = 0` and `NOT_FILLING = 0` (ruling #21).
 - Else, with `Δ = SHUT_LVL − LEVEL`: `p10 = m(max)`, `p50 = m(mean)`, `p90 = m(min)`, where
   `m(q) = q ≤ 0 ? 0xFFFF : min((K · Δ) // (q << 8), 0xFFFF)`.
 - INVALID/DROPPED: all three `0xFFFF`, `NOT_FILLING = 0`.

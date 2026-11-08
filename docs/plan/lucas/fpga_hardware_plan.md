@@ -166,8 +166,8 @@ All traffic is UDP on the one Ethernet link. Every packet starts with the 16 B c
 | Port | Direction | Types | Contents | Reliability |
 | --- | --- | --- | --- | --- |
 | 7000 | PC → board | DATA | Up to 30 × 48 B records per packet, timestep-major | Best effort; sequence gaps counted in STATS |
-| 7001 | board → PC | RESULT, STATS | Up to 45 × 32 B results per packet; STATS every 1 s | Best effort; `result_no` exposes gaps; buffered and replayed while the server is down |
-| 7002 | board → PC | ALERT | 16 B record on every alarm change | Buffered and replayed after an outage; ACK + retry still open (question 7) |
+| 7001 | board → PC 192.168.1.50 (fixed) | RESULT, STATS | Up to 45 × 32 B results per packet; STATS every 1 s | Best effort; `result_no` exposes gaps; buffered and replayed while the server is down |
+| 7002 | board → PC 192.168.1.50 (fixed) | ALERT | 16 B record on every alarm change | Buffered and replayed after an outage; ACK + retry still open (question 7) |
 | 7003 | both | CONFIG, CONFIG_ACK, HEARTBEAT | GLOBAL and per-facility config; server heartbeat every 1 s | CONFIG is ACKed and retried |
 | 7004 | both | WEIGHTS, WEIGHTS_ACK | Chunked weight blob | Every chunk ACKed; CRC32 over the whole blob; bank swap only after it checks |
 | 7777 | both | MUL | Existing multiply test | Kept as a health check |
@@ -280,7 +280,7 @@ A Facility CONFIG packet uses header `aux` = 1.
 
 #### CONFIG_ACK record, 8 B (FPGA → host, UDP 7003)
 
-Fields: `fac_id` (u16; 0xFFFF = GLOBAL), status (u8: 0 OK, 1 bad slot, 2 bad value, 3 busy), reserved (u8), and the acknowledged CONFIG packet's `seq` (u32).
+Sent to the CONFIG sender's IP and port (WEIGHTS_ACK likewise). Fields: `fac_id` (u16; 0xFFFF = GLOBAL), status (u8: 0 OK, 1 bad slot, 2 bad value, 3 busy), reserved (u8), and the acknowledged CONFIG packet's `seq` (u32).
 
 #### HEARTBEAT (server → FPGA, UDP 7003)
 
@@ -295,7 +295,7 @@ Sixteen u32 counters: records in, results out, dropped duplicate, dropped out-of
 - **WEIGHTS chunk:** header `aux` = blob version; offset (u32), length (u16, ≤ 1,024), flags (u16; bit 0 = COMMIT), then the data bytes.
 - **COMMIT chunk:** carries the total length (u32) and the CRC32 of the whole blob.
 - **On commit, the board:** writes the inactive bank, checks the CRC, runs the self-test vectors packed in the blob, and swaps banks at a record boundary.
-- **WEIGHTS_ACK:** offset (u32), status (u8: 0 OK, 1 CRC fail, 2 bad length, 3 self-test fail, 4 swapped), active version (u8), reserved (u16).
+- **WEIGHTS_ACK:** offset (u32), status (u8: 0 OK, 1 CRC fail, 2 bad length, 3 self-test fail or bad blob header — `blob_format` ≠ 1, `n_heads` ≠ 4, `n_features` ≠ 31 or `feature_set_id` ≠ 1, 4 swapped), active version (u8), reserved (u16).
 - **Blob contents:** 4 × 31 int16 weights, 4 int32 biases and the output shift S, about 270 B, so a single chunk. The exact byte order is fixed once Mudit's export is (open question 11).
 
 ## Autonomous mode and alerts
