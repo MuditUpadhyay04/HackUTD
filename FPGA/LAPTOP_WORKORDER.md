@@ -18,12 +18,14 @@ JTAG, and Ethernet to 192.168.1.10. Start Claude Code in the repo root and give 
   - the ARM app: `FPGA/ps/eog_app.c` + `eog_proto.{c,h}`, host-tested byte-for-byte against Mudit's `wire.py` and
     `hutd_ml.board`;
   - the Vitis build script `FPGA/deploy/win_vitis_build_eog.bat`.
-- **Still coming:**
-  - `FPGA/rtl/eog_top.sv`, plus `FPGA/vivado/eog_top_files.tcl` and `FPGA/vivado/README_eog_top.md` (task T2.top,
-    in progress on the lead machine);
-  - the countdown, head and regs RTL, which come with T2.top (their formal sign-off is still running; their ports are
-    final).
-  - `HANDOFF.md` and `TASKS.md` (row T2.top) say when they land.
+- **Also landed (T2.top, Sun ~05:00):**
+  - `FPGA/rtl/eog_top.sv`, bit-exact in sim on the full week and Mudit's goldens, in both window and DMA mode;
+  - `FPGA/vivado/eog_top_files.tcl` (file list) and `eog_top_bd.v` (a plain-Verilog shell, because the BD module
+    reference can't take an SV top);
+  - `eog_top_io.xdc` (**draft**) and `README_eog_top.md` (hookup snippet and a resource estimate);
+  - the countdown, head and regs RTL, merged early. Their formal sign-off is still running on the lead machine; their
+    ports are final.
+  - **Phase B can start right away.**
 - **Existing working flow to reuse:** `FPGA/docs/link_bringup.md` §4–5 (`axi_mul` on lucaslegion).
   - Paths: Vivado outputs in `C:\vb2`, Vitis workspaces in `..\vws2` / `..\vws_eog`, lwIP fix repo `..\eswfix`.
   - Network: PC 192.168.1.50/24, board 192.168.1.10. UART is COM9. The boot jumper must be on JTAG.
@@ -44,8 +46,11 @@ JTAG, and Ethernet to 192.168.1.10. Start Claude Code in the repo root and give 
      `Eclypse-Z7-Master.xdc` into `FPGA/vivado/eclypse_eog.xdc`.
    - **BTN0 polarity (TASKS #8):** `eog_alarm` expects active-high. If the board button is active-low, invert it in
      `eog_top`'s wrapper or the BD (not in `eog_alarm`) and note it in your report.
-   - Until `eog_top.sv` lands, use a port-only stub (`FPGA/vivado/stub/eog_top_stub.sv`, never under `rtl/`) so the BD
-     and XDC can be built and checked. The `tclargs nobit` path is enough.
+   - Use `FPGA/vivado/eog_top_bd.v` as the module reference and start from the snippet in
+     `FPGA/vivado/README_eog_top.md`.
+   - **Check the draft `FPGA/vivado/eog_top_io.xdc`:** the Pmod JA/JB pins differ between board revisions A.0 and
+     B.0 (B.0 is active; A.0 is in a comment), so read the revision printed on the board. Confirm the LED colour order
+     against Digilent's master XDC.
 3. **Out-of-context synthesis of the merged modules**, to catch timing and RAM-mapping problems early.
    - Run `synth_design -mode out_of_context -part xc7z020clg484-1` with `create_clock -period 10` on each
      `FPGA/rtl/eog_<m>.sv` (include dir `FPGA/rtl`; `eog_mul.sv`/`eog_div.sv` where instantiated).
@@ -56,10 +61,10 @@ JTAG, and Ethernet to 192.168.1.10. Start Claude Code in the repo root and give 
    - Write the results to `FPGA/reports/board_ooc.md`.
 4. Commit phase A on `eog/T2.bd1` and push.
 
-## Phase B: when `eog_top.sv` lands on `FPGA`
+## Phase B: real sources (`eog_top.sv` is on `FPGA`)
 
-1. `git merge FPGA` into `eog/T2.bd1`. Swap the stub for the real sources using `FPGA/vivado/eog_top_files.tcl`, and
-   follow `FPGA/vivado/README_eog_top.md` for the hookup.
+1. Add the sources with `FPGA/vivado/eog_top_files.tcl` (`eog_add_files`) and follow `FPGA/vivado/README_eog_top.md`
+   for the hookup. Connect `eog_0/rst_n` to `peripheral_aresetn`, not `interconnect_aresetn`.
 2. Full synth, implementation and bitstream.
    - **Timing at 100 MHz must close: WNS ≥ 0.** If it doesn't, report the failing paths (module, start/end points)
      and stop; RTL changes happen on the lead machine.
