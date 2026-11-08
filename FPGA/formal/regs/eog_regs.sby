@@ -7,7 +7,8 @@
 # prove : PDR (abc pdr), unbounded. k-induction is not used: the DUT's AXI pipeline, sweep counter, FIFO pointers and
 #         DATA beat counter are invisible at the ports, so port-level properties are not inductive without internal
 #         invariants (the independence rule keeps the RTL's internals out of the harness).
-# bmc   : smtbmc, every assertion from reset, depth 30 (reset + sweep + ~5 AXI transactions or a full DATA push and a
+# bmc   : abc bmc3 (smtbmc/boolector took > 10 min to reach step 10 on this design), every assertion from reset,
+#         depth 30 (reset + sweep + ~5 AXI transactions or a full DATA push and a
 #         RESULT record). Quick counterexamples for the RTL author.
 # cover : the spec's cover (CONFIG row written, slot enabled, DATA record pushed, RESULT read back) and sanity
 #         covers; depth 40.
@@ -28,7 +29,7 @@ cover: depth 40
 
 [engines]
 prove: abc pdr
-bmc:   smtbmc boolector
+bmc:   abc bmc3
 cover: smtbmc boolector
 
 [script]
@@ -38,6 +39,13 @@ read_verilog -formal -sv -I . fv_eog_regs.sv
 prep -top fv_eog_regs
 memory -nomap
 memory_map
+# out-of-range dynamic selects (e.g. a 5-bit slot index into an N_FAC = 2 table) become x after techmap; the
+# AIG engines reject x, so map first and make every remaining x a free value
+flatten
+techmap
+opt -fast
+setundef -undriven -anyseq
+setundef -anyseq
 
 [files]
 ../common/eog_fv_props.sv

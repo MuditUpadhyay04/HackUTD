@@ -384,7 +384,7 @@ module fv_eog_regs (
             G2: assert ($past(cur_v && c_cfg && c_slot == f_slot && c_cw == 4'd0 && c_s[3] && !c_d[24]));
 
     // ------------------------------------------------------------------------------------------------ pulses (G4, G7, R_wbw)
-    logic e_tc, e_hb, e_sw, e_ack, e_sr, e_wt, e_cfg;
+    logic e_tc, e_hb, e_sw, e_ack, e_sr, e_wt, e_cfg, e_cw0;
     logic [4:0]  e_slot;
     logic [6:0]  e_wi;
     logic [31:0] e_wd;
@@ -395,7 +395,7 @@ module fv_eog_regs (
     always_ff @(posedge clk)
         if (H) begin
             e_tc  <= c_acc;
-            e_cfg <= c_cfg; e_slot <= c_slot;
+            e_cfg <= c_cfg; e_slot <= c_slot; e_cw0 <= c_cw == 4'd0;
             e_hb  <= c_ctrl && c_s[0] && c_d[2];
             e_sw  <= c_ctrl && c_s[0] && c_d[3];
             e_ack <= c_ctrl && c_s[0] && c_d[4];
@@ -420,7 +420,8 @@ module fv_eog_regs (
                         | ((H && c_cfg && c_slot < NF) ? (one << c_slot) : '0);
 
     logic [1:0] n_tc, n_hb, n_sw, n_ack, n_sr, n_wb;
-    wire p_tc = fac_touch[f_slot];
+    wire [NF-1:0] tc_sh = fac_touch >> f_slot;
+    wire p_tc = tc_sh[0];
     function automatic [1:0] inc(input [1:0] n, input logic p);
         inc = (p && n != 2'd3) ? n + 2'd1 : n;
     endfunction
@@ -684,8 +685,8 @@ module fv_eog_regs (
     always_ff @(posedge clk)
         if (!rst_n) begin cv_cfg <= 0; cv_en <= 0; cv_push <= 0; cv_ovr <= 0; end
         else begin
-            if (bfirst && e_tc && e_cfg && f_ck) cv_cfg <= 1'b1;
-            if (cv_cfg && f_ck && f_c0[24]) cv_en <= 1'b1;
+            if (bfirst && e_tc && !e_cw0 && f_ck) cv_cfg <= 1'b1;                    // a row word written
+            if (cv_cfg && bfirst && e_tc && e_cw0 && f_c0[24]) cv_en <= 1'b1;        // then the slot enabled
             if (cv_en && d_hs && d_last) cv_push <= 1'b1;
             if (push_ovr) cv_ovr <= 1'b1;
         end
