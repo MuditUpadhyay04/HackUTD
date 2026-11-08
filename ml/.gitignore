@@ -6,3 +6,5 @@ combined_suite_*/
 combined_suite.log
 combined_suite_report.md
 agents_setup.log
+board_temp.log
+live.jsonl

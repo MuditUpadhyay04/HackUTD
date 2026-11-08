@@ -139,6 +139,8 @@ the clock (50 MHz), and anything that looked off. Mudit records the result in
 
 ## After it passes (for Lucas and Mudit)
 
+- **Judging day** (the judges' `test/` folder, an unseen S6–S11 network): `docs/plan/mudit/judging_day.md`. Rehearse
+  first on an unseen network made from the practice week: `python -m hutd_ml.unseen`, then this suite with `--data` on it.
 - **Live demo set-up**, with everything on the board PC: `docs/plan/mudit/nemotron_v4_fpga_test.md` step 6.
   - `listen.py --source fpga --jsonl live.jsonl --post http://127.0.0.1:3000/api/ingest`;
   - the API with `BOARD_JSONL=live.jsonl BOARD_SOURCE=fpga`;
