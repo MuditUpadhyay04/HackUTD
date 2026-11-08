@@ -152,19 +152,84 @@ Done when: `bun run test` shows 0 failures, typecheck is clean, and live analyse
 
 Done when: a replay of steps 1000–1030 is accepted as 465 results (31 × 15 facilities).
 
-### P3 Orchestrator and sub-agents (Must; 2.25 h est.)
+### P3 Orchestrator, sub-agents and recursive delegation (Must; built, see §9)
 
-`agents/roles.ts`, read-only `read_countdown` and `compare_plans`, `agents/orchestrator.ts`, wiring in
-`service.ts`, and tests with a fake runtime.
+"Chip detects. Server plans. Nemotron explains." A deterministic orchestrator (`agents/orchestration/`)
+dispatches scoped Nemotron sub-agents. Each role has its own read-only tools, a submit tool with a validator, and
+a prompt version. Every call is recorded: role, prompt version, tools, tokens, latency, rejections, output and score.
 
-Done when: a live analysis has validated steps for every role.
+| Role | Tools (read-only, deterministic specialists) | Output, validated |
+| --- | --- | --- |
+| triage / prioritizer | `list_incidents` (with evidence, plan summaries and board results), `alerts_view` (rule 7), `read_incident` | priority order and one note per ongoing incident; agreement scored against rule 7 |
+| plan explainer (one per pump failure) | `read_incident`, `compare_plans` (fleet planner output), `well_economics` | the option to present first (must be a validated plan) and ≤700 characters of prose; agreement = the solver's pick |
+| evidence reviewer | `read_incident`, `inspection_advice` | ≤400 characters answering one question |
+| handoff writer | `list_incidents`, `read_agent_notes` (with `pumpFailuresWithoutPlanExplanation`), `read_incident` | ≤900 characters, with evidence and plan IDs in arrays |
+| prompt critic (P4) | `read_current_template`, `read_failures` | a full replacement template and a rationale |
 
-### P4 Prompt registry and critic loop (Must; 3.0 h est.)
+- **Facts.** Facts come from the run snapshot (software runtime). Board results come from `listen.py` JSONL
+  (fakeboard): for each facility, the latest result at or before the cutoff, with its heads, rules and countdown.
+- **Prose check.** All prose goes through the shared grounded check (`prose.ts`): numbers, IDs, names and categories
+  must be in scope, and completed-action claims are refused.
+- **Fixed contract.** A fixed harness contract is appended to every template, so the critic cannot remove it.
+- **Recursive delegation.**
+  - A sub-agent may call `request_subtask(role, incidentId, question)`.
+  - The orchestrator grants or refuses deterministically. Guards:
+    - allowed role pairs (triage→explainer/reviewer, explainer→reviewer, handoff→explainer/reviewer, reviewer→none);
+    - the incident exists and is inside the requester's scope;
+    - explainers only for pump failures with validated plans;
+    - max depth 3;
+    - max 10 sub-agents per run;
+    - a 150k-token budget;
+    - 70% of a 150 s deadline;
+    - dedupe: a repeated accepted request returns the cached result.
+  - Granted results go back to the requester as the tool result. Refusals are recorded as `denied` nodes with the
+    reason.
+  - The full task tree (parent, child, who requested it and why, the question) is in the trace, the CLI, the API and
+    the console.
+- **Strategies (decomposition granularity).**
+  - v1 "coarse": triage and handoff; explainers only when requested.
+  - v2 "fine": one explainer per pump failure, in parallel (concurrency 3); requests still allowed.
+- **Advice only.** The orchestrator never changes plans, actions or the snapshot.
 
-Migration `002`, store methods, v1 seeds (today's instructions), `agents/eval/{cases,metrics}.ts`,
-`agents/critic.ts`, a CLI `apps/api/scripts/agent-loop.ts --role handoff --rounds 2`, and read routes.
+Done when: a live run shows every role validated and a recorded tree with a granted and a refused request. Done; see
+§9.2.
 
-Done when: the CLI prints v1 and v2 held-out scores, and the champion changes only on improvement.
+### P4 Prompt registry, outcome learning and the weekly loop (Must; built, see §9)
+
+- **Registry.**
+  - Versioned templates per role (seed, critic, champion/challenger/retired) and strategy versions.
+  - Two stores: `MemoryLearningStore` (JSON file `.data/agent-learning.json`, shared by the script and the API) and
+    `PostgresLearningStore`.
+  - Migration `002_agent_learning.sql`: prompt versions, strategies, evals, decisions, runs.
+- **Scores.** Scores come only from validators, lint and snapshot facts, never the answer key:
+  - node score = 0.3 accepted + 0.1 first try + 0.25 readability (no raw unix times, pasted IDs or snake_case labels)
+    + 0.2 agreement + 0.1 brevity + 0.05 efficiency;
+  - run score = 0.75 mean node score + 0.25 explainer coverage − a token penalty (at most 0.1).
+- **Outcome learning.**
+  - Every champion run records one decision per pump failure:
+    - the solver's recommended plan (which decides);
+    - the agent's suggested plan (advice);
+    - the approval: the operator's `acknowledge_advice` (I-13) in the API, or "simulated" in the loop.
+  - The outcome is measured from the following 6 h of telemetry, a runtime input: highest tank level, whether the
+    tank reached the shutdown limit or was shut in, and whether the incident is still ongoing.
+  - Nobody executed the advice in historical data, so this window is the no-action path. It checks the do-nothing
+    forecast, and whether acting was warranted.
+- **Weekly cycle** (`learning/cycle.ts`). Each simulated week runs on successive windows of `full_week`:
+  1. Run the champion and the challenger configuration on the week's cases (an A/B test).
+  2. Record decisions and outcomes.
+  3. Promote a challenger prompt only if its role mean beats the champion's by ≥0.02 on the same week. If there were
+     no samples, it stays a challenger.
+  4. Promote a strategy on run score.
+  5. Strategy tuner: when coarse runs leave most pump failures unexplained, propose the fine strategy, or raise the
+     explainer cap.
+  6. The critic rewrites the weakest ≤2 roles (mean < 0.9) from that week's failures. A template identical to an
+     existing version is refused.
+  7. Score the new champion on held-out `mock_test` cases. These are never used for critique or promotion.
+- **Script.** `apps/api/scripts/agent-weeks.ts` runs N weeks and prints the version table, the weekly trend and the
+  plan outcomes.
+
+Done when: the loop prints scores per version for 3+ weeks, and champions change only on a measured win. Done; see
+§9.3.
 
 ### P5 Demo hardening (Must; 1.5 h est.)
 
@@ -333,3 +398,233 @@ Pass:
 
 `source: "draft"` means it fell back; `error` says why: the last validator rejection, a timeout, or a provider
 error. Repeat the last two lines a few times to see the acceptance rate.
+
+## 9. Phase 3/4 results (Sun Nov 8, 06:00–06:45 CST)
+
+### 9.1 Setup
+
+- **Code.** Same box and `.env` as §7.
+- **Board data.**
+  - Fakeboard + `listen.py` + `replay.py` streamed the **whole** `full_week` (2016 steps at `--step-seconds 0.05`,
+    about 30k results) into `/workspace/c1/results.jsonl`.
+  - They then streamed `mock_test_2026-10-10T1530` (1627 steps, about 24k results) into `results-mock.jsonl`.
+  - At the S2 cutoff (Thu 11:55 UTC) the board heads were: pump_failure at S2 A/B/C, pump_degradation at S3 A and
+    S4 C, and pipeline_leak at S5 B. These come from the fakeboard, not the FPGA (rule 11).
+- **Tests and checks.**
+  - `bun run test`: **125 pass, 1 skip, 0 fail** (126 tests, 19 files). C1 had 110 pass.
+  - `bun run typecheck`: clean.
+  - Agent tests: 39. They cover delegation guards, depth 2 and 3, cache and refusals, the identical-template guard,
+    promotion and retirement, "untested" challengers, the strategy tuner, outcome records and the API service.
+- **Rule audit.**
+  - `rg answer_key apps packages frontend/src` finds only comments saying it is never read.
+    `loadDataset` opens only `network.json`, `ops.json` and `telemetry.csv`.
+  - The key is not in the diff, the logs or the learning store (`grep -cF` = 0).
+
+### 9.2 Live runs per role
+
+Over 42 recorded runs (36 train and 6 held-out from weeks 1–8, using the code after the fixes in §9.4).
+Latency includes waiting for one of 3 concurrent slots.
+
+| Role | Accepted | First try | Latency median / p90 | Tokens per node median / p90 |
+| --- | --- | --- | --- | --- |
+| triage | 36 / 42 (86%) | 20 | 5.3 s / 11.0 s | 19.4k / 37.8k |
+| plan explainer | 59 / 75 (79%) | 30 | 10.1 s / 15.0 s | 13.6k / 22.2k |
+| handoff | 31 / 42 (74%) | 20 | 6.8 s / 19.6 s | 18.0k / 43.0k |
+| evidence reviewer | not run in the loop; its 4 live requests in the API run were refused (see the tree below) | – | – | – |
+| critic | 10 / 11 proposals accepted by its validator (1 rejected for a rationale over 400 characters) | – | – | – |
+
+Totals: 2.89M tokens in the 42 recorded runs (critic calls not included). The whole day, including the earlier
+loop attempts, was about 4.5M tokens. No rate-limit errors.
+
+**Task tree with recursive delegation.** API run `POST /api/runs/:id/agents`, `full_week` at Thu 11:55 UTC, using
+the learned champions (strategy v2, explainer v2, handoff v6):
+
+```
+orchestrator (deterministic): 3 ongoing incidents; board heads active at S2 A/B/C, S3 A, S4 C, S5 B
+  triage v1 accepted
+  plan_explainer ×3 (strategy v2, parallel) rejected: presentFirstPlanId not a validated option
+  handoff v6 rejected (996 characters, limit 900)
+    plan_explainer [S2 C] requested by handoff: "Provide a concise plan explanation for the recommended plan …"  accepted
+      evidence_reviewer requested by plan_explainer: refused: unknown incident (it passed the run ID)
+    plan_explainer [S2 A] requested by handoff  accepted
+      evidence_reviewer requested by plan_explainer: refused: unknown incident
+    (+2 more explainer requests, 2 refused grandchildren)
+Totals: 13 nodes, depth 3, 3 accepted, 4 refused, 144k tokens, 51 s, run score 0.30
+```
+
+A coarse-strategy CLI run (`agent-run.ts --strategy 1`, same cutoff) shows the handoff using the gap list:
+
+- The handoff requested 4 plan explainers (S2 B twice, because the first attempt was rejected, then S2 C and S2 A).
+  3 were accepted, depth 2.
+- An accepted child's output, verbatim: "Option 1 (1 truck, 1 trip) costs $905 and avoids a shut-in, preventing
+  $2,450/hour revenue loss. Do-nothing would save the truck cost but would cause hourly shut-ins that quickly
+  exceed the truck expense (≈$19,600 per 8-hour shift)."
+- The handoff itself was then rejected (it used line breaks).
+
+**Sample accepted outputs (verbatim).**
+
+- **Triage** (S2, Thu 11:55): "Highest tank level (77.8%) and shortest time to limit (1h30m); also highest
+  lost-revenue per hour ($2,450)." | "Tank at 68.39% with 2h26m remaining; revenue loss $2,393.75/hr …" | "Tank at
+  67.42% with 2h41m left; though the lowest level, it has the highest revenue-loss rate ($3,931.25/hr) …".
+- **Plan explainer**: see the coarse-run child above.
+- **Handoff v6** (week 7, S4, score 0.917): "Ongoing pump failure at S4 C: pump faulting 1h20m, tank at 67.83%,
+  2h29m to limit, loss $3450/h. Solver recommends option:c69d…739c (2 truck(s), 1 trip(s), cost $1,810) to limit
+  shut-in and protect revenue."
+- **Handoff v1** (week 1, S1, score 0.75): "Shift handoff for case-full_week-1791352800 at Wed 06:00 UTC. Incident
+  is an ongoing pump failure at facility S1 B … Current plan is option:3e23…999e (Do nothing, cost $0,
+  recommended)."
+- **Critic rationale** (handoff v1 → v5): "The previous handoffs were rejected because they exceeded the
+  900-character limit and they placed IDs inside the prose instead of using the provided ID fields …"
+
+### 9.3 Simulated weeks: scores per version
+
+`agent-weeks.ts --weeks 5`, then `--weeks 3 --first-week 6 --offset-hours 2` on the same store, for 8 weeks in total:
+
+- Each week is a successive window of `full_week`, starting at the first incident. The cases are from S1, S2, S3,
+  S4 and S5 (2 per week).
+- Held-out: `mock_test` at S1 (Wed 00:40 UTC) and S2 (Thu 10:00 UTC), with the mock_test board results. Never
+  critiqued.
+- Week 5 had no cutoff with an ongoing pump failure in its window, so it only ran held-out.
+
+Promotions, each one an A/B test inside one week:
+
+| Week | Change | Measured (challenger vs champion, same week) |
+| --- | --- | --- |
+| 1 | strategy **v1 → v2** (fine) | run score 0.886 vs 0.603 |
+| 2–4 | handoff v2, v3, v4 (critic) retired | 0.320 vs 0.677; 0.736 vs 0.750; 0.015 vs 0.015 |
+| 6 | handoff **v1 → v5** (critic) | role mean 0.687 vs 0.383 |
+| 6 | triage v2 (critic) retired | 0.509 vs 0.913 |
+| 7 | plan explainer **v1 → v2** (critic) | 0.824 vs 0.514 |
+| 7 | handoff **v5 → v6** | 0.834 vs 0.750, **but the v6 text is identical to v5**: sampling noise. The identical-template guard now refuses this (commit `d65031f`) |
+| 8 | plan explainer v3, handoff v7 retired | 0.636 vs 0.677; 0.303 vs 0.621 |
+
+Pooled per version (train / held-out, n):
+
+| Role | v1 | Later versions |
+| --- | --- | --- |
+| handoff | 0.514 (10) / 0.576 (10) | v5 0.719 (4) / 0.684 (2); v6 0.727 (4) / 0.467 (4) |
+| plan explainer | 0.844 (31) / 0.597 (24) | v2 0.719 (7) / 0.576 (8) |
+| strategy | v1 0.603 (1) | v2 0.717 (25) / 0.578 (16) |
+
+Champion run score per week, held-out: 0.61, 0.44, 0.45, 0.81, 0.59, 0.73, 0.62, 0.39.
+
+Before and after (handoff):
+
+- **v1 (seed):** "You write the shift handoff for the next operator from the triage notes and the plan explanations.
+  Cover each ongoing incident."
+- **v5 (critic, promoted week 6):** v1 plus "Keep the handoff under 900 characters. Put all case IDs, facility IDs,
+  and plan option IDs in the designated ID fields – do not embed them in the prose. Use the tools' short facility
+  labels (e.g., S2 B) when referring to facilities in the narrative."
+- **Outputs:** compare the v1 and v6 (= v5) handoffs in §9.2. The later one uses "S4 C" instead of case IDs, but it
+  still pastes one plan ID.
+
+Plan outcomes. The following 6 h of telemetry is the no-action path, because nobody executed the advice:
+
+| Recommended | Decisions | Tank hit limit without action | Do-nothing forecast matched |
+| --- | --- | --- | --- |
+| trucks | 13 | 13 / 13 | 13 / 13 |
+| shut-in | 2 | 2 / 2 | 2 / 2 |
+| do nothing | 7 | 5 / 7 | 7 / 7 |
+
+Every trucks or shut-in recommendation was warranted: the tank did reach the limit without action. The solver's
+do-nothing forecast matched what happened 22 of 22 times. Do-nothing was still recommended in 5 cases where the tank
+tripped. The forecast predicted those trips, so this is the solver's cost trade-off, not a forecast miss. The
+"recommendation justified" field (0.29 for do-nothing) is too blunt to grade that. The agents' first choice agreed
+with the solver in every case where an explainer was accepted.
+
+What this does and does not show:
+
+- **It shows** a deterministic loop that changes the decomposition (v1 → v2) and the prompts (handoff v1 → v5,
+  explainer v1 → v2) only on a measured same-week win. It records every decision and outcome and keeps held-out
+  separate.
+- **It does not show** a reliable held-out gain from prompt changes:
+  - Held-out run scores swing 0.35–0.89 for the same configuration, mostly from whether the handoff passes the
+    900-character check.
+  - With 2–4 samples per version, a 0.02 margin is below the noise; the v5 → v6 promotion of an identical text
+    proves it.
+  - Next steps: more cases per week, repeat each case 2–3 times, and promote on a confidence bound.
+
+### 9.4 Fixes found by the live runs (all committed)
+
+- **Board facts.** They kept each facility's last result of the whole replay, so they were empty at any earlier
+  cutoff. Now they keep the latest result at or before the cutoff (`boardAt`).
+- **Completed-action check.** "solver-approved" was refused as a completed-action claim, and every explainer failed
+  (first loop: explainer accepted 0/1, fine strategy lost). Hyphenated compounds now pass. The message suggests
+  "recommended". With this fix the fine strategy won in week 1.
+- **Length errors.** When IDs are pasted into the prose, the error now says that IDs go in the ID fields.
+- **Outcomes.** They compared the recommended plan's forecast with no-action telemetry. They now check the
+  do-nothing forecast.
+- **Untested challengers.** A challenger with no samples, or an empty week, was retired as "0.000 vs 0.000". It now
+  stays a challenger.
+- **Strategy tuner.** It may retry the fine strategy when a plan-explainer challenger is waiting.
+- **Critic.** A critic template identical to an existing version is refused.
+- **Proxy.** The console proxy did not allow the agent routes.
+
+### 9.5 Gaps
+
+- **Postgres.** The Postgres learning store and migration 002 are untested live: no Postgres server on the box.
+  Memory mode with a JSON file was used.
+- **Simulated approvals.** Approvals in the loop are labeled `simulated`. Real operator acknowledgements (I-13) feed
+  decisions only through the API.
+- **Board ingest (P2).** The board facts come from the `BOARD_JSONL` file or the `--board` flag, not from P2 ingest.
+  The console's own board banner still says "Board offline".
+- **Evidence reviewer.** It never ran: no agent asked for one in scope, and the 4 requests in the API run used a run
+  ID and were refused.
+- **Model-written prose.** Grounding allows fluent but empty claims: "balances equipment availability and crew
+  readiness"; a triage note said "capsizing". Explainer v2 sometimes pastes option hashes into the prose; lint
+  penalizes this but does not reject it.
+- **Handoff.** Acceptance (74%) is the main failure, from length and line breaks with 3 incidents.
+- **Delegation hint.** The handoff gap list and request hint (commit `46a6529`) came after the weekly loop. Only the
+  API and CLI runs in §9.2 use them.
+- **Promotion statistics.** See the end of §9.3.
+
+## 10. Watch the agents on a Mac
+
+Do §8 first: the `.env`, `bun install`, the venv, and the `127.0.0.2` alias.
+
+```sh
+export DATA=$PWD/../HackUTD-ZeroDay/history/full_week
+export MOCK=$PWD/../HackUTD-ZeroDay/history/mock_test_2026-10-10T1530
+# Terminals 1-2 (from ml/): fakeboard and listener for the full week
+python -m hutd_ml.fakeboard
+python -m hutd_ml.listen --data $DATA --board 127.0.0.2 --weights-json artifacts/v4/weights.json \
+  --config artifacts/v4/global_config.json --jsonl /tmp/results.jsonl
+# Terminal 3 (from ml/): stream the whole week (~100 s)
+python -m hutd_ml.replay --data $DATA --board 127.0.0.2 --local 127.0.0.1 --weights artifacts/v4/weights.bin \
+  --weights-version 4 --config artifacts/v4/global_config.json --step-seconds 0.05 --start-step 0
+# Then restart the listener with --data $MOCK --jsonl /tmp/results-mock.jsonl and replay $MOCK the same way.
+```
+
+One orchestrated run as a task tree (CLI). `--strategy 1` shows the handoff requesting explainers:
+
+```sh
+bun apps/api/scripts/agent-run.ts --data $DATA --at 1791460500 --strategy 1 --board /tmp/results.jsonl
+```
+
+The weekly loop. 5 weeks take about 12 minutes and 2M tokens; use `--weeks 3 --cases 1` for a quick look:
+
+```sh
+bun apps/api/scripts/agent-weeks.ts --train $DATA --heldout $MOCK --weeks 5 --cases 2 --heldout-cases 2 \
+  --board /tmp/results.jsonl --heldout-board /tmp/results-mock.jsonl --store .data/agent-learning.json --fresh
+```
+
+The console Agents view. Two terminals, from the repo root:
+
+```sh
+BOARD_JSONL=/tmp/results.jsonl bun run dev:api   # uses .data/agent-learning.json (champions from the loop)
+ALLOW_INSECURE_LOCAL=1 HOSTNAME=127.0.0.1 bun run dev:web
+```
+
+1. Open http://127.0.0.1:3000, then **Agents** in the sidebar. You see the prompt versions, the weekly scores, and a
+   **Run agents** button that draws the task tree as it completes.
+2. For the S2 incidents, choose **Replay** and pick Thu Oct 8 11:55 UTC before opening Agents. The latest reading
+   of `full_week` has no ongoing pump failures.
+3. The same data is available as JSON:
+   - `curl -X POST 127.0.0.1:3001/api/runs/$RUN/agents`
+   - `curl 127.0.0.1:3001/api/agent-runs/$ID`
+   - `curl 127.0.0.1:3001/api/runs/$RUN/agent-runs`
+   - `curl 127.0.0.1:3001/api/agents/learning`
+
+Note: the console's server render calls `http://localhost/api/backend` (port 80, `frontend/src/lib/api.ts`,
+unchanged). On the box this needed a local port 80 → 3000 forward. If the first page shows "Request failed", that
+is the cause; it is outside this branch's changes.
