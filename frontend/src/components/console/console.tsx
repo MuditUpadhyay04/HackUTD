@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { BoardStatus, DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
@@ -13,7 +13,7 @@ import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
-import { AgentsPanel } from "./agents";
+import { AgentsPanel, agentLines, useAgentRun } from "./agents";
 import { Timeline } from "./timeline";
 
 const longDay = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
@@ -29,7 +29,10 @@ export function Console({
   snapshot,
   datasets,
   followsBoard = false,
+  controls,
 }: {
+  /** Runtime and dataset upload, shown at the bottom of the sidebar. */
+  controls?: ReactNode;
   snapshot: Snapshot;
   datasets: DatasetInfo[];
   /** "Now" is the newest board timestamp (live board feed), so this is live, not a replay of the past. */
@@ -53,6 +56,12 @@ export function Console({
   const [approved, setApproved] = useState<Record<string, number>>({});
   const [tickets, setTickets] = useState<Record<string, number>>({});
   const [actionError, setActionError] = useState<string | null>(null);
+  const agents = useAgentRun(s.runId);
+  const agentNote = agentLines(agents.run);
+  const openIncident = (id: string) => {
+    const a = [...s.alerts, ...s.history].find((x) => x.id === id);
+    if (a) setIncident(a);
+  };
 
   // Approvals and tickets are saved on the operator API against this run, so a reload keeps them.
   useEffect(() => {
@@ -162,6 +171,36 @@ export function Console({
           statusOf={statusOf}
           alertCount={s.alerts.length}
           onSystem={goSystem}
+          footer={controls}
+          systemLine={(sys) => {
+            const down = failures.filter((a) => a.systemId === sys.id);
+            const inspect = inspections.filter((a) => a.systemId === sys.id).length;
+            const free = trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix);
+            if (down.length) {
+              const first = down.map((a) => countdownState(a, s.nowUnix)).find((c) => c.kind === "counting");
+              return { text: `${down.length} down${first?.kind === "counting" ? ` · shuts ${clockFrom(first.at, s.nowUnix)}` : ""}`, tone: "crit" };
+            }
+            if (inspect) return { text: `${inspect} to inspect · ${free}/${sys.fleetSize} trucks`, tone: "warn" };
+            if (sys.facilities.some((f) => noData.includes(f))) return { text: "Missing readings" };
+            return { text: `Pumps running · ${free}/${sys.fleetSize} trucks` };
+          }}
+          status={[
+            { label: "Last reading", value: clockFrom(s.nowUnix, s.nowUnix) },
+            {
+              label: "Checks run on",
+              value: s.board?.provenance === "fpga" && s.board.online ? "FPGA board" : s.runtime?.effective === "fpga" ? "FPGA board" : "Server software",
+            },
+            ...(s.runtime ? [{ label: "Leak and wear model", value: s.runtime.scoresAvailable ? (s.runtime.modelVersion ? `v${s.runtime.modelVersion}` : "Loaded") : "Not loaded", tone: s.runtime.scoresAvailable ? undefined : ("warn" as const) }] : []),
+            {
+              label: "Trucks free",
+              value: `${s.systems.reduce((t, sys) => t + trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix), 0)} of ${s.systems.reduce((t, sys) => t + sys.fleetSize, 0)}`,
+            },
+            {
+              label: "Agents",
+              value: agents.run?.status === "running" ? "Working…" : agents.run?.trace ? `${agents.run.trace.totals.accepted} of ${agents.run.trace.totals.nodes} accepted` : agents.run?.status === "failed" ? "Last run failed" : "Not run yet",
+              tone: agents.run?.status === "failed" ? "crit" : undefined,
+            },
+          ]}
         />
       }
     >
@@ -198,17 +237,19 @@ export function Console({
         )}
 
         {view === "agents" ? (
-          <AgentsPanel runId={s.runId} nowUnix={s.nowUnix} />
+          <AgentsPanel agents={agents} nowUnix={s.nowUnix} onOpenIncident={openIncident} />
         ) : view === "handoff" ? (
-          <div className="mt-6 grid max-w-[760px] gap-4">
+          <div className="mt-6 grid gap-4">
             <NemotronBrief runId={s.runId} expanded />
-            <a
-              href={`/api/backend/api/runs/${encodeURIComponent(s.runId)}/export`}
-              download="events.json"
-              className="w-fit text-[14px] font-medium text-water hover:underline"
-            >
-              Download events.json
-            </a>
+            <div>
+              <a
+                href={`/api/backend/api/runs/${encodeURIComponent(s.runId)}/export`}
+                download="events.json"
+                className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-[13px] font-medium text-water shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] hover:bg-[#f7f9fc]"
+              >
+                Download events.json
+              </a>
+            </div>
           </div>
         ) : (
           <>
@@ -229,7 +270,7 @@ export function Console({
               />
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+            <div className="mt-4">
               <NetworkGraph
                 systems={s.systems}
                 alerts={s.alerts}
@@ -237,6 +278,8 @@ export function Console({
                 trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
                 onFacility={(f) => setFacilityId(f.id)}
               />
+            </div>
+            <div className="mt-4">
               <AlertsTable
                 failures={failures}
                 inspections={inspections}
@@ -247,6 +290,7 @@ export function Console({
                 onIncident={setIncident}
                 onTicket={(a) => void saveAction(a, "inspection_ticket")}
                 onFacility={(f) => setFacilityId(f.id)}
+                agentNote={agentNote}
               />
             </div>
 

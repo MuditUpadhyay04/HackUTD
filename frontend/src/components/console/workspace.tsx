@@ -119,22 +119,35 @@ export function Workspace({
     for (const [key, value] of Object.entries(patch)) value == null ? q.delete(key) : q.set(key, value);
     router.push(`/?${q}`);
   };
+  const runtimeSelect = (
+    <label className="flex items-center justify-between gap-3">
+      <span className="text-muted-foreground">Checks run on</span>
+      <select value={runtime} onChange={(e) => navigate({ runtime: e.target.value })} className="rounded-md bg-white px-2 py-1 text-text shadow-[0_0_0_0.5px_rgba(0,0,0,0.12)]">
+        <option value="auto">Automatic</option><option value="software">Software</option><option value="fpga">FPGA board</option>
+      </select>
+    </label>
+  );
+  const upload = <Upload onUploaded={async (d) => { await loadDatasets(); navigate({ dataset: d.id, at: null }); }} />;
   return <>
-    <div className="mx-auto flex max-w-[1344px] flex-wrap items-center gap-3 px-4 pt-4 text-sm">
-      <label>Runtime <select value={runtime} onChange={(e) => navigate({ runtime: e.target.value })} className="rounded-lg bg-white px-2 py-1"><option value="auto">Automatic</option><option value="software">Software</option><option value="fpga">FPGA</option></select></label>
-      {!snapshot && datasets.length > 0 && <label>Dataset <select value={datasetId ?? datasets[0].id} onChange={(e) => navigate({ dataset: e.target.value, at: null })} className="rounded-lg bg-white px-2 py-1">{datasets.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</select></label>}
-      <Upload onUploaded={async (d) => { await loadDatasets(); navigate({ dataset: d.id, at: null }); }} />
-    </div>
     {error && <p role="alert" className="mx-auto max-w-[1344px] px-4 pt-3 text-crit">{error}</p>}
-    {snapshot ? <Console key={snapshot.runId} snapshot={snapshot} datasets={datasets} /> : <main className="mx-auto max-w-[1344px] p-8 text-muted-foreground">{status}</main>}
+    {snapshot ? (
+      <Console key={snapshot.runId} snapshot={snapshot} datasets={datasets} controls={<div className="grid gap-2.5 text-[12.5px]">{runtimeSelect}{upload}</div>} />
+    ) : (
+      <main className="mx-auto grid max-w-[480px] gap-3 p-8 text-sm text-muted-foreground">
+        <p>{status}</p>
+        {datasets.length > 0 && <label className="flex items-center justify-between gap-3">Dataset <select value={datasetId ?? datasets[0].id} onChange={(e) => navigate({ dataset: e.target.value, at: null })} className="rounded-md bg-white px-2 py-1">{datasets.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}</select></label>}
+        {runtimeSelect}
+        {upload}
+      </main>
+    )}
   </>;
 }
 
 function Upload({ onUploaded }: { onUploaded: (dataset: DatasetInfo) => Promise<void> }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  return <details className="relative"><summary className="cursor-pointer font-medium text-water">Upload dataset</summary>
-    <form className="glass absolute z-30 mt-2 grid w-80 gap-3 p-4" onSubmit={async (event) => {
+  return <details><summary className="cursor-pointer font-medium text-water">Upload a dataset</summary>
+    <form className="mt-2 grid gap-2.5 rounded-lg bg-white p-3 text-[12.5px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.12)]" onSubmit={async (event) => {
       event.preventDefault(); setBusy(true); setMessage("Uploading and validating…");
       const form = event.currentTarget;
       try {
