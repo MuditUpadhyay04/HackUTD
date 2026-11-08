@@ -1,6 +1,6 @@
 # FPGA spec — module contracts
 
-**Status: FROZEN, version 1** (Sat Nov 7 2026, 22:30 CST). Wave 1 may start. `VERSION` holds the number.
+**Status: FROZEN, version 2** (Sat Nov 7 2026, 22:45 CST). Wave 1 may start. `VERSION` holds the number.
 
 Source design: `../../docs/plan/lucas/fpga_hardware_plan.md` (engine v2) plus the decisions in `numerics.md` §1
 (R1–R3 from `../../docs/plan/lucas/review_notes.md` resolved as D1–D3; D4–D5 new). Lucas may reverse any of them;
@@ -37,3 +37,4 @@ v1 layouts are unchanged in size and position. The freeze **adds** (all previous
 | --- | --- | --- |
 | 0 | Sat Nov 7 22:10 | Scaffold |
 | 1 | Sat Nov 7 22:30 | Frozen: conventions, numerics (D1–D5), regmap, 12 module specs, generated `eog_defs.svh` |
+| 2 | Sat Nov 7 22:45 | conventions §7: formal-only observation ports `f_inflight`, `f_oldest_recno` on every pipeline stage (needed for inductive stage proofs). No wire-format, numerics or synthesized-port change; `EOG_SPEC_VERSION` (and so the VERSION register `[7:0]`) is now 2. `formal/common` checkers are modules (`eog_fv_props.sv`), not macros |
