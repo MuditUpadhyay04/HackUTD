@@ -187,7 +187,7 @@ buffering.
   stand-in and the golden sets already behave this way.
 - **The fake board is the reference**, not the hardware. The real board must produce byte-identical results;
   Lucas is verifying that. The JSON contract above doesn't change between them.
-- **Current weights are v4** (trained with distorted copies of the data, including one with 2 % of readings missing, so they hold up if the judging network looks different or drops readings; design in `docs/plan/mudit/ml_architecture.md`). Future weights keep the same JSON; only `weights_ver` changes. A live weight swap during the demo is `replay.py --swap-at-step N --swap-weights … --swap-version V`.
+- **Current weights are v4** (trained with distorted copies of the data, including one with 2 % of readings missing, so they hold up if the judging network looks different or drops readings; design in `docs/plan/mudit/ml_architecture.md`). Future weights keep the same JSON; only `weights_ver` changes. A live weight swap during the demo is `replay.py --swap-at-step N --swap-weights … --swap-version V --swap-config …/global_config.json` (the new model's thresholds and K go out with it), with `listen.py --model artifacts/v3 --model artifacts/v4` so each result is read with its own model's calibration and thresholds.
 - `fac_id`, the wire format and the exact meaning of every field are settled: Lucas reviewed the implementation
   details (`ml/README.md`, A1–A22) and the FPGA spec is locked. Missing readings: a field missing for up to 2 steps
   is HELD (last value); after that the record is INVALID (`field_lost`) until the sensor is back, and the history

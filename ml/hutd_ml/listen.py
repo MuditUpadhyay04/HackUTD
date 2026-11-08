@@ -39,11 +39,12 @@ def bits(v, names):
 
 
 class Decoder:
-    def __init__(self, facilities, calibration=None, logit_thr=None, persist_k=None):
+    def __init__(self, facilities, calibration=None, logit_thr=None, persist_k=None, models=None):
         self.fac = {f.fac_id: f for f in facilities}
-        self.calib = calibration or [None] * 4
-        self.thr = logit_thr
-        self.k = persist_k  # per-class K from global_config.json; enables "active"
+        # default model settings, plus per-weights_ver settings for a live swap (each model has its own
+        # calibration, thresholds and K); a result is read with the settings of the model that produced it
+        self.default = (calibration, logit_thr, persist_k)
+        self.models = models or {}
         self.cnt = {}  # fac_id -> consecutive hits per head, kept exactly like the board's persistence counters
 
     def _names(self, fid):
@@ -63,19 +64,20 @@ class Decoder:
                "rules": bits(r["rules"], RULES), "weights_ver": int(r["weights_ver"]), "result_no": int(r["result_no"]),
                "countdown_min": {k: (None if int(v) == wire.COUNTDOWN_NONE else int(v))
                                  for k, v in zip(("p10", "p50", "p90"), r["countdown"])}}
-        if self.calib[0] is not None:
+        ver = int(r["weights_ver"])
+        calib, thr, k = self.models.get(ver, self.default)
+        if calib is not None and ver != 0:
             out["probability"] = {h: round(1 / (1 + math.exp(-(c["a"] * z + c["c"]))), 4)
-                                  for h, z, c in zip(wire.HEADS, logits, self.calib)}
-        if self.thr is not None:
+                                  for h, z, c in zip(wire.HEADS, logits, calib)}
+        if thr is not None:
             # No model loaded (weights_ver 0): the logits are 0, not scores, so nothing is a hit (hard rule 9).
-            model = int(r["weights_ver"]) != 0
-            hits = [model and int(z) > t for z, t in zip(r["logits"], self.thr)]
+            hits = [ver != 0 and int(z) > t for z, t in zip(r["logits"], thr)]
             out["above_threshold"] = [h for h, x in zip(wire.HEADS, hits) if x]
-            if self.k is not None:
-                out["active"] = self._active(fid, int(r["status"]), int(r["reason"]), hits)
+            if k is not None:
+                out["active"] = self._active(fid, int(r["status"]), int(r["reason"]), hits, k)
         return out
 
-    def _active(self, fid, status, reason, hits):
+    def _active(self, fid, status, reason, hits, k):
         """Heads with >= K consecutive hits: the detection the thresholds were tuned for (persist_K4, FPGA D10).
         Mirrors the board: VALID / HELD records count, INVALID clears, a history reset restarts the count, DROPPED
         changes nothing. Lost UDP packets (gaps in result_no) can make it lag the board by a record or two."""
@@ -85,7 +87,7 @@ class Decoder:
                 cnt[:] = [0] * 4
             for h in range(4):
                 cnt[h] = cnt[h] + 1 if hits[h] else 0
-            return [h for h, c, k in zip(wire.HEADS, cnt, self.k) if c >= k]
+            return [h for h, c, kk in zip(wire.HEADS, cnt, k) if c >= kk]
         if status == wire.ST_INVALID:
             cnt[:] = [0] * 4
         return []
@@ -113,6 +115,10 @@ def main(argv=None):
     ap.add_argument("--local", default="0.0.0.0")
     ap.add_argument("--weights-json", default=None, help="weights.json (adds calibrated probabilities)")
     ap.add_argument("--config", default=None, help="global_config.json (adds above_threshold and active)")
+    ap.add_argument("--model", action="append", default=[], metavar="DIR",
+                    help="artifacts folder of a model (weights.json + global_config.json); repeat it for a live swap, "
+                         "e.g. --model artifacts/v3 --model artifacts/v4. Results are read with the settings of the "
+                         "model whose weights_ver they carry; --weights-json / --config remain the default")
     ap.add_argument("--jsonl", default=None)
     ap.add_argument("--post", default=None, help="POST batches of JSON objects to this URL")
     ap.add_argument("--quiet", action="store_true", help="don't print results to stdout")
@@ -123,7 +129,15 @@ def main(argv=None):
     cfg = json.loads(Path(a.config).read_text()) if a.config else None
     thr = cfg["logit_thr"] if cfg else None
     k = (cfg.get("persist_k_per_class") or [cfg.get("persist_k", 1)] * 4) if cfg else None
-    dec = Decoder(facs, calib, thr, k)
+    models = {}
+    for d in a.model:
+        wj = json.loads((Path(d) / "weights.json").read_text())
+        gc = json.loads((Path(d) / "global_config.json").read_text())
+        models[int(wj["version"])] = (wj["calibration_platt"], gc["logit_thr"],
+                                      gc.get("persist_k_per_class") or [gc.get("persist_k", 1)] * 4)
+    if models and calib is None and thr is None:  # --model only: the last one is also the default
+        calib, thr, k = list(models.values())[-1]
+    dec = Decoder(facs, calib, thr, k, models)
     socks = {}
     for port in (wire.PORT_RESULT, wire.PORT_ALERT):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)

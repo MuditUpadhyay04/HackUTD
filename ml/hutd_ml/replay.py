@@ -40,6 +40,9 @@ def main(argv=None):
                     help="live weight swap demo: send --swap-weights once this step has been streamed")
     ap.add_argument("--swap-weights", default=None, help="weights.bin to swap in mid-stream")
     ap.add_argument("--swap-version", type=int, default=None, help="weights_ver of the swapped-in blob")
+    ap.add_argument("--swap-config", default=None,
+                    help="global_config.json of the swapped-in weights: its thresholds / K / gap_thr are sent as a "
+                         "GLOBAL CONFIG right after the swap (each model's thresholds were tuned for that model)")
     ap.add_argument("--allow-no-model", action="store_true",
                     help="stream DATA even without a confirmed model (bring-up only: with no model the logits are 0, "
                          "and trained configs have negative leak/degradation thresholds, so the board would alarm)")
@@ -53,6 +56,13 @@ def main(argv=None):
         cfg = json.loads(Path(a.config).read_text())
         gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat", "persist_k_per_class") if k in cfg}
     enc = encode.encode_dataset(a.data, **gkw)
+    swap_global = None
+    if a.swap_weights and a.swap_config:
+        c2 = json.loads(Path(a.swap_config).read_text())
+        swap_global = encode.build_global_config(**{k: c2[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat",
+                                                                       "persist_k_per_class") if k in c2})
+    elif a.swap_weights:
+        print("warning: --swap-weights without --swap-config keeps the first model's thresholds and K", flush=True)
     n_f = len(enc.facilities)
     steps = enc.records.reshape(len(enc.timestamps), n_f)
     span = int(enc.timestamps[-1] - enc.timestamps[0]) + 300
@@ -85,6 +95,9 @@ def main(argv=None):
                 status, active = b.send_weights(Path(a.swap_weights).read_bytes(), a.swap_version or 0)
                 print(f"step {i}: live swap to weights v{a.swap_version}: {status}, active version {active}",
                       flush=True)
+                if swap_global is not None and status == "swapped":
+                    b.send_global(swap_global)
+                    print(f"step {i}: GLOBAL CONFIG for v{a.swap_version} sent (thresholds, K, gap_thr)", flush=True)
             if a.step_seconds:
                 time.sleep(a.step_seconds)
             if i % 288 == 0:
