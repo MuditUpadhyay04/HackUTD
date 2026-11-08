@@ -3,7 +3,7 @@
 Claim a task by writing your agent/session name in **Owner** and setting **Status** to CLAIMED, in the same
 commit as your first work. Statuses: TODO · CLAIMED · BLOCKED · REVIEW · DONE. A task can start only when every
 task in **Needs** is DONE (a Verify task may start writing properties before its vectors exist; it needs T0.2 only
-to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v1).
+to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v2).
 
 **Branches on Windows:** `fpga/<task-id>` cannot coexist with the `FPGA` branch on a case-insensitive filesystem, so
 task branches are named `eog/<task-id>` (e.g. `eog/T1.validate.rtl`). **Status edits:** only the lead edits this
@@ -15,7 +15,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | --- | --- | --- | --- | --- | --- |
 | T0.1 | Freeze the spec (decisions D1–D5, conventions, numerics, regmap, 12 module specs, `rtl/eog_defs.svh`) | — | Claude (Lucas's session) | DONE | `spec/` v1 |
 | T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | fpga-model agent (lead session) | CLAIMED | `model/`, `tb/vectors/` |
-| T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | CLAIMED | `formal/common/` (checker modules + self-test), `scripts/env.sh`, `scripts/wsl.sh` |
+| T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | DONE | `formal/common/` (checker modules, abstract mul, self-test), `scripts/env.sh`, `scripts/wsl.sh`; 5d34900; `reports/formal_common.txt`, `reports/formal_axi_mul.txt` |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
 
