@@ -64,6 +64,7 @@ module fv_eog_head #(
     parameter integer SH           = 0,
     parameter integer FSET         = 0,
     parameter integer WSET         = 0,
+    parameter integer WR           = 0,
     parameter integer MAX_INFLIGHT = 4,
     parameter integer LAT_MAX      = 128,
     parameter integer SWAP_MAX     = 16,
@@ -289,6 +290,22 @@ module fv_eog_head #(
                     sh_k1[j]          <= 1'b1;
                 end
             end
+        end
+    end
+
+    // WR = 1: writes and reads only touch shadowed words (bmc speed: the solver need not track a RAM written at
+    // arbitrary addresses; an aliasing write from one shadowed word into another is still caught)
+    logic wa_ok, ra_ok;
+    always_comb begin
+        wa_ok = 1'b0;
+        ra_ok = 1'b0;
+        for (int j = 0; j < NSH; j++) begin
+            if (sh_addr(j, f_a) == wb_addr)  wa_ok = 1'b1;
+            if (sh_addr(j, f_a) == wb_raddr) ra_ok = 1'b1;
+        end
+        if (WR != 0 && SH != 0) begin
+            if (wb_we) a_wr: assume (wa_ok);
+            a_rr: assume (ra_ok);
         end
     end
 
