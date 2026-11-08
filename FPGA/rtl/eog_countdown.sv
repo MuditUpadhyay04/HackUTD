@@ -4,14 +4,15 @@
 //
 // Bus M in, bus C out. Header, FEAT and RULES[3:0] pass through; RULES[4] = NOT_FILLING; CD = {p90, p50, p10}.
 //
-// Numerics (numerics.md section 7):
-//   - per slot: a ring of 2^CD_LOG2 (16) signed INFLOW values, a "has ring" bit, a write pointer.
-//   - a non-DROPPED HIST_RESET record (FAC < N_FAC) clears "has ring" first (even if INVALID).
-//   - a VALID/HELD record (FAC < N_FAC) then fills the whole ring with its INFLOW if "has ring" is 0 (and sets it),
-//     otherwise replaces the oldest entry. sum (s20), mean = sum >>> CD_LOG2, max, min over the ring after that.
-//     NOT_FILLING = (mean <= 0). LEVEL >= SHUT_LVL (s16 vs zero-extended u16): CD = 0. Otherwise, with
-//     delta = SHUT_LVL - LEVEL and K = K_CD: p10 = m(max), p50 = m(mean), p90 = m(min),
-//     m(q) = q <= 0 ? 0xFFFF : min((K*delta) // (q << 8), 0xFFFF).
+// Numerics (numerics.md section 7 with TASKS.md rulings 20, 21, 33, 34; = Mudit's features_int.py @ 8e67750):
+//   - per slot: a ring of 2^CD_LOG2 (16) values x = max(INFLOW, 0) (ruling 20), a "has ring" bit, a write pointer.
+//   - a non-DROPPED HIST_RESET record (FAC < N_FAC) clears "has ring" first (even if INVALID; ruling 34: also the
+//     never-produced codes 2/5/6/7).
+//   - a VALID/HELD record (FAC < N_FAC) then fills the whole ring with its x if "has ring" is 0 (and sets it),
+//     otherwise replaces the oldest entry. sum, mean = sum >>> CD_LOG2, max, min over the ring after that.
+//     LEVEL >= SHUT_LVL (s16 vs zero-extended u16): CD = 0 and NOT_FILLING = 0 (ruling 21). Otherwise
+//     NOT_FILLING = (mean <= 0) and, with delta = SHUT_LVL - LEVEL and K = K_CD: p10 = m(max), p50 = m(mean),
+//     p90 = m(min), m(q) = q <= 0 ? 0xFFFF : min((K*delta) // (q << 8), 0xFFFF).
 //   - every other record (INVALID, DROPPED, unused codes 2/5/6/7, FAC >= N_FAC): CD = 3 x 0xFFFF, NOT_FILLING = 0,
 //     ring untouched (spec question 1: FAC >= N_FAC never touches state).
 //   - K * delta is kept in full (32 x 17 bits, so every 32-bit K_CD is exact): a product >= 2^48 can only give a
@@ -94,7 +95,7 @@ module eog_countdown #(
     localparam integer FW   = (N_FAC > 1) ? $clog2(N_FAC) : 1;   // slot index width
     localparam integer CDN  = 1 << CD_LOG2;                       // ring depth (16)
     localparam integer WB   = CD_LOG2;                            // write pointer width
-    localparam integer VW   = 16;                                 // ring value: INFLOW, s16
+    localparam integer VW   = 16;                                 // ring value: max(INFLOW, 0), kept as s16
     localparam integer SB   = VW + CD_LOG2;                       // ring sum, signed (s20)
     localparam integer RW   = CDN * VW;                           // ring row of one slot
     localparam integer R    = CD_LOG2;                            // reduction levels
@@ -144,6 +145,8 @@ module eog_countdown #(
     assign i_fac    = in_data[EOG_BM_FAC        +: EOG_BM_FAC_W];
     assign i_hist   = in_data[EOG_BM_HIST_RESET];
     assign i_inflow = in_data[EOG_BM_INFLOW     +: EOG_BM_INFLOW_W];
+    logic [VW-1:0] i_x;                                            // ruling 20: the ring holds max(INFLOW, 0)
+    assign i_x      = i_inflow[VW-1] ? {VW{1'b0}} : i_inflow;
     assign i_level  = in_data[EOG_BM_LEVEL      +: EOG_BM_LEVEL_W];
 
     assign i_fac_ok = ({1'b0, i_fac} < N_FAC[EOG_BM_FAC_W:0]);
@@ -197,7 +200,7 @@ module eog_countdown #(
     always_comb begin
         r_new = r_old;
         for (int i = 0; i < CDN; i++)
-            if (!s_has_old || (s_wp_rd == WB'(i))) r_new[i * VW +: VW] = i_inflow;
+            if (!s_has_old || (s_wp_rd == WB'(i))) r_new[i * VW +: VW] = i_x;
     end
 
     // ---------------------------------------------------------------------------------------------------------
@@ -326,7 +329,7 @@ module eog_countdown #(
     assign np_max  = w_max[VW-1]  || (w_max  == {VW{1'b0}});
     assign np_mean = w_mean[VW-1] || (w_mean == {VW{1'b0}});
     assign np_min  = w_min[VW-1]  || (w_min  == {VW{1'b0}});
-    assign flg_wd  = {np_mean, trip_r, np_min || ov_kd, np_mean || ov_kd, np_max || ov_kd};
+    assign flg_wd  = {np_mean && !trip_r, trip_r, np_min || ov_kd, np_mean || ov_kd, np_max || ov_kd};  // ruling 21
 
     logic           is50, is90;
     logic [VW-1:0]  dq_sel;
