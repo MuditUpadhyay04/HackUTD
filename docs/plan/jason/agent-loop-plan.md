@@ -1,8 +1,8 @@
 # Closed-loop Nemotron agents: plan and proof of concept
 
 Status: **PROPOSED** (Nick, Sun Nov 8 2026, ~05:30 CST). **P0 and P1 done; checkpoint C1 passed Sun 05:39 CST**
-(§7); P2–P5 not started. Not in [`global_plan.md`](../../../global_plan.md) yet: it
-gets promoted there, with a changelog row, only after the fakeboard checkpoint passes and the team agrees. Agents
+(§7); P3 and P4 built (§9); P2 and P5 not started. **Promoted to [`global_plan.md`](../../../global_plan.md)
+as PROPOSED** (C12 update, C13, I-16 … I-19, O18; Sun 07:15); ADOPTED needs the team's agreement. Agents
 and Nemotron are Jason's domain (C12, final say), so this plan sits in his folder, the way
 [`START_HERE.md`](START_HERE.md) does; edit or move it.
 

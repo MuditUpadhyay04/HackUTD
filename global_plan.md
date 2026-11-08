@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 06:50 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 07:15 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -29,6 +29,9 @@ ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **S
   | Spec, FPGA, RTL, wire format, numerics | **Lucas** |
   | Model, features, training, weights, ingest and board tooling (`ml/`) | **Mudit** |
   | Operator API / server, agents, Nemotron | **Jason** |
+
+  **Open (O18):** Jason's PR #9 hands the agent / Nemotron path to Mudit, and the agent loop POC is Nick's work
+  (`docs/plan/jason/agent-loop-plan.md`). Until the team records a change here, the row above stands.
 
   Lucas's spec v4 names `features_int.py` the normative integer reference. Where the two disagree, it is a spec
   question Lucas rules on, and the ML side follows. The rule doesn't name the web console: UI-only matters are
@@ -113,8 +116,11 @@ flowchart LR
     FB --> L
     L -- "HTTP POST JSON batches" --> ING["ingest endpoint<br/>(today: frontend /api/ingest; target: operator API, §9 I-1)"]
     ING --> API["operator API (apps/api, Elysia)<br/>runs · incidents · planner + validator · scenarios"]
-    API --> AG["Nemotron coordinator<br/>(libfx; AI SDK fallback)"]
-    AG --> API
+    API --> AG["Nemotron agents<br/>deterministic orchestrator → scoped sub-agents<br/>(libfx; AI SDK fallback)"]
+    AG -- "validated output only" --> API
+    AG -. "traces, outcomes" .-> LL["agent learning loop (offline, weekly)<br/>prompt registry · outcome records · critic"]
+    LL -. "champion prompts" .-> AG
+    LL -. "advisory experiment specs" .-> TR["train.py → golden sets → board_suite<br/>(Mudit; human deploys weights)"]
     API -- "Eden + SSE" --> WEB["web console (frontend/, Next.js)"]
     B --> LED["LEDs / Pmod (display-only alarms)"]
 ```
@@ -126,7 +132,8 @@ flowchart LR
 | **Software board** | The same UDP protocol and bit-exact results as the board, for development and the no-board demo path. | `ml/hutd_ml/fakeboard.py` | DECIDED |
 | **Board → JSON** | Binds 7001 / 7002 on the board PC, decodes RESULT / ALERT / STATS to JSON, sends the 1 s heartbeat, POSTs batches. Heartbeats stop when the POST target is down, so the board buffers. | `ml/hutd_ml/listen.py`; schema in `ml/INTEGRATION.md` §3 | DECIDED |
 | **Operator API** | Uploads, immutable imports, runs (dataset, cutoff, runtime `auto/software/fpga`), incidents, host countdowns, shared-fleet solver + independent validator, scenarios, export, SSE, agents. | `apps/api/`, `packages/contracts/`, `db/` | ADOPTED (Jason) |
-| **Agents** | One Nemotron coordinator over bounded read/compute tools; the AI SDK runtime is the fallback; a deterministic draft when no provider is reachable. | `apps/api/src/features/agents/`; endpoint in `docs/plan/jason/nemotron-inference-operations.md` | ADOPTED (Jason) |
+| **Agents** | A **deterministic orchestrator** (code, not an LLM) runs scoped Nemotron sub-agents: triage, plan explainer, handoff and strategy, plus an evidence reviewer on request. Sub-agents may ask the orchestrator for another subtask (`request_subtask`, bounded depth and budget). Tools only read, compare or submit text. Every output passes deterministic validators (grounded check: numbers and IDs must come from the facts, no completed-action claims) before the console shows it. libfx runtime, AI SDK fallback, deterministic draft without a provider. | `apps/api/src/features/agents/` (`orchestration/`); plan `docs/plan/jason/agent-loop-plan.md`; endpoint `docs/plan/jason/nemotron-inference-operations.md` | Single coordinator ADOPTED (Jason); orchestrator **PROPOSED** (C13), implemented and measured |
+| **Agent learning loop** | Offline, weekly: every decision and its outcome are recorded (the outcome comes from the following 6 h of telemetry, a runtime input, never the answer key); a critic (Nemotron) proposes a revised prompt from the worst traces; a challenger replaces the champion only on a measured same-week win; held-out cases stay separate. It may *propose* weight experiments, which Mudit runs through `train.py`, golden sets and `board_suite`; a human deploys weights. | `apps/api/src/features/agents/learning/`, `db/migrations/002_agent_learning.sql`, `apps/api/scripts/agent-weeks.ts` | **PROPOSED** (C13), proof of concept |
 | **Web console** | Presentation only: upload / select / replay, incidents, plans, board view, handoff. No detector or planner of its own. | `frontend/` | ADOPTED (Gurneal, Jason) |
 | **Training** | Four logistic regressions on feature set 1; v4 recipe (v3 + a 2 %-missing training copy); int16 export; golden sets; robustness and R7 reports. | `ml/` | DECIDED |
 
@@ -136,7 +143,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state), `FPGA/reports/` (board bring-up, lead response) | Board bring-up: B1–B3 PASS on hardware (50 MHz); B4 (O16) and the clock decision (O17); SD boot; live runs with `board_suite` / `win_live*.bat` |
 | Model, features, ingest, board tooling | Mudit | `docs/plan/mudit/ml_architecture.md` (frozen), `ml/README.md`, `ml/INTEGRATION.md` | Weights v4 deployed; board run with Lucas on the v4 golden sets; ingest via `listen.py` with Jason / Gurneal |
-| Operator API, agents, Nemotron | Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Board ingest into runs (I-1), the PR #4 review findings (§9) |
+| Operator API, agents, Nemotron | Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, **`agent-loop-plan.md`** (closed-loop agents, Nick), `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Agent loop POC (Nick): board ingest into runs (I-1 / plan P2), handoff acceptance (I-17), Postgres learning store (I-16); ownership O18 |
 | Web console | Gurneal (Jimmy), with Jason | `frontend/`, `frontend/docs/live-api.md` | Board view from the operator API's snapshot (I-2) |
 
 ## 5. Interface contracts
@@ -154,7 +161,8 @@ flowchart LR
 | C9 | Events and actions: the operator API builds incidents (onset / ongoing / resolved) from host interpretation; leak and degradation → inspection; failure → countdown + system plan from the bounded solver + independent validator (`best_feasible_found`); optional SPEC `events.json` export | **PROPOSED**: implemented in PR #4; Jason + Gurneal to confirm | `agent-backend-architecture.md` §"Deterministic domain layer" | Jason + Gurneal |
 | C10 | Server ↔ web API: the operator API (Elysia, Eden-typed `App`, SSE cursors), proxied by the Next app with a server-side token | **PROPOSED**: implemented in PR #4; Jason + Gurneal to confirm | `agent-backend-architecture.md` §"Feature API"; `apps/api/src/app.ts`; `packages/contracts/` | Jason + Gurneal |
 | C11 | Board → server JSON: `result` / `alert` / `stats` objects from `listen.py` (names, calibrated probability, `above_threshold` per record, **`active` = K hits in a row, the detection**, status, reasons, countdown, `weights_ver`), POSTed as arrays; `[]` while idle | DECIDED for what `listen.py` emits (Mudit); the console consumes it today; the operator API's ingest is I-1 (Jason to confirm the shape) | `ml/INTEGRATION.md` §3 | Mudit + Jason + Gurneal |
-| C12 | Agent scope: one coordinator, scoped tools, server-validated finalization; Nemotron endpoint per `nemotron-inference-operations.md`; AI SDK fallback; draft without a provider | **PROPOSED**: implemented in PR #4; Jason to confirm | `agent-backend-architecture.md` §"Agent design" | Jason |
+| C12 | Agent scope: scoped read-only tools and server-validated finalization. The **grounded check** replaces the vocabulary whitelist: numbers and ID-like tokens must appear in the facts; no completed-action claims; citations; a length cap. Nemotron per `nemotron-inference-operations.md`, with thinking off by default and the context window / output budget from env (`NEMOTRON_*`). AI SDK fallback; a deterministic draft without a provider | **PROPOSED**: implemented in PR #4 + the agent loop POC; Jason to confirm | `agent-backend-architecture.md` §"Agent design"; `agent-loop-plan.md` §2 | Jason |
+| C13 | Closed-loop agents: a deterministic orchestrator assigns sub-agents and bounded recursive subtasks; a prompt registry with versioned templates; outcome records; champion / challenger promotion only on a measured same-week win, with held-out cases kept separate. Agents may propose weight experiments (C5 recipes, C8 values), never C2–C4 or C6, and never deploy them | **PROPOSED** (Nick); implemented and measured as a proof of concept | `docs/plan/jason/agent-loop-plan.md` §3, §9 | Jason (agents) + Mudit (any weights proposal) |
 
 ## 6. Superseded — do not build
 
@@ -166,6 +174,7 @@ flowchart LR
 | Hold overflow → history reset (A6) | **R7 option C**: hold overflow → INVALID, memory kept (FPGA spec question 70) | Sun 02:10 |
 | The frontend's bundled detector / planner and direct model calls | The operator API (C9 / C10) | PR #4 |
 | Weights v1 (pre-review spec) | v4 deployed; v3 kept as the fallback; v2 kept for RTL verification | Sun 02:45 |
+| The ~200-word vocabulary whitelist in `validateFinalization` (it rejected normal prose: in the measured trace the only handoff it accepted was the single word "incidents") | The grounded check (C12) | Sun 05:39 |
 
 ## 7. Path to the demo (in this order)
 
@@ -184,8 +193,13 @@ flowchart LR
 - The operator API and console run end to end in software mode (Jason's PR #4 report, browser-checked). Measured
   on the integrated tree (Sun 02:55): `bun run test` 88 pass, 1 skip, **2 fail** (I-10; the same on PR #4 alone);
   `bun run typecheck` clean; `ml` tests 12 / 12.
-- The Nemotron endpoint answers authenticated chat completions (Jason's runbook). Its tool-call parser is not yet
-  verified end to end.
+- **Nemotron agents work live** (agent loop checkpoint C1, Sun 05:39, single runs, not a benchmark): 8 of 8 analyses
+  accepted from Nemotron (libfx path), median 5.1 s, median 8k input / 740 output tokens. Tool calling works with
+  thinking on or off; the endpoint reports `max_model_len` 1,048,576.
+- The orchestrator and the weekly loop ran 8 simulated weeks on `full_week`, with `mock_test` held out: prompts changed
+  only on measured same-week wins. Every trucks or shut-in recommendation was warranted by the no-action telemetry
+  (15 / 15), and the do-nothing forecast matched 22 / 22. No reliable held-out gain from prompt changes yet
+  (`agent-loop-plan.md` §9.3).
 
 1. **FPGA + CSV → binary** (Lucas, Mudit). **DECIDED** (Lucas, Sun 02:45; detail in
    [`docs/plan/lucas/board_run_plan.md`](docs/plan/lucas/board_run_plan.md)). Weights v4 for the board run and the
@@ -207,8 +221,10 @@ flowchart LR
    - board RESULTs attached to a run;
    - `Snapshot.board` populated (I-2);
    - same JSON whether the board or `fakeboard.py` produced it.
-3. **Agents on board-fed incidents** (Jason): coordinator explanations and shift handoff over incidents and plans
-   from step 2.
+3. **Agents on board-fed incidents** (Jason; agent loop by Nick): the orchestrator's sub-agents explain plans and
+   write the shift handoff over incidents from step 2. Built and run on the software board, reading board results
+   from a JSONL file. Missing: board results inside API runs (I-1, plan P2). Watch it:
+   `docs/plan/jason/agent-loop-plan.md` §10.
 4. **Judging dry run:**
    - `mock_test_*` end to end;
    - then a fresh folder;
@@ -227,6 +243,7 @@ If that fails, the operator API's own software runtime, labeled "not FPGA bit-ex
 | Board JSON (C11) | **Mudit** for what `listen.py` emits; **Jason** for how the server ingests it; Gurneal consulted | Update `ml/INTEGRATION.md` |
 | Events, actions, server ↔ web API (C9, C10) | Jason + Gurneal (**Jason** breaks a tie) | Update `docs/plan/jason/` and this file |
 | Agent scope, Nemotron (C12) | **Jason** | Update `docs/plan/jason/` and this file |
+| Closed-loop agents (C13) | **Jason** for agents; **Mudit** for any weights proposal | Promotions only on a measured win; weights only through `train.py`, golden sets and `board_suite`; a human deploys |
 | Alarm semantics (C8 logic) vs. recommended actions (C9) | Lucas + Jason; UI wording with Gurneal | Re-check hard rules 4 and 8 |
 | Hard rules (§2), this section, "How this file works" | Whole team | — |
 | Anything that would change FPGA spec v4 or the RTL | **Lucas**, and only to fix something broken ("How this file works") | Prefer a fix outside the FPGA |
@@ -240,21 +257,25 @@ Mudit's integration branch; `main` receives merges from them.
 
 | # | Task | Owner | Notes |
 | --- | --- | --- | --- |
-| I-1 | **One board ingest path into the operator API.** `listen.py` JSON (C11) is persisted against a run, so board RESULTs feed incidents, plans and agents. Today `listen.py` posts to the frontend's in-memory `/api/ingest`. | Jason (+ Gurneal) | Retire or align `apps/api/src/bridge.ts` (same decoding as `listen.py`) so there is one bridge |
+| I-1 | **One board ingest path into the operator API.** `listen.py` JSON (C11) is persisted against a run, so board RESULTs feed incidents, plans and agents. Today `listen.py` posts to the frontend's in-memory `/api/ingest`, and the agent loop reads a JSONL file (`BOARD_JSONL`). Proposed: `POST /api/runs/:id/board` with a provenance label (agent plan P2). | Jason (+ Gurneal, Mudit) | Retire or align `apps/api/src/bridge.ts` (same decoding as `listen.py`) so there is one bridge |
 | I-2 | **One board-data authority in the console.** Render board data from the operator API `Snapshot.board`, not a second client-side feed. | Gurneal | PR #4 review finding 2 (round 2) |
 | I-3 | **One encoder.** `apps/encoder` (TS) must produce `ml/artifacts/*/golden/g1/data.bin` byte for byte, or be retired in favor of `encode.py` / `replay.py`. | Jason + Mudit | C3 / C6 |
 | I-4 | **Software runtime parity.** The API's "software" runtime uses `fakeboard.py` + `listen.py` (bit-exact, v4 weights), or keeps `packages/fpga-sim` labeled "not FPGA bit-exact". | Jason | Hard rule 11 |
 | I-5 | Fill-rate display uses inflow − pump flow; use inflow only, as the countdown does (O7 fix). | Jason | PR #4 review finding 4 |
 | I-6 | `packages/fpga-sim` alarm latches map E-STOP to pump fault and Night Shift to shut-in; C8 says otherwise. Fix, or drop if I-4 makes it unused. | Jason | PR #4 review finding 6 |
 | I-7 | `SIMULATE_BOARD` feed: dev builds only, no invented `weightsVersion`; `BoardFacility` must carry RESULT status / reasons (hard rule 9). | Gurneal | PR #4 review round 2, findings 3–4 |
-| I-8 | AI SDK fallback: verify tool wiring (`inputSchema`, execute args), label `ai-sdk` analyses as model-written in the UI, no fake FX session link, facts via tools rather than the system prompt, no `nowUnix ?? 0` default. | Jason | PR #4 review round 3 |
+| I-8 | ~~AI SDK fallback~~ **Mostly done** (agent loop POC): v7 tool wiring (`inputSchema`, `instructions`, `stopWhen`), facts only through tools, no fake session link, model-written analyses labeled in the console. **Left:** `tools.ts` still defaults `nowUnix` to 0 (hard rule 3). | Jason / Nick | PR #4 review round 3 |
 | I-9 | **Alarm acknowledge message.** No wire message exists for a server-side latch acknowledge, so `CTRL.server_ack` is never pulsed. The server team defines it; the ARM forwards it (T2.ps1 follow-up); RTL unchanged. A new wire message is C2, so Lucas approves the layout. Until then, acknowledge is BTN0 on the board only, and the console shows latches read-only (hard rules 8, 12). | Jason (+ Lucas) | FPGA spec question 77 |
-| I-10 | Two analysis-coordinator tests fail on PR #4 as merged (`apps/api/src/features/agents/service.test.ts`: "timeout returns an honest draft…", "fails instead of hiding a fenced session persistence failure"). Not caused by the integration: same result on `feature/operator-backend` @ `e001cf3`. | Jason | Found at integration |
+| I-10 | ~~Two analysis-coordinator tests fail~~ **Done** (agent loop POC): honest timeouts and session failures. `bun run test` 124 pass, 1 skip (opt-in live provider), 0 fail. | Jason / Nick | — |
 | I-11 | ~~**Hard rule 9 in the console**~~ **Done in PR #6** (minimal fixes, no redesign): `unknown` health is drawn grey like `no_data` (water, pipe, tank, system status) and counts in the "no data" headline; a missing tank level is a grey ring and "tank level unknown", not an empty tank or 0 %; missing confidence, flows, pump status, receive flow and wear scores read "Unknown" / "No data" instead of 0, "Stopped" or a zero gap; plan totals with a missing cost read "Unknown", not `$0`; a pump-failure card says "Repair first" / "Not filling" instead of "Safe". `tsc`, `eslint` and `next build` pass. | Gurneal to review | PR #6 compliance review finding 1 |
 | I-12 | Dead links: the console's `/api/events` download and Photon's `/api/brief` / `/api/events` calls; the operator API serves the export at `GET /runs/:id/export`. | Gurneal | PR #6 review finding 5 |
 | I-13 | Operator approvals live only in React state; persist them through `POST /runs/:id/actions`. | Gurneal (+ Jason) | PR #6 review finding 5 |
 | I-14 | `frontend/src/lib/engine/types.ts` forks `@hackutd/contracts`; use the shared contracts. | Gurneal + Jason | PR #6 review finding 5; C10 |
-| I-15 | **Nemotron live check.** The vLLM server runs with max model len 4096 while the coordinator asks for up to 1,024 output tokens plus facts and tool schemas; `Provider.contextWindow` exists but `loadConfig` never sets it, so libfx doesn't know the limit. Also verify the `qwen3_coder` tool-call parser end to end before the demo (runbook). | Jason | Found while writing `docs/plan/jason/START_HERE.md` |
+| I-15 | ~~Nemotron live check~~ **Done** (agent loop POC): the endpoint reports `max_model_len` 1,048,576 (the runbook's 4,096 is out of date). Context window, output budget and thinking mode come from env (`NEMOTRON_CONTEXT_WINDOW`, `NEMOTRON_MAX_OUTPUT_TOKENS`, `NEMOTRON_THINKING`, off by default). The `qwen3_coder` tool-call parser works with thinking on or off. | Jason / Nick | — |
+| I-16 | The Postgres learning store and migration `002_agent_learning.sql` are untested against a live database (memory mode + a JSON file so far). | Jason / Nick | Agent plan §9.5 |
+| I-17 | Handoff acceptance is 74 %, the main failure (length and line breaks with 3 incidents). Fluent but empty claims still pass the grounded check. | Nick | Agent plan §9.5 |
+| I-18 | Prompt promotion statistics: 2–4 samples per version is below the noise (an identical template once "won"). Repeat each case 2–3 times and promote on a confidence bound before claiming a gain (hard rule 10). | Nick | Agent plan §9.3 |
+| I-19 | `listen.py`: an auth-token option and a source field on POST (C11 emit side, for I-1). Note: a Python client calling the Nemotron endpoint needs a User-Agent, because Cloudflare refuses urllib's default (error 1010). | Mudit | Agent plan §5 |
 
 **Open questions:**
 
@@ -266,10 +287,11 @@ Mudit's integration branch; `main` receives merges from them.
 | O7 | Countdown fix (inflow, not inflow − pump flow; tripped tank → 0) | Lucas; Jason for the fallback band | FPGA side **done** (spec v4, D1 / D2 / D6). Server side open: I-5. |
 | O10 | Throughput demo (loop / scale-out replay) | Lucas | T3.perf; never mixed with operator runs |
 | O11 | Server → web app API | Jason + Gurneal | Proposed resolution: C10 (implemented in PR #4) |
-| O12 | Nemotron agent scope and inputs | Jason | Proposed resolution: C12 (implemented in PR #4); the AI SDK fallback issues are I-8 |
+| O12 | Nemotron agent scope and inputs | Jason | Proposed resolution: C12 + C13 (implemented: PR #4 and the agent loop POC); Jason to confirm |
 | O15 | With **no model** loaded (`weights_ver` 0) the logits are 0, and v4's leak / degradation thresholds are negative (−128 / −64), so the board's alarm stage would count every record as a hit. Spec v4 as written (the FPGA is fixed). **Guarded:** `replay.py` refuses to stream unless the board confirms the pushed weights, and `listen.py` reports no detections at `weights_ver` 0. **SD boot** (Lucas, `FPGA/docs/SD_BOOT_WEIGHTS.md`) now loads a default model at power-on: put `ml/artifacts/v4/weights.eog` on the card. GLOBAL / Facility CONFIG are not on the card, so after a reset `replay.py` must run again. | Lucas (informational) + Mudit | Found Sun 03:40; SD boot Sun ~04:20 |
 | O16 | **B4 on the board:** after a 6 s heartbeat gap, 10 of 30,240 buffered-and-replayed RESULTs come back with 8-byte words overwritten by old data; ALERTs are fine (71 / 71). The FPGA lead rules out the RTL and the ARM protocol logic; the suspect is the board's PS memory system (cache / DMA / lwIP) or the PC's receive path. Experiments E0–E5 proposed (`FPGA/reports/LEAD_board_response.md`). Normal streaming (B1–B3, the demo path) is bit-exact. Until fixed, don't demo the server-down replay. | Lucas | Board run Sun ~04:40 |
 | O17 | **Clock:** 100 MHz misses timing by 8.1 ns (validate); the demo build runs at 50 MHz, which still handles more records/s than 1 GbE delivers. Lead recommends 50 MHz plus a validate pipelining fix for margin (decision D2); about a dozen doc lines name 100 MHz. Any rebuild: re-run `board_suite`. | Lucas | Lead response D2 / D5 |
+| O18 | **Who owns agents and Nemotron.** `global_plan.md` says Jason (final say). Jason's PR #9 (`MUDIT_CONTINUE_HERE.md`, unmerged and partly out of date) hands the path to Mudit, and the agent loop POC is Nick's. Record the decision in "How this file works" and §4. | Whole team | PR #9 |
 
 Resolved since the last version:
 
@@ -287,7 +309,7 @@ Resolved since the last version:
 | Path | What | Owner |
 | --- | --- | --- |
 | `global_plan.md`, `AGENTS.md`, `CLAUDE.md` | This plan; agent instructions | Team |
-| `apps/api/`, `packages/`, `db/` | Operator API, contracts, migrations | Jason |
+| `apps/api/`, `packages/`, `db/` | Operator API, contracts, migrations; agents in `apps/api/src/features/agents/` (`orchestration/`, `learning/`), scripts `apps/api/scripts/agent-run.ts`, `agent-weeks.ts` | Jason (agent loop: Nick) |
 | `apps/encoder/` | TS DATA encoder (see I-3) | Jason |
 | `frontend/` | Web console | Gurneal, Jason |
 | `Photon/` | Test bot (Gurneal) | Gurneal |
@@ -301,6 +323,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 07:15 | **Closed-loop Nemotron agents (Nick, with Grok) integrated** from `feat/agent-loop-poc`: a deterministic orchestrator with scoped sub-agents and bounded recursive delegation; a prompt registry, outcome records and a weekly champion / challenger loop; a console Agents view. Promoted as **PROPOSED**: C12 updated (grounded check), new C13; the architecture shows the loop. Live, single runs: 8 / 8 analyses accepted from Nemotron. I-10 and I-15 done; I-8 done except the `nowUnix` default; new I-16 … I-19; O18 (who owns agents). Merged tree: API 124 pass / 1 skip / 0 fail, typecheck clean, console build OK, ML 14 / 14. |
 | Sun Nov 8 06:50 | **The engine runs on the board.** Lucas's first hardware run (50 MHz build, Sun ~04:40): golden B1–B3 bit-exact (bad blobs refused, 41 edge cases, the full week with 71 ALERTs). B4 = O16 (buffered replay after a heartbeat gap; not the RTL, per the lead). Every FPGA module signed off (`3560bda`); `fpga_sync` PASS there. 100 MHz misses timing: O17. SD boot with a default model: `ml/artifacts/v4/weights.eog` (and v3) made with Lucas's `make_weights_sd.py`. **One-command board suite** `python -m hutd_ml.board_suite`: golden sets plus the live demo path (`replay.py` → board → `listen.py`) checked field by field against the reference, the v3 → v4 swap, and every other dataset folder; all PASS on the software board. `listen.py` no longer lags the board (select-based receive). |
 | Sun Nov 8 03:55 | **Board test suite** (`ml/BOARD_CHECKLIST.md`): pre-flight clash checks, golden tests B1–B6 with pass criteria (now also every ALERT and four rejected weight blobs), fault finding by module, live checks L1–L5. **Live swap fixed:** `replay.py --swap-config` sends the new model's GLOBAL (thresholds, K) right after the swap, and `listen.py --model` reads each result with its own model's settings. Rehearsed on the software board: B1–B4 PASS; v3 → v4 swap exact at one step boundary (900 results, 0 mismatches against the offline engine). |
 | Sun Nov 8 03:45 | **`active` added to the board JSON (C11, additive):** heads over threshold K records in a row, mirroring the board's persistence exactly (tested against the engine on the v4 edge-case set and the full week). Events should open on `active`, not on per-record `above_threshold`: the v4 thresholds were tuned with K, so the measured false-alert rates assume it. `ml/INTEGRATION.md`, Jason's briefing and the console's live store updated. New O15 (no-model alarms, guarded on the host). |

@@ -97,16 +97,14 @@ there, as after a power-on. Without `--post`, `listen.py` just prints JSON lines
 
 The order is a suggestion; the server is your call.
 
-1. **Nemotron live.** Set `NVIDIA_BASE_URL`, `NEMOTRON_MODEL`, `NVIDIA_API_KEY` server-side (README "Optional ...";
-   endpoint and model in [`nemotron-inference-operations.md`](nemotron-inference-operations.md)). Two things to check
-   before the demo, both found while writing this:
-   - the vLLM server runs with **max model len 4096**, while the coordinator asks for up to 1,024 output tokens on
-     top of the facts and tool schemas. `Provider.contextWindow` exists, but `loadConfig` never sets it, so libfx
-     doesn't know the limit;
-   - the tool-call parser (`qwen3_coder` on Nemotron) is not yet verified end to end; your runbook already says to
-     test it before setting the served model.
-2. **I-10:** two `service.test.ts` tests fail on PR #4 as merged (same on `e001cf3` alone).
-3. **I-8:** AI SDK fallback fixes (tool wiring, `ai-sdk` label in the UI, no fake FX session link, no `nowUnix ?? 0`).
+**Update, Sun 07:15:** the closed-loop agent POC (Nick, `agent-loop-plan.md`) is on `main`. Nemotron works live
+(8/8 analyses accepted). I-10 and I-15 are done (the endpoint reports `max_model_len` 1,048,576; `NEMOTRON_*` env
+settings). I-8 is done except the `nowUnix ?? 0` default. A deterministic orchestrator now runs scoped sub-agents,
+with a weekly prompt-learning loop: C13, PROPOSED. Items 1–3 below are kept for history.
+
+1. ~~**Nemotron live.**~~ Done (see the update above; settings in `agent-loop-plan.md` §6).
+2. ~~**I-10:**~~ Done: `bun run test` 124 pass, 1 skip, 0 fail.
+3. **I-8:** only the `nowUnix ?? 0` default in `tools.ts` is left.
 4. **I-1 + I-4: model scores in runs.** Today a run has **no ML scores** unless `MODEL_METADATA_PATH` points at a
    registered model ("Classifier unavailable"), and `packages/fpga-sim` is a prototype, not bit-exact. Two ways to
    get the board's scores into incidents and the agent's facts:

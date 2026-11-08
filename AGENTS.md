@@ -29,7 +29,8 @@ Current architecture, contracts and open items: `global_plan.md` §3–§9 (inte
 1. `ml/hutd_ml/replay.py` (CSV → 48 B binary, on the board PC) sends records to the Eclypse Z7 (spec v4, locked),
    or to `ml/hutd_ml/fakeboard.py` when there's no board.
 2. `ml/hutd_ml/listen.py` turns the results into JSON (contract C11).
-3. The operator API (`apps/api/`) owns runs, incidents, the shared-fleet planner and the Nemotron coordinator.
+3. The operator API (`apps/api/`) owns runs, incidents, the shared-fleet planner and the Nemotron agents: a deterministic
+   orchestrator with scoped sub-agents and an offline prompt-learning loop (C12, C13 PROPOSED; `docs/plan/jason/agent-loop-plan.md`).
 4. The web console (`frontend/`) is presentation only.
 
 `ml/hutd_ml/features_int.py` is the normative integer reference for the board (hard rule 11).
