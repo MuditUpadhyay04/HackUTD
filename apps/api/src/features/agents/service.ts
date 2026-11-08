@@ -1,8 +1,8 @@
 import type { AnalysisRecord, Snapshot } from "@hackutd/contracts";
 import type { Store } from "../../store";
-import { createRuntime, type CoordinatorRuntime, type Provider, type SessionLink } from "./runtime";
+import { createRuntime, type CoordinatorRuntime, type Provider, type RunTrace, type SessionLink } from "./runtime";
 import { createAiSdkRuntime } from "./runtime-ai-sdk";
-import { factsFor, validateFinalization, type Facts, type Finalization } from "./tools";
+import { factsFor, validateFinalization, type Facts } from "./tools";
 
 export interface AnalysisServiceOptions {
   store: Store;
@@ -15,6 +15,16 @@ export interface AnalysisServiceOptions {
 export interface GenerateContext { onSession: (link: SessionLink) => Promise<void> }
 type LinkedAnalysis = AnalysisRecord & Partial<SessionLink>;
 class SessionPersistenceError extends Error {}
+
+function errorText(error: unknown) { return (error instanceof Error ? error.message : String(error)).slice(0, 300); }
+
+/** Non-secret run facts for the steps list: runtime path, calls, tokens and latency. */
+function describeTrace(trace: RunTrace | undefined, source: "nemotron" | "ai-sdk", elapsedMs: number): string {
+  const runtime = trace?.runtime ?? (source === "nemotron" ? "libfx" : "ai-sdk");
+  const tokens = trace?.inputTokens !== undefined || trace?.outputTokens !== undefined ? `, ${trace?.inputTokens ?? "?"} input / ${trace?.outputTokens ?? "?"} output tokens` : "";
+  const calls = trace ? `, ${trace.modelCalls} model calls, ${trace.toolCalls} tool calls, ${trace.rejectedFinalizations} rejected finalizations` : "";
+  return `Written by the language model through ${runtime}${calls}${tokens}, ${(elapsedMs / 1000).toFixed(1)} s. Validated against snapshot facts and citations; advice only.`;
+}
 
 function draft(facts: Facts): string {
   const ongoing = facts.incidents.filter((i) => i.status === "ongoing");
@@ -60,57 +70,57 @@ export function createAnalysisService(options: AnalysisServiceOptions) {
         if (controller.signal.aborted) return { ...fallback, state: "cancelled" };
         if (!options.provider && !options.runtime) return fallback;
 
-        // Helper: run a single analysis attempt with a given runtime.
-        const runWithTimeout = async (runtime: CoordinatorRuntime): Promise<Finalization> => {
+        const caveat = [facts.scoresAvailable ? "" : "Classifier capability is limited; health is unknown where evidence is unavailable.", facts.coverage.complete ? "" : "Coverage is incomplete.", facts.recommendation.state === "ready" && facts.recommendation.inputRevision === facts.revision ? "" : "Recommendations may be stale or unavailable."].filter(Boolean).map((s) => ` ${s}`).join("");
+        const started = Date.now();
+        // One attempt with one runtime. Citations and prose are always re-validated here, whatever the runtime did.
+        const attempt = async (runtime: CoordinatorRuntime, source: "nemotron" | "ai-sdk"): Promise<LinkedAnalysis> => {
           const work = (async () => {
             if (controller.signal.aborted) throw new Error("aborted");
-            const result = await runtime.run(facts, controller.signal, { analysisId: analysis.id, fxSessionId: analysis.fxSessionId,
+            return runtime.run(facts, controller.signal, { analysisId: analysis.id, fxSessionId: analysis.fxSessionId,
               onSession: context && (async (value) => {
                 if (controller.signal.aborted) throw new Error("Cancelled");
                 try { await context.onSession(value); } catch { throw new SessionPersistenceError("Failed to persist fenced session linkage"); }
                 link = value;
               }) });
-            return result;
           })();
           const cancelled = new Promise<never>((_, reject) => {
             if (controller.signal.aborted) reject(new Error("aborted"));
             else controller.signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
           });
-          return validateFinalization(facts, await Promise.race([work, cancelled]));
+          const { trace, ...raw } = await Promise.race([work, cancelled]);
+          const finalization = validateFinalization(facts, raw);
+          if (controller.signal.aborted) throw new Error("aborted");
+          const model = options.provider?.model ?? (source === "nemotron" ? "libfx" : "ai-sdk");
+          const coordinator = { agent: "coordinator", model, text: describeTrace(trace, source, Date.now() - started) };
+          return { ...fallback, ...link, ...finalization, handoff: finalization.handoff + caveat, source, model,
+            steps: [coordinator, ...fallback.steps], error: null };
         };
 
-        // Attempt 1: libfx runtime.
+        // Attempt 1: libfx (durable session). An injected runtime is the only runtime (test seam).
         let lastError: unknown;
         try {
           const runtime = await (libfxRuntimePromise ??= options.runtime
             ? Promise.resolve(options.runtime)
             : createRuntime(options.provider!, options.sessionDir));
-          const finalization = await runWithTimeout(runtime);
-          if (controller.signal.aborted) throw new Error("aborted");
-          const caveat = [facts.scoresAvailable ? "" : "Classifier capability is limited; health is unknown where evidence is unavailable.", facts.coverage.complete ? "" : "Coverage is incomplete.", facts.recommendation.state === "ready" && facts.recommendation.inputRevision === facts.revision ? "" : "Recommendations may be stale or unavailable."].filter(Boolean).map((s) => ` ${s}`).join("");
-          return { ...fallback, ...link, ...finalization, handoff: finalization.handoff + caveat, source: "nemotron", model: options.provider?.model ?? "libfx", error: null };
+          return await attempt(runtime, "nemotron");
         } catch (error) {
+          // A fenced-session failure must surface, and an abort or timeout must not start a second model run.
+          if (error instanceof SessionPersistenceError || controller.signal.aborted || options.runtime || !options.provider) throw error;
           lastError = error;
         }
 
-        // Attempt 2: AI SDK fallback.
+        // Attempt 2: AI SDK fallback, only with a real provider and time left before the deadline.
         try {
-          aiSdkRuntime = createAiSdkRuntime({ provider: options.provider! });
-          const finalization = await runWithTimeout(aiSdkRuntime);
-          if (controller.signal.aborted) throw new Error("aborted");
-          const caveat = [facts.scoresAvailable ? "" : "Classifier capability is limited; health is unknown where evidence is unavailable.", facts.coverage.complete ? "" : "Coverage is incomplete.", facts.recommendation.state === "ready" && facts.recommendation.inputRevision === facts.revision ? "" : "Recommendations may be stale or unavailable."].filter(Boolean).map((s) => ` ${s}`).join("");
-          return { ...fallback, ...link, ...finalization, handoff: finalization.handoff + caveat, source: "ai-sdk", model: options.provider?.model ?? "ai-sdk", error: null };
-        } catch (error2) {
-          lastError = error2;
+          aiSdkRuntime ??= createAiSdkRuntime({ provider: options.provider });
+          return await attempt(aiSdkRuntime, "ai-sdk");
+        } catch (error) {
+          if (error instanceof SessionPersistenceError || controller.signal.aborted) throw error;
+          return { ...fallback, ...link, error: `Coordinator failed (${errorText(lastError)}; fallback: ${errorText(error)}); deterministic draft shown.` };
         }
-
-        // Both runtimes failed - return deterministic draft.
-        if (controller.signal.aborted) return { ...fallback, ...link, state: "cancelled" };
-        return { ...fallback, ...link, error: timedOut ? "Coordinator timed out; deterministic draft shown." : `Coordinator failed (${lastError instanceof Error ? lastError.message : String(lastError)}); deterministic draft shown.` };
       } catch (error) {
         if (error instanceof SessionPersistenceError) throw error;
         if (controller.signal.aborted && !timedOut) return { ...fallback, ...link, state: "cancelled" };
-        return { ...fallback, ...link, error: timedOut ? "Coordinator timed out; deterministic draft shown." : "Coordinator failed or returned invalid handoff or citations; deterministic draft shown." };
+        return { ...fallback, ...link, error: timedOut ? "Coordinator timed out; deterministic draft shown." : `Coordinator failed or returned invalid handoff or citations (${errorText(error)}); deterministic draft shown.` };
       } finally {
         clearTimeout(timer); signal?.removeEventListener("abort", abort); running.delete(analysis.id);
       }
