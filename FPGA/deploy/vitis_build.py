@@ -248,7 +248,13 @@ def extract_bit():
     with zipfile.ZipFile(xsa) as z:
         bits = [n for n in z.namelist() if n.lower().endswith(".bit")]
         if not bits:
-            raise SystemExit(f"{xsa} has no bitstream: export the XSA with 'include bitstream'")
+            # build_eog.tcl's in-memory flow writes the .bit next to a bit-less XSA; EOG_BIT points at it
+            alt = os.environ.get("EOG_BIT")
+            if alt and os.path.isfile(alt):
+                shutil.copyfile(alt, os.path.join(out, "eog.bit"))
+                log("bitstream:", alt, "->", os.path.join(out, "eog.bit"), "(XSA has none; EOG_BIT)")
+                return
+            raise SystemExit(f"{xsa} has no bitstream: export the XSA with 'include bitstream' or set EOG_BIT")
         with z.open(bits[0]) as r, open(os.path.join(out, "eog.bit"), "wb") as w:
             shutil.copyfileobj(r, w)
     log("bitstream:", bits[0], "->", os.path.join(out, "eog.bit"))

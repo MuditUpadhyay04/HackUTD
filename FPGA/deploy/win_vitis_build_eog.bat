@@ -13,5 +13,7 @@ rem Re-apply the BSP settings (lwIP sizes) on every build, also for an existing 
 set VITIS_RECONFIG=1
 set EXTRA_SW_REPO=%HUTD_WORK%\eswfix
 if "%EOG_XSA%"=="" set EOG_XSA=C:\vb2\eclypse_eog.xsa
+rem The in-memory Vivado flow writes the .bit next to the XSA (the XSA itself has none); used for BOOT.BIN.
+if "%EOG_BIT%"=="" set EOG_BIT=C:\vb2\eclypse_eog.bit
 call "%V%\vitis.bat" -s "%R%\deploy\vitis_build.py" "%WS%" "%EOG_XSA%" "%R%\ps\eog_app.c" "%R%\ps\eog_proto.c" "%R%\ps\eog_proto.h" "%R%\ps\eog_sd.c" "%R%\ps\udp_mul.c" > "%R%\deploy\vitis_eog.log" 2>&1
 echo EXIT %ERRORLEVEL% >> "%R%\deploy\vitis_eog.log"
