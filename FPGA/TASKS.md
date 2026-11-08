@@ -21,18 +21,18 @@ file during a wave (agents report status in their final message) to avoid merge 
 
 | ID | Module (spec) | Role | Needs | Owner | Status | Report |
 | --- | --- | --- | --- | --- | --- | --- |
-| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
+| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.mul.rtl` 3919c2e (lint/iverilog/yosys clean) |
 | T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
-| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
+| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.div.rtl` 0a5a100 (lint/iverilog/yosys clean, LAT = NW+1) |
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | | TODO | |
-| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.memory.rtl | `eog_memory` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
+| T1.memory.rtl | `eog_memory` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) |
+| T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | | TODO | |
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | | TODO | |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | | TODO | |
@@ -66,3 +66,5 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 
 | # | Module | Question | Proposed answer | Raised by | Answer (lead) |
 | --- | --- | --- | --- | --- | --- |
+| 1 | memory | VALID/HELD record with `FAC ≥ N_FAC` (validate never produces it) | Treat as a no-update record: no slot changes, `FEAT[12..30] = 0` | T1.memory.rtl | Accepted (clarification). Applies to every stateful stage (countdown, head, alarm): out-of-range `FAC` never touches state |
+| 2 | memory | M2 "inputs absorbed" for `net_ema` (feature 27) | `net_ema` starts at 0 after a reset and updates on every VALID/HELD record, so 0 counts as an absorbed input for feature 27; gated EMAs start at the first running input (0 not included) | T1.memory.rtl | Accepted (clarification) |
