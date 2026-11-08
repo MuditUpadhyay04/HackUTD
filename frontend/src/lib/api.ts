@@ -37,7 +37,10 @@ export async function listDatasets(): Promise<DatasetInfo[]> {
 }
 
 export function defaultDataset(datasets: DatasetInfo[]): DatasetInfo | undefined {
-  return datasets.find((d) => d.id === "test") ?? datasets.find((d) => d.id.startsWith("mock_test")) ?? datasets[0];
+  // Same rule as the Photon bot (Photon/console.mts pickDataset): the newest upload labelled "test" (the judges'
+  // folder), then the mock test, then the first upload. Upload ids are content hashes, so labels decide.
+  const tests = datasets.filter((d) => d.id === "test" || d.label === "test").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return tests[0] ?? datasets.find((d) => d.id.startsWith("mock_test") || d.label.startsWith("mock_test")) ?? datasets[0];
 }
 
 import type { DatasetInfo } from "@hackutd/contracts";
