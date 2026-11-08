@@ -33,4 +33,4 @@
 - Simulation: the full practice week (`history/full_week`, 30,240 records) through `eog_top` via the DATA window,
   bit-exact against `model/` RESULTs, plus the synthetic bad-data suite.
 - Golden sets: Mudit's `ml/artifacts/<ver>/golden/` G0/G1/G2 (`data.bin` in, `expected_results.bin` out, after task
-  T0.0) must also pass bit-exact through `eog_top`; `model/bus_vectors.py` converts them to `tb/vectors/top_*.hex`.
+  T0.0) must also pass bit-exact through `eog_top`; `model/gen_vectors.py` converts them to `tb/vectors/top_*.hex`.

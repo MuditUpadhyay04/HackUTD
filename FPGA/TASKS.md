@@ -18,7 +18,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | DONE | `formal/common/` (checker modules, abstract mul, self-test), `scripts/env.sh`, `scripts/wsl.sh`; 5d34900; `reports/formal_common.txt`, `reports/formal_axi_mul.txt` |
 | T0.4 | Spec v4: align with Mudit's `features_int.py` (numerics.md §1 D6–D12, Lucas's calls Sun 00:10) | T0.1 | Claude (Lucas's session) | DONE | `spec/` v4, `spec/README.md` changelog |
 | T0.0 | **Mudit:** apply `spec/numerics.md` §11 to `ml/hutd_ml`, regenerate weights + golden sets G0/G1/G2 | T0.4 | Mudit | TODO | branch `ml` |
-| T0.2b | Update `model/` (`eog_ref.py`, `cases.py`, `gen_vectors.py`, `test_model.py`) to spec v4; add `check_mudit.py` (byte-for-byte RESULT/ALERT agreement with Mudit's engine, see `model/README.md`); regenerate `tb/vectors/` | T0.4 (finish on T0.0) | fpga-model agent | CLAIMED | `model/`, `tb/vectors/` **Vectors merged d1e29fc** (388eb6e: model = Mudit @ d1ba779 byte for byte; check_mudit --no-week PASS on every case + 5 golden sets; test_model 14/14, re-run by the lead). Week/G1 cross-checks still running |
+| T0.2b | Update `model/` (`eog_ref.py`, `cases.py`, `gen_vectors.py`, `test_model.py`) to spec v4; add `check_mudit.py` (byte-for-byte RESULT/ALERT agreement with Mudit's engine, see `model/README.md`); regenerate `tb/vectors/` | T0.4 (finish on T0.0) | fpga-model agent | DONE | 097f0a1, merged adf6dcb (vectors 388eb6e merged d1e29fc); model = Mudit @ d1ba779 byte for byte; `check_mudit.py` full run PASS (38 checks, every case + all 5 golden sets incl. G1 30,240 records); `test_model.py` 14/14 |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
 
@@ -30,22 +30,22 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | DONE | bc4a760, merged into FPGA via `eog/integrate-unpack`; `reports/formal_unpack.txt`; sim PASS 108,846 records / 653,031 beats (13 cases x 3 runs) |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 99fef58, merged via `eog/integrate-unpack`; `reports/formal_unpack.txt` (prove = abc pdr unbounded, bmc depth 14, cover PASS) |
-| T1.validate.rtl | `eog_validate` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) **v4 rework + rulings #23–25 done at 4876df8** (latency 1, II 2, no reset sweep; lint/iverilog/yosys clean; random self-check vs Mudit's Engine @ d1ba779 PASS); waiting for v4 vectors |
-| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.features.rtl` 9441fc4 (lint/iverilog/yosys clean; latency 13, II 14; smoke PASS all 12 features vector cases). Note: the RTL agent read the verifier's WIP harness after its RTL was final (last commit is a no-op refactor); the verifier never saw the RTL, so the proof stays independent **v4 rework done at 0a84769** (`glb` port removed per v4 spec; rules/features only for VALID/HELD; latency 13, II 14; lint/iverilog/yosys clean); waiting for v4 vectors |
-| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.validate.rtl | `eog_validate` | RTL | T0.1, T0.4 | fpga-rtl agent | DONE | 4876df8, merged 86b93eb via `eog/integrate-validate`; `reports/formal_validate.txt`; sim PASS 133,420 records (18 v4 cases incl. Mudit golden sets) |
+| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 6528bb6, merged 86b93eb; `reports/formal_validate.txt` (prove, bmc, bmc_w, cover PASS) |
+| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | DONE | 0a84769, merged 78b2a21 via `eog/integrate-features-v4`; `reports/formal_features.txt`; sim PASS 133,420 records (18 v4 cases) |
+| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 735fef2, merged 78b2a21; `reports/formal_features.txt` (cover, prove, prove_f4 PASS) |
 | T1.memory.rtl | `eog_memory` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) **v4 done: ac38fd3** (merge ddfc52c); bit-exact on all 15 v4 memory vector cases (6,230 records); latency 2, II 3 |
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.countdown.rtl` 2723d23 (lint/iverilog/yosys clean; latency 57, accept gap ≤ 9 at defaults, up to 8 in flight; smoke PASS all 12 countdown vector cases incl. onsets/R1; ~18.5k flops in generic synth, estimate) **v4 rework done at 9dc2ca5** (lint/iverilog/yosys clean; P = 4 in flight at II 16, P = 1 at II ≥ 59; latency 57; formal-only opt-in `EOG_FV_RECNO_SEQ`); waiting for v4 vectors |
+| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.countdown.rtl` 8b386e5 (v4 + rulings #20/#21; bit-exact on all 18 v4 countdown cases; latency 57, P = 4 at II 16) |
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.head.rtl` c700642 passes its v2 checks (lint/iverilog/yosys clean; 16 eog_mul, latency 12, II 13; smoke PASS all 12 head vector cases; xc7 estimate 16 DSP48E1, ~1.9k LUT, 1,550 FF); rework for spec v3 (`wb_rst_n`, question 16) requested |
+| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.head.rtl` 5358207 (v3 + v4 + rulings #23/#25; bit-exact on all 18 v4 head cases; latency 12, II 13; 16 DSP48E1 estimate) |
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) **v4 rework done at a130317** (lint/iverilog/yosys clean; latency 1, II 2/3); waiting for v4 vectors |
-| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.pack.rtl | `eog_pack` | RTL | T0.1 | | TODO | |
-| T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | | TODO | |
-| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | | TODO | |
-| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | | TODO | |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.alarm.rtl` ea519d9 (v4 + ruling #22; bit-exact on all 18 v4 alarm cases incl. ALERT stream; latency 1, II 2/3); integration `eog/integrate-alarm`: lint ok, sim PASS 200,130 records / 1,236 ALERTs, formal running |
+| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.alarm.fv` 0cf99c7 (v4; 11/11 mutants caught) |
+| T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | CLAIMED | v4 from the start |
+| T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | v4 from the start |
+| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | CLAIMED | v4 from the start |
+| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | CLAIMED | v4 from the start |
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
 
@@ -113,3 +113,15 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 42 | all | `eog_defs.svh` has no names for the restored reason bits 11/13/14 | Add `EOG_R_FIELD_ABSENT` = 11, `EOG_R_NO_MODEL` = 13, `EOG_R_FIELD_LOST` = 14 and list them in numerics §6 | T1.validate.rtl | Done by the lead (gendefs regenerated; part of ruling #23, no version bump) |
 | 43 | memory | v4 re-check of #2 (net_ema start) | Feature 27 is gated like the other averages: `net_ema` starts at the first VALID/HELD record's FEAT[11] (`has_net`, Mudit's `e_net is None`); M2 min/max start there, 0 not included. Replaces #2 | T1.memory.rtl | Accepted (Mudit's code decides) |
 | 44 | memory | HIST_RESET on status codes 2/5–7 | Clears the slot like INVALID (literal "non-DROPPED"; same as #34); outputs FEAT[12..30] = 0 | T1.memory.rtl | Accepted |
+| 45 | validate | Pump status out of LO[2]/HI[2] | Enum check {0,1,2} first (ILLEGAL_ENUM), then range (OUT_OF_RANGE) | T0.2b | Accepted (Mudit's code; validate RTL does this) |
+| 46 | head | `S_OUT = 0` | Spec stands: no rounding constant, no shift (RTL does this). Mudit's Python raises on `1 << -1`; his `quantize` never emits 0 | T0.2b, T1.head.rtl | **Open for Mudit:** guard `S_OUT = 0` in `features_int.py` |
+| 47 | head | `S_OUT` > 31 (Mudit's `quantize` can emit up to 36) | The head RTL uses the whole byte exactly (S_OUT ≥ 48 gives 0), so any value works; H6 covers 0..31 | T0.2b, T1.head.rtl | Accepted (no change needed) |
+| 48 | ingest | N_WELLS > 8 | Clamped to 8 (#14); Mudit's engine raises there; ingest refuses > 8 | T0.2b | Note for Mudit |
+| 49 | docs | `model/bus_vectors.py` named in `eog_top.md` / `ml_assumptions_response.md` | The golden-set conversion lives in `model/gen_vectors.py` | T0.2b | Fixed in `eog_top.md`; `ml_assumptions_response.md` left as sent |
+| 50 | head | Logit gating: Mudit uses the full integer weights version, the FPGA the u8 `VER` | Equal for versions 1..255; keep weight versions in 1..255 | T0.2b | **Open for Lucas/Mudit** (no RTL change if versions stay ≤ 255) |
+| 51 | head | Debug capture (D12) vectors | No dedicated file: `dbg_valid` = VALID/HELD and FAC == `dbg_fac`, payload from the head vectors | T0.2b | Accepted |
+| 52 | head | `swap_req` during an engine-only reset (`rst_n` = 0, `wb_rst_n` = 1) | Taken (`swap_pending` rises); the swap executes once `rst_n` = 1 | T1.head.rtl | Accepted |
+| 53 | alarm | A8 debounce tolerance with a free-running ms tick | ±1 ms (as #9) | T1.alarm.fv | Accepted |
+| 54 | alarm | Pmod/LED output timing | May lag state by 1 cycle; `hb_toggle` 1–2 cycles after `hb_pulse`; `ms_since_hb`/`autonomous` exact | T1.alarm.fv | Accepted |
+| 55 | alarm | Records open in the stage | At most 2, counting ALERTs not yet pushed (RTL keeps 0/1) | T1.alarm.fv | Accepted |
+| 56 | alarm, countdown, memory | Codes 2/5–7 with HIST_RESET | Per stage: alarm changes no state (#10); countdown (#34) and memory (#44) clear. Never produced by validate; the model does the same | T1.alarm.fv, T0.2b | Accepted |
