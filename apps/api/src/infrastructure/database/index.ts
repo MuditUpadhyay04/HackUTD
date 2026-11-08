@@ -1,7 +1,7 @@
 import { SQL } from "bun";
 import { DomainError, type AnalysisRecord, type ImportedDataset, type InferenceObservation, type LiveEvent, type OperatorAction, type RunRecord, type ScenarioRecord, type Snapshot } from "@hackutd/contracts";
 import type { Job, Store } from "../../store";
-import { migrate } from "./migrate";
+import { migrate, packJson, unpackJson } from "./migrate";
 import { MemoryStore, requestBody, cleanAnalysis, normalizeObservation } from "./memory";
 export { MemoryStore } from "./memory";
 
@@ -16,8 +16,26 @@ export class PostgresStore implements Store {
   async init() { await migrate(this.sql); }
   async close() { await this.sql.close(); }
   async listDatasets() { const rows = await this.sql`SELECT body->'info' AS info FROM datasets ORDER BY id`; return rows.map((r: any) => parsed(r.info)); }
-  async getDataset(id: string): Promise<ImportedDataset | null> { const rows = await this.sql`SELECT body FROM datasets WHERE id=${id}`; return rows[0] ? parsed(rows[0].body) : null; }
-  async putDataset(d: ImportedDataset): Promise<ImportedDataset> { return await this.sql.begin(async tx => { const inserted = await tx`INSERT INTO datasets(id,body) VALUES (${d.info.id},${json(d)}::text::jsonb) ON CONFLICT DO NOTHING RETURNING body`; if (!inserted.length) { const rows = await tx`SELECT body FROM datasets WHERE id=${d.info.id}`; return parsed(rows[0].body); } for (let i=0;i<d.samples.length;i+=1000) { const batch = d.samples.slice(i,i+1000).map(s => ({ts:s.tsUnix,asset:s.assetId,metric:s.metric,value:s.value})); await tx`INSERT INTO telemetry_samples(dataset_id,event_time,asset_id,metric,value) SELECT ${d.info.id},to_timestamp(x.ts),x.asset,x.metric,x.value FROM jsonb_to_recordset(${json(batch)}::text::jsonb) AS x(ts double precision,asset text,metric text,value double precision) ON CONFLICT DO NOTHING`; } return parsed(inserted[0].body); }); }
+  async getDataset(id: string): Promise<ImportedDataset | null> {
+    const rows = await this.sql`SELECT body, frames_gz, samples_gz, sources_gz FROM datasets WHERE id=${id}`;
+    if (!rows[0]) return null;
+    const r = rows[0], body = parsed(r.body);
+    if (!r.frames_gz) return body; // written before 003 and not compacted yet: body still holds everything
+    const d: ImportedDataset = { ...body, frames: unpackJson(r.frames_gz), samples: unpackJson(r.samples_gz) };
+    if (r.sources_gz) d.sourceFiles = unpackJson(r.sources_gz);
+    return d;
+  }
+  async putDataset(d: ImportedDataset): Promise<ImportedDataset> {
+    // Small parts stay queryable jsonb; frames/samples/sourceFiles are gzip JSON (≈10× smaller, one fetch instead of ~16 s).
+    const { samples, frames, sourceFiles, ...head } = d;
+    const inserted = await this.sql.begin(async tx => {
+      const rows = await tx`INSERT INTO datasets(id,body,frames_gz,samples_gz,sources_gz) VALUES (${d.info.id},${json(head)}::text::jsonb,${packJson(frames)},${packJson(samples)},${sourceFiles ? packJson(sourceFiles) : null}) ON CONFLICT DO NOTHING RETURNING id`;
+      if (!rows.length) return false;
+      for (let i=0;i<samples.length;i+=1000) { const batch = samples.slice(i,i+1000).map(s => ({ts:s.tsUnix,asset:s.assetId,metric:s.metric,value:s.value})); await tx`INSERT INTO telemetry_samples(dataset_id,event_time,asset_id,metric,value) SELECT ${d.info.id},to_timestamp(x.ts),x.asset,x.metric,x.value FROM jsonb_to_recordset(${json(batch)}::text::jsonb) AS x(ts double precision,asset text,metric text,value double precision) ON CONFLICT DO NOTHING`; }
+      return true;
+    });
+    return inserted ? d : (await this.getDataset(d.info.id))!;
+  }
   async listRuns(): Promise<RunRecord[]> { const rows=await this.sql`SELECT body FROM runs ORDER BY id`; return rows.map((r: any)=>parsed(r.body)); }
   async getRun(id:string): Promise<RunRecord|null> { const rows=await this.sql`SELECT body FROM runs WHERE id=${id}`; return rows[0] ? parsed(rows[0].body) : null; }
   async putRun(r:RunRecord) { await this.sql`INSERT INTO runs(id,body) VALUES (${r.id},${json(r)}::text::jsonb) ON CONFLICT DO NOTHING`; }

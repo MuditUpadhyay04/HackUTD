@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { SQL } from "bun";
-import type { AnalysisRecord, InferenceObservation, OperatorAction, RunRecord, Snapshot } from "@hackutd/contracts";
+import type { AnalysisRecord, ImportedDataset, InferenceObservation, OperatorAction, RunRecord, Snapshot } from "@hackutd/contracts";
 import { MemoryStore, PostgresStore } from "./index";
 import type { Store } from "../../store";
 
@@ -79,5 +79,29 @@ if (process.env.TEST_DATABASE_URL) {
       expect(typeof rows[0].body === "string" ? JSON.parse(rows[0].body) : rows[0].body).toEqual({score:42});
       const receipts=await sql`SELECT result_no FROM inference_receipts WHERE run_id=${id}`; expect(receipts).toHaveLength(1);
     } finally { await Promise.all(stores.map(s=>s.close())); await sql.close(); }
+  });
+  test("datasets keep small jsonb and gzip bulk parts; pre-003 rows are compacted on init", async () => {
+    const url=process.env.TEST_DATABASE_URL!, store=new PostgresStore(url), sql=new SQL({url,max:1});
+    const dataset=(id:string):ImportedDataset=>({ info:{id,label:"t",startUnix:1790000000,nowUnix:1790000300,status:"ready",createdAt:new Date().toISOString(),fileHashes:{},warnings:[],hardwareEligible:true,hardwareReasons:[]},
+      network:{} as ImportedDataset["network"], ops:{} as ImportedDataset["ops"],
+      samples:[{tsUnix:1790000000,assetId:"a",metric:"m",value:1.5},{tsUnix:1790000300,assetId:"a",metric:"m",value:null}],
+      frames:[{facilityId:"f",tsUnix:1790000000,inflowBpd:1,levelPct:null,pumpStatus:1,pumpFlowBpd:2,receiveFlowBpd:3,dischargePsi:4,pipelinePsi:5,wellStatus:[1,null],wellWaterBpd:[0.5]}],
+      sourceFiles:{network:"{}",ops:"{}",telemetry:"ts_unix\n"} });
+    try {
+      await store.init();
+      const fresh=dataset(crypto.randomUUID());
+      expect((await store.putDataset(fresh)).info.id).toBe(fresh.info.id);
+      expect(await store.getDataset(fresh.info.id)).toEqual(fresh);
+      expect((await store.putDataset({...fresh,samples:[]})).samples).toEqual(fresh.samples); // first write wins
+      const [row]=await sql`SELECT body ? 'samples' OR body ? 'frames' OR body ? 'sourceFiles' AS bulky, frames_gz IS NOT NULL AS packed FROM datasets WHERE id=${fresh.info.id}`;
+      expect(row).toEqual({bulky:false,packed:true});
+      const legacy=dataset(crypto.randomUUID());
+      await sql`INSERT INTO datasets(id,body) VALUES (${legacy.info.id},${JSON.stringify(legacy)}::text::jsonb)`;
+      expect(await store.getDataset(legacy.info.id)).toEqual(legacy); // readable before compaction
+      await store.init();
+      const [after]=await sql`SELECT body ? 'samples' AS bulky, frames_gz IS NOT NULL AS packed FROM datasets WHERE id=${legacy.info.id}`;
+      expect(after).toEqual({bulky:false,packed:true});
+      expect(await store.getDataset(legacy.info.id)).toEqual(legacy);
+    } finally { await store.close(); await sql.close(); }
   });
 }
