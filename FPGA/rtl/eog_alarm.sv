@@ -227,14 +227,16 @@ module eog_alarm #(
     assign q_model  = (out_q[EOG_BA_CLASSES +: EOG_BA_CLASSES_W] != 4'd0);
     assign rec_es   = rs[0];                // flags 1 and 3 are the E-STOP latch type
 
-    // SOURCE (every record ALERT): bit 0 RULES[3:0] != 0, bit 1 class_active != 0, bit 2 AUTONOMOUS,
-    // bit 3 reserved (ARM), bit 4 latch type (0 Night Shift, 1 E-STOP)
-    assign rec_src  = {3'd0, rec_es, 1'b0, auto_q, q_model, q_rule};
+    // SOURCE per kind (TASKS #22, Mudit's features_int.py @ 8e67750; overrides the numerics.md v4 text):
+    //   NS_RAISED: bit 0 RULES[3:0] != 0, bit 1 any class active, bit 2 AUTONOMOUS (at accept)
+    //   ES_RAISED: bit 0 = 1 (the gap rule), bit 1 any class active, bit 2 AUTONOMOUS, bit 4 = 1
+    //   CLEARED:   bit 2 AUTONOMOUS, bit 4 latch type (0 Night Shift, 1 E-STOP) only
+    // bit 3 is reserved for the ARM (replay)
     always_comb begin
         case (rs)
-            2'd0:    rec_kind = EOG_AK_NS_RAISED;
-            2'd1:    rec_kind = EOG_AK_ES_RAISED;
-            default: rec_kind = EOG_AK_CLEARED;
+            2'd0:    begin rec_kind = EOG_AK_NS_RAISED; rec_src = {5'd0, auto_q, q_model, q_rule}; end
+            2'd1:    begin rec_kind = EOG_AK_ES_RAISED; rec_src = {3'd0, 1'b1, 1'b0, auto_q, q_model, 1'b1}; end
+            default: begin rec_kind = EOG_AK_CLEARED;   rec_src = {3'd0, rec_es, 1'b0, auto_q, 2'd0}; end
         endcase
     end
 
@@ -250,7 +252,7 @@ module eog_alarm #(
             al_data[EOG_AL_CLASSES   +: EOG_AL_CLASSES_W]   = {4'd0, out_q[EOG_BA_CLASSES +: EOG_BA_CLASSES_W]};
             al_data[EOG_AL_CD_P10    +: EOG_AL_CD_P10_W]    = out_q[EOG_BA_CD +: 16];
         end else if (sweeping) begin
-            // ACKED: TS, RESULT_NO, RULES, CLASSES 0, CD_P10 0xFFFF; SOURCE = latch type only (TASKS #4)
+            // ACKED: TS, RESULT_NO, RULES, CLASSES 0, CD_P10 0xFFFF; SOURCE = latch type only (TASKS #4, #22)
             al_data[EOG_AL_FAC_ID    +: EOG_AL_FAC_ID_W]    = {{(EOG_AL_FAC_ID_W-FW){1'b0}}, sw_slot};
             al_data[EOG_AL_KIND      +: EOG_AL_KIND_W]      = EOG_AK_ACKED;
             al_data[EOG_AL_SOURCE    +: EOG_AL_SOURCE_W]    = {3'd0, sw_es, 4'd0};
