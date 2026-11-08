@@ -64,8 +64,23 @@ itself, leave-one-system-out validation (`ml/hutd_ml/train.py`) is the evidence 
    `docs/plan/mudit/nemotron_v4_fpga_test.md` step 6.
 4. In the console:
    - the dataset menu → `test`;
+   - **Simulation** → while the board streams, it follows the board live ("Following the board"). Afterwards, press Play
+     (1, 4 or 12 hours a second). You'll see pumps failing, trucks driving each plan, the money kept against doing
+     nothing, and the data path: records out to the board, results back. It's built from the same snapshots the runs
+     use, it's read-only, and it sends nothing to the board;
    - **Replay** → drag to any moment;
    - **Agents** runs the Nemotron sub-agents on the incidents the board flagged.
+
+## The board path is hardened (Sun ~10:45)
+
+- `replay.py` sends `hb_timeout_ms = 0`: the board never goes AUTONOMOUS, so a late or stalled `listen.py` can't
+  trigger the buffered-replay corruption (B4). `--hb-timeout-ms 5000` shows the server-down mode on purpose.
+- `replay.py` waits up to 45 s for the board (`--wait-board`); it drops its link for ~15 s after a re-program. If
+  the board never answers, it says what to check; a dataset over the board's limits gets a clear message.
+- A failed send mid-stream, or a failed live swap, no longer kills the replay.
+- `win_demo.bat` no longer uses `listen.py --post`: a slow console could stop the heartbeats. The API reads the
+  results file.
+- Regression: `board_suite --fakeboard` 11 / 11, bit-exact.
 
 ## Don'ts
 

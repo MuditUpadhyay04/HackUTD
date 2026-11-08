@@ -77,6 +77,30 @@ export interface Incident {
 }
 export interface TruckAssignment { truck: number; incidentId: string; facilityId: string; fromUnix: number; toUnix: number; tripsArrivalUnix: number[] }
 export interface FleetState { systemId: string; size: number; assignments: TruckAssignment[]; basis: "proposed" }
+/**
+ * The whole dataset as one story for the console's Simulation view: every incident, each pump failure's plan as it
+ * was made at its onset (cost vs doing nothing), the trucks those plans send, and tank levels over time. Built from
+ * the same snapshots a run uses (board results when they cover the dataset, else the software runtime); read-only,
+ * never written back to telemetry (hard rule 6). Costs are the planner's, never the answer key's.
+ */
+export interface SimulationTimeline {
+  /** nowUnix: where the story ends. The dataset's "now", or, while the board is part-way through it, its last result. */
+  datasetId: string; startUnix: number; nowUnix: number; datasetNowUnix: number; stepSeconds: number;
+  /** Where detections came from: "board" (listen.py results covering this dataset) or the software runtime. */
+  detections: { from: "board" | "software"; provenance: "fpga" | "software"; label: string; boardResults: number; boardLastUnix: number | null };
+  systems: { id: string; center: [number, number]; truckYard: [number, number]; disposal: { lat: number; lon: number }; fleetSize: number;
+    facilities: { id: string; lat: number; lon: number; capacityBbl: number; wells: number }[] }[];
+  /** Tank level % per facility, one value every `seriesStepSeconds` from startUnix (null = no reading). */
+  seriesStepSeconds: number; levels: Record<string, (number | null)[]>;
+  incidents: { id: string; category: Category; systemId: string; facilityId: string; onsetUnix: number; endUnix: number | null; provenance: "software" | "fpga" }[];
+  /** Pump failures: the plan made at onset (the system's fleet shared across its failures). */
+  plans: { incidentId: string; facilityId: string; systemId: string; plannedUnix: number; kind: PlanOption["kind"] | "unavailable"; label: string;
+    cost: number | null; doNothingCost: number | null; kept: number | null; trucks: number; shutIns: { wellId: string; atUnix: number }[] }[];
+  /** Truck trips from the plan made at each failure's onset: leave the yard at fromUnix, arrive at each trip time, back by toUnix. */
+  trucks: { systemId: string; truck: number; incidentId: string; facilityId: string; fromUnix: number; toUnix: number; arrivalsUnix: number[] }[];
+  totals: { doNothing: number; plan: number; kept: number; failures: number; inspections: number };
+  builtAt: string; buildMs: number;
+}
 export interface Snapshot {
   runId: string; revision: number; cursor: number; parentRunId: string | null;
   dataset: DatasetInfo; nowUnix: number;

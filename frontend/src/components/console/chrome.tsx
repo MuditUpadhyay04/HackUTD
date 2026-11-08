@@ -10,7 +10,7 @@ import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
 import { NemotronMark } from "./nemotron";
 
-export type View = "overview" | "replay" | "handoff" | "agents";
+export type View = "overview" | "replay" | "simulation" | "handoff" | "agents";
 export type SystemStatus = "ok" | "warn" | "crit" | "nodata";
 
 /** The macOS-style window the whole console lives in (Mockup A). */
@@ -42,6 +42,12 @@ const navIcon = {
     <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
       <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.3" />
       <path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+  simulation: (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <rect x="1.5" y="3" width="13" height="10" rx="2.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M6.5 6v4l3.5-2z" fill="var(--water)" />
     </svg>
   ),
   handoff: (
@@ -85,6 +91,7 @@ export function Sidebar({
   const items: { id: View; label: string; count?: number }[] = [
     { id: "overview", label: "Overview", count: alertCount || undefined },
     { id: "replay", label: "Replay week" },
+    { id: "simulation", label: "Simulation" },
     { id: "handoff", label: "Shift handoff" },
     { id: "agents", label: "Agents" },
   ];
