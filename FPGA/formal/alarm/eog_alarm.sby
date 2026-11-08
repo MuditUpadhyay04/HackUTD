@@ -1,0 +1,57 @@
+# SymbiYosys job for eog_alarm (spec/modules/eog_alarm.md, numerics.md §9, spec v2). Verify role, task T1.alarm.fv.
+#   bash scripts/formal.sh alarm          # all tasks, report in reports/formal_alarm.txt
+#
+# Harness: fv_eog_alarm.sv (property list and ID mapping in its header). eog_alarm has no multiplier, so there is
+# no abstract model. Shrunk parameters: N_FAC = 2, CYC_PER_MS = 2, DEB_MS = 2 (II_MAX = 16, LAT_MAX = 12).
+#
+# Split (port-only proofs; the harness never looks inside the DUT):
+# prove   k-induction, -DFV_PROVE. Stage contract through eog_fv_stage + the v2 observation ports (handshake,
+#         one in / one out / in order, f_inflight link, II <= 16 outside ack sweeps, latency <= LAT_MAX), ALERT
+#         push/drop handshake, A3/A4 at the output (CLASSES 0 for non-updating records, set bit => own hit), A6
+#         heartbeat (cycle-exact ms_since_hb / autonomous, increment spacing), A7 relations between output ports.
+#         depth 20 > II_MAX + 2 so the II / latency counters of the harness are tied to a real window.
+# bmc     from reset, -DFV_MODEL: everything in prove plus the reference model of numerics §9 (A1, A2, A3, A4, A5
+#         exact: bus A per record, the ALERT sequence incl. ACKED sweeps and drops, latch state on the Pmods when
+#         quiet) and the ALERT field format. Not inductive: the model's counters/latches are not tied to the DUT's
+#         (port-only). Acks from ack_srv only, while the stage is quiet (see the harness header).
+#         depth 26: reset + 6-8 records with PERSIST_K up to 3, an ack sweep over both slots, drops, autonomous.
+# bmc_a8  from reset, -DFV_A8: A8 debounce. Every btn0 high level < (DEB_MS - 1) * CYC_PER_MS + 1 = 3 cycles,
+#         ack_srv = 0 => no ACKED push and no latch bit falling on the Pmods. depth 30: records raise and un-
+#         condition a latch (about 8 cycles), then 20+ cycles of arbitrary short btn0 levels and ms ticks.
+#         (-DFV_A8_STRICT checks the strict DEB_MS * CYC_PER_MS bound instead: spec question in the report.)
+# cover   spec covers (E-STOP raise, CLEARED, ack sweep clearing 2 slots, autonomous entry and exit) plus an
+#         acknowledge by BTN0 alone, an ALERT drop and two records out. depth 32.
+
+[tasks]
+prove
+bmc
+bmc_a8
+cover
+
+[options]
+prove:  mode prove
+prove:  depth 20
+bmc:    mode bmc
+bmc:    depth 26
+bmc_a8: mode bmc
+bmc_a8: depth 30
+cover:  mode cover
+cover:  depth 32
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal -sv eog_fv_props.sv
+read_verilog -formal -sv -I . eog_alarm.sv
+prove:  read_verilog -formal -sv -I . -DFV_PROVE fv_eog_alarm.sv
+bmc:    read_verilog -formal -sv -I . -DFV_MODEL fv_eog_alarm.sv
+bmc_a8: read_verilog -formal -sv -I . -DFV_A8 fv_eog_alarm.sv
+cover:  read_verilog -formal -sv -I . fv_eog_alarm.sv
+prep -top fv_eog_alarm
+
+[files]
+../common/eog_fv_props.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_alarm.sv
+fv_eog_alarm.sv
