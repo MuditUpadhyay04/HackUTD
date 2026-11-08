@@ -26,7 +26,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | DONE | 0a5a100, merged 1565f11; `reports/formal_div.txt`, `reports/sim_div.log` (PASS 19,123 divisions) |
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.unpack.rtl` bc4a760 (lint/iverilog/yosys clean, 1 beat/cycle at out_ready = 1, 841 flops) |
-| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
+| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) |
 | T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | fpga-rtl agent | REVIEW | `eog/T1.features.rtl` 9441fc4 (lint/iverilog/yosys clean; latency 13, II 14; smoke PASS all 12 features vector cases). Note: the RTL agent read the verifier's WIP harness after its RTL was final (last commit is a no-op refactor); the verifier never saw the RTL, so the proof stays independent |

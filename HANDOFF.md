@@ -89,7 +89,7 @@ and it was told to move it out. Never merge that file.
    `formal.sh <m>` (generate the gitignored `*_week` vectors in the main checkout first:
    `python FPGA/model/gen_vectors.py`), then merge to `FPGA`, set DONE, run `check_all.sh`, and push.
    validate, memory and alarm have their RTL in REVIEW, so they integrate as soon as their verifier lands.
-2. Queue, launch as slots free up: T1.unpack.fv (its RTL is in REVIEW), T1.countdown.fv, T1.pack.rtl/.fv,
+2. Queue, launch as slots free up (unpack.fv is running): T1.countdown.fv, T1.pack.rtl/.fv,
    T1.regs.rtl/.fv, T2.ps1.
 3. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
 
@@ -111,9 +111,10 @@ and it was told to move it out. Never merge that file.
 | agent-a1ef26a5b3ad9ded0 | eog/T1.alarm.fv | verifier (relaunch) |
 | agent-a065500e10062e0d1 | eog/T1.features.fv | verifier (relaunch; partial harness on disk) |
 | agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier (relaunch) |
-| T1.features.rtl | eog/T1.features.rtl | RTL agent (new) |
+| T1.features.rtl | eog/T1.features.rtl | REVIEW 9441fc4 |
 | T1.head.rtl | eog/T1.head.rtl | RTL agent (new) |
 | T1.countdown.rtl | eog/T1.countdown.rtl | RTL agent (new) |
+| T1.unpack.fv | eog/T1.unpack.fv | verifier (launched after features RTL reported) |
 
 ## Machine notes and gotchas
 
