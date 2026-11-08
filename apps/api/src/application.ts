@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { DomainError, type AnalysisRecord, type ImportedDataset, type OperatorAction, type RunInput, type RunRecord, type ScenarioRecord, type Snapshot, type SystemPlanResult, type TruckAssignment } from "@hackutd/contracts";
 import type { Job, Store } from "./store";
 import { importDataset } from "./features/datasets/service";
-import { buildRunSnapshot, planningInputForSnapshot } from "./features/runtimes/service";
+import { buildRunSnapshot, planningInputForSnapshot, readBoardIndex } from "./features/runtimes/service";
 import type { RegisteredModel } from "./features/runtimes/model";
 import { validateSystemPlan } from "./features/planning/validator";
 import { createAnalysisService } from "./features/agents/service";
@@ -142,6 +142,8 @@ export class Application {
         const d = await this.requireDataset(r.datasetId);
         const snapshot = await buildRunSnapshot(d, { runId: r.id, at: r.at, runtime: r.requested, parentRunId: r.parentRunId ?? undefined, revision: 1 }, {
           signal: controller.signal, model: this.model,
+          // BOARD_JSONL: listen.py's live file; re-read per run. Used only if it covers this dataset and cutoff.
+          board: this.config.boardJsonl ? readBoardIndex(this.config.boardJsonl, this.config.boardSource) : undefined,
           onResults: batch => this.store.appendInference(r.id, r.id, batch, claim),
         });
         if (controller.signal.aborted) return;

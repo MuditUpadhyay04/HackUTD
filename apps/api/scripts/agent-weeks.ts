@@ -11,6 +11,7 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { loadConfig } from "../src/infrastructure/config";
 import { createModel } from "../src/features/agents/orchestration/subagent";
 import { buildCases, loadDataset, readBoardJsonl } from "../src/features/agents/orchestration/cases";
+import { readBoardIndex } from "../src/features/runtimes/service";
 import { MemoryLearningStore, champions } from "../src/features/agents/learning/store";
 import { runCycle, type CycleReport } from "../src/features/agents/learning/cycle";
 import { cycleTrend, planOutcomes, versionTable } from "../src/features/agents/learning/rollup";
@@ -29,10 +30,13 @@ const held = await loadDataset(arg("heldout", "../HackUTD-ZeroDay/history/mock_t
 const boardSource = arg("board-source") === "fpga" || arg("board-source") === "fakeboard" ? arg("board-source") as "fpga" | "fakeboard" : undefined;
 const board = readBoardJsonl(arg("board"), boardSource);
 const heldBoard = readBoardJsonl(arg("heldout-board"), boardSource);
-const heldCases = await buildCases(held, { from: held.info.startUnix, to: held.info.nowUnix + 1 }, { strideHours: 3, limit: Number(arg("heldout-cases", "2")) });
+// With --board / --heldout-board, the cases' detections come from the board results too (test plan step 2).
+const boardIdx = arg("board") ? readBoardIndex(arg("board"), boardSource) : undefined;
+const heldIdx = arg("heldout-board") ? readBoardIndex(arg("heldout-board"), boardSource) : undefined;
+const heldCases = await buildCases(held, { from: held.info.startUnix, to: held.info.nowUnix + 1 }, { strideHours: 3, limit: Number(arg("heldout-cases", "2")), board: heldIdx });
 console.log(`Held-out: ${held.info.label}: ${heldCases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
 // Weeks start at the first cutoff with an ongoing incident: a quiet stretch has nothing to deploy agents on.
-const first = (await buildCases(train, { from: train.info.startUnix, to: train.info.nowUnix }, { strideHours: 2, limit: 1 }))[0];
+const first = (await buildCases(train, { from: train.info.startUnix, to: train.info.nowUnix }, { strideHours: 2, limit: 1, board: boardIdx }))[0];
 const origin = first ? first.at - 3600 : train.info.startUnix;
 const span = (train.info.nowUnix - origin) / weeks;
 // A later pass over the same week (continuing a store) uses other cutoffs and continues the week numbering.
@@ -40,7 +44,7 @@ const firstWeek = Number(arg("first-week", "1")), offset = Number(arg("offset-ho
 const reports: CycleReport[] = [];
 for (let w = 0; w < weeks; w++) {
   const from = origin + w * span, to = from + span;
-  const cases = await buildCases(train, { from: from + offset, to }, { strideHours: 4, limit: perWeek });
+  const cases = await buildCases(train, { from: from + offset, to }, { strideHours: 4, limit: perWeek, board: boardIdx });
   const week = firstWeek + w;
   console.log(`\nWeek ${week} (${new Date(from * 1000).toISOString().slice(0, 16)}Z to ${new Date(to * 1000).toISOString().slice(0, 16)}Z): ${cases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
   reports.push(await runCycle({ store, model, cycle: `week${week}`, train: { dataset: train, cases, board }, heldout: { dataset: held, cases: heldCases, board: heldBoard }, log: console.log }));
