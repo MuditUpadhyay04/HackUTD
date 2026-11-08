@@ -7,12 +7,14 @@
 #         handshake. Why not k-induction: the DUT's beat position, partial record and REC_NO counter are invisible
 #         at the ports until a record leaves, so with arbitrarily long idle stretches no induction depth closes
 #         without internal invariants (tried: depth 30 still fails induction on P1_ghost / P4_last against a stub).
-#         PDR learns the needed invariants itself. Against the verifier's throwaway double-buffered stub: PASS in
-#         ~3 min on the shared (loaded) WSL machine.
+#         PDR learns the needed invariants itself. Against the verifier's throwaway stubs (never committed) on the
+#         shared, loaded WSL machine: double-buffered stub PASS in 3-4.5 min, pass-through stub PASS in 36 s; seven
+#         mutants FAIL in 2-3 s on the expected label (P2_recno, P3_byte, P4_fe x2, P4_last, B_rate, u_out.ax_hold).
 # bmc   : smtbmc, every assertion from reset, depth 14 = reset + idle cycle + 12 beats (two full records) + output.
-#         Fast counterexamples for the RTL author; the data property P3 makes deeper bmc grow quickly.
+#         Quick counterexamples for the RTL author (80-90 s against the stubs); P3's data path makes each further
+#         step about twice as slow, so the unbounded result comes from `prove`.
 # cover : the spec's covers (two full records back to back; a framing error then a good record) + sanity covers.
-#         Depth 24 (deepest goal, C1_b2b, is reached at step 14 against the stub).
+#         Depth 24 (deepest goal, C1_b2b, is reached at step 13-14 against the stubs); ~1 s.
 
 [tasks]
 prove
