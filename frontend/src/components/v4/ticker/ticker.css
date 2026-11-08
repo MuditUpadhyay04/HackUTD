@@ -1,0 +1,18 @@
+/* Ticker (brief 2.1): static 32px KV strip. Only motion: digit roll (NumberFlow) + amber underline fade 600ms. */
+.v4 .tk { container-type: inline-size; height: 100%; }
+.v4 .tk-row { display: flex; height: 100%; align-items: stretch; overflow: hidden; white-space: nowrap; }
+.v4 .tk-c { position: relative; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-right: 1px solid var(--line-2); flex: none; min-width: 0; }
+.v4 .tk-c:last-child { border-right: 0; }
+.v4 .tk-c .label { font-size: 10px; }
+.v4 .tk-v { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 500; letter-spacing: 0.02em; color: var(--text); font-variant-numeric: tabular-nums; }
+.v4 .tk-c[data-hot="true"] .tk-v { color: var(--red); }
+.v4 .tk-unknown { display: inline-block; padding: 1px 6px; color: var(--text); background-color: var(--raised); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; border: 1px solid var(--line-2); border-radius: var(--r-1); font-size: var(--fs-1); }
+/* Amber underline: transition on opacity, retriggered from script (instant on, then fade). */
+.v4 .tk-ul { position: absolute; left: 8px; right: 8px; bottom: 3px; height: 2px; background: var(--amber); opacity: 0; transform-origin: left; transition: opacity 600ms ease-out; pointer-events: none; }
+.v4 .tk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.v4 .tk number-flow-react { --number-flow-char-height: 1em; }
+
+/* Narrow widths: lower priority cells hide (never scroll, never marquee). p0 always stays. */
+@container (max-width: 1380px) { .v4 .tk-c[data-p="2"] { display: none; } }
+@container (max-width: 980px) { .v4 .tk-c[data-p="1"] { display: none; } }
+@container (max-width: 640px) { .v4 .tk-c { padding: 0 8px; gap: 6px; } }

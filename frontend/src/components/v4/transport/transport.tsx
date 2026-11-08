@@ -1,41 +1,90 @@
 "use client";
-// STUB (Phase A). B3 replaces the body; keep the export signature. Already usable: dataset, runtime, play, step, LIVE.
-import type { Snapshot } from "@/lib/engine/types";
+// Transport (brief 2.5): play/pause, step, speed, time, LIVE, mini scrubber, run status, sound, upload, runtime and
+// dataset selects. It is always rendered, so it also mounts the global keyboard hook, the audio cues and the palette.
+import "./transport.css";
+import { useCallback, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { RuntimeMode } from "@hackutd/contracts";
+import type { Snapshot } from "@/lib/engine/types";
 import type { RunControls } from "@/lib/v4/use-run";
-import { isLive } from "@/lib/v4/derive";
+import { inWindow, isLive, localWindow } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions, SPEEDS } from "@/lib/v4/store";
 import { stamp } from "@/lib/v4/format";
+import { useGlobalKeyboard, useReverseSpeed } from "@/lib/v4/keyboard";
+import type { Command } from "@/lib/v4/keyboard-commands";
+import { useAudioCues } from "@/lib/v4/audio";
+import { MiniScrubber } from "./scrubber";
+import { CommandPalette } from "./command-palette";
+import { UploadPopover } from "./upload-popover";
+
+const I = {
+  play: <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M3 1.5v9l7-4.5z" fill="currentColor" /></svg>,
+  pause: <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2.5 1.5h2.6v9H2.5zM6.9 1.5h2.6v9H6.9z" fill="currentColor" /></svg>,
+  back: <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M2 1.5h1.6v9H2zM10 1.5v9L4.6 6z" fill="currentColor" /></svg>,
+  fwd: <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><path d="M8.4 1.5H10v9H8.4zM2 1.5v9L7.4 6z" fill="currentColor" /></svg>,
+};
+const RUNTIMES: { id: RuntimeMode; label: string }[] = [{ id: "auto", label: "AUTO" }, { id: "software", label: "SOFTWARE" }, { id: "fpga", label: "FPGA" }];
 
 export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunControls }) {
-  const t = usePlayhead((s) => Math.floor(s.t));
+  const router = useRouter();
+  const a = usePlayheadActions();
+  const minute = usePlayhead((s) => Math.floor(s.t / 60) * 60);
   const playing = usePlayhead((s) => s.playing);
   const speed = usePlayhead((s) => s.speed);
   const sound = usePlayhead((s) => s.sound);
-  const a = usePlayheadActions();
-  const live = isLive(snapshot) && t >= snapshot.nowUnix;
-  const goLive = () => { if (isLive(snapshot)) a.seek(snapshot.nowUnix); else run.commitAt(null); };
+  const reverse = useReverseSpeed();
+  const [palette, setPalette] = useState(false);
+  const [upload, setUpload] = useState(false);
+
+  const win = useMemo(() => localWindow(snapshot), [snapshot]);
+  const live = isLive(snapshot) && minute >= snapshot.nowUnix - 60;
+  const loaded = inWindow(win, minute);
+  const goLive = useCallback(() => { if (isLive(snapshot)) a.seek(snapshot.nowUnix); else run.commitAt(null); }, [snapshot, a, run]);
+
+  useGlobalKeyboard({ onPalette: () => setPalette((o) => !o) });
+  useAudioCues(snapshot);
+
+  const { datasets, setDataset, setRuntime } = run;
+  const commands = useMemo<Command[]>(() => [
+    { id: "live", group: "TIME", label: "JUMP TO LIVE", run: goLive },
+    { id: "play", group: "TIME", label: "PLAY OR PAUSE", hint: "SPACE", run: a.toggle },
+    ...SPEEDS.map<Command>((s) => ({ id: `speed-${s}`, group: "SPEED", label: `SET SPEED ${s}X`, run: () => a.setSpeed(s) })),
+    { id: "sound", group: "SOUND", label: sound ? "TURN SOUND OFF" : "TURN SOUND ON", hint: "M", run: a.toggleSound },
+    { id: "classic", group: "GO TO", label: "GO TO CLASSIC CONSOLE", hint: "/CLASSIC", run: () => router.push("/classic") },
+    { id: "how", group: "GO TO", label: "GO TO HOW IT WORKS", hint: "/HOW-IT-WORKS", run: () => router.push("/how-it-works") },
+    ...datasets.map<Command>((d) => ({ id: `ds-${d.id}`, group: "DATASET", label: `SELECT DATASET ${d.label}`, run: () => setDataset(d.id) })),
+    ...RUNTIMES.map<Command>((r) => ({ id: `rt-${r.id}`, group: "RUNTIME", label: `SELECT RUNTIME ${r.label}`, run: () => setRuntime(r.id) })),
+    ...snapshot.systems.map<Command>((s) => ({ id: `focus-${s.id}`, group: "FOCUS", label: `FOCUS SYSTEM ${s.id}`, run: () => a.setFocus({ kind: "system", id: s.id }) })),
+    { id: "focus-clear", group: "FOCUS", label: "CLEAR FOCUS", run: () => a.setFocus(null) },
+  ], [a, goLive, sound, router, datasets, setDataset, setRuntime, snapshot.systems]);
+
   return (
-    <div style={{ display: "flex", height: "100%", alignItems: "center", gap: 8, padding: "0 10px" }}>
-      <button type="button" className="tp-btn press" onClick={() => a.step(-1)} aria-label="Step back 5 minutes">-5</button>
-      <button type="button" className="tp-btn press" onClick={a.toggle} aria-pressed={playing} aria-label={playing ? "Pause" : "Play"}>{playing ? "PAUSE" : "PLAY"}</button>
-      <button type="button" className="tp-btn press" onClick={() => a.step(1)} aria-label="Step forward 5 minutes">+5</button>
-      <span className="mono" style={{ minWidth: 112, fontSize: "var(--fs-2)" }}>{stamp(t)}</span>
-      <select className="tp-select" aria-label="Speed" value={speed} onChange={(e) => a.setSpeed(Number(e.target.value) as (typeof SPEEDS)[number])}>
-        {SPEEDS.map((s) => <option key={s} value={s}>{s}x</option>)}
+    <div className="tx">
+      <button type="button" className="tx-btn press" onClick={() => a.step(-1)} aria-label="Step back 5 minutes" title="Step back 5 minutes (Left)">{I.back}</button>
+      <button type="button" className="tx-btn tx-play press" onClick={a.toggle} aria-pressed={playing} aria-label={playing ? "Pause" : "Play"} title="Play or pause (Space)">{playing ? I.pause : I.play}</button>
+      <button type="button" className="tx-btn press" onClick={() => a.step(1)} aria-label="Step forward 5 minutes" title="Step forward 5 minutes (Right)">{I.fwd}</button>
+      <div className="tx-time" aria-live="off">
+        <b>{stamp(minute)}</b>
+        <span data-warn={!loaded || reverse != null}>{reverse != null ? `REVERSE ${reverse}X` : !loaded ? "NOT LOADED" : live ? "LAST READING" : "REPLAY"}</span>
+      </div>
+      <div className="tx-seg" role="group" aria-label="Speed">
+        {SPEEDS.map((s) => <button key={s} type="button" className="tx-btn press" aria-pressed={reverse == null && s === speed} onClick={() => a.setSpeed(s)} title={`${s * 5} minutes of data per second`}>{s}X</button>)}
+      </div>
+      <button type="button" className="tx-btn press" onClick={goLive} data-on={live} aria-pressed={live} title="Jump to the last reading">LIVE</button>
+      <MiniScrubber snapshot={snapshot} />
+      {run.loading && <span className="tx-run" role="status"><i aria-hidden="true" />{run.status ? run.status : "LOADING RUN"}</span>}
+      <button type="button" className="tx-btn press" onClick={a.toggleSound} aria-pressed={sound} title="Toggle sound (M)">{sound ? "SOUND ON" : "SOUND OFF"}</button>
+      <button type="button" className="tx-btn press tx-hide-s" onClick={() => setPalette(true)} title="Command palette (Ctrl or Cmd K)" aria-haspopup="dialog">CMD K</button>
+      <button type="button" className="tx-btn press" onClick={() => setUpload((o) => !o)} aria-expanded={upload} aria-haspopup="dialog" data-upload-toggle="">UPLOAD</button>
+      <select className="tx-sel tx-hide-s" aria-label="Runtime" value={run.runtime} onChange={(e) => run.setRuntime(e.target.value as RuntimeMode)}>
+        {RUNTIMES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
       </select>
-      <button type="button" className="tp-btn press" onClick={goLive} data-on={live} aria-pressed={live}>LIVE</button>
-      <button type="button" className="tp-btn press" onClick={a.toggleSound} aria-pressed={sound} aria-label="Sound">{sound ? "SOUND ON" : "SOUND OFF"}</button>
-      <span style={{ flex: 1 }} />
-      {run.loading && <span className="label">LOADING</span>}
-      <select className="tp-select" aria-label="Runtime" value={run.runtime} onChange={(e) => run.setRuntime(e.target.value as RuntimeMode)}>
-        <option value="auto">AUTO</option>
-        <option value="software">SOFTWARE</option>
-        <option value="fpga">FPGA</option>
-      </select>
-      <select className="tp-select" aria-label="Dataset" value={run.dataset?.id ?? ""} onChange={(e) => run.setDataset(e.target.value)}>
+      <select className="tx-sel" aria-label="Dataset" value={run.dataset?.id ?? ""} onChange={(e) => run.setDataset(e.target.value)}>
+        {run.dataset == null && <option value="">NO DATASET</option>}
         {run.datasets.map((d) => <option key={d.id} value={d.id}>{d.label}</option>)}
       </select>
+      {upload && <UploadPopover run={run} onClose={() => setUpload(false)} />}
+      {palette && <CommandPalette commands={commands} onClose={() => setPalette(false)} />}
     </div>
   );
 }
