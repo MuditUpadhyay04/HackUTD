@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 07:55 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 08:05 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -180,6 +180,16 @@ flowchart LR
 
 ## 7. Path to the demo (in this order)
 
+**Status (Sun 08:05, Mudit): Nemotron + FPGA + v4 is integrated end to end but not yet validated on the board.**
+
+| Area | State | What closes it |
+| --- | --- | --- |
+| FPGA engine (Lucas) | Every module signed off; on the board, golden B1–B3 bit-exact (50 MHz build) | Lucas's FPGA → `main` PR after T2.top; O16 (B4 replay), O17 (clock) |
+| ML, weights v4 (Mudit) | Deployed; bit-exact on the board; SD-card default model (`weights.eog`) | — |
+| Board → API → Nemotron agents (Mudit + Jason) | Integrated: v4's board detections become incidents, the agents explain them, fallbacks are never blank; the combined suite passes 6/6 on the software board with live Nemotron | **Validation:** Lucas runs `ml/COMBINED_TEST.md` on the board. Quality refinements in I-16 … I-19 don't block it |
+| **Front end** (Gurneal, with Jason) | **Open** | I-2 (board view from `Snapshot.board`), I-7 (`SIMULATE_BOARD` dev-only), I-11 review, I-12 (console `/api/events` link), I-13 (approvals persisted), I-14 (shared contracts) |
+| **Photon** (Gurneal) | **Open** | I-12: `Photon/bot.mts` calls `/api/brief` and `/api/events`, which no API serves; point it at the operator API (`/api/runs/:id/snapshot`, `/api/runs/:id/export`) |
+
 **Working now (measured):**
 
 - The board does the 1 GbE UDP round trip (Lucas).
@@ -329,6 +339,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 08:05 | **Status set (Mudit):** with PR #12 merged, Nemotron + FPGA + v4 is integrated end to end, **not yet validated on the board** (Lucas runs `ml/COMBINED_TEST.md`). The only open areas are the **front end** and **Photon** (§7 status table). Jason's PR #9 closed (ownership recorded, O18). |
 | Sun Nov 8 07:55 | **Combined Nemotron + v4 + FPGA test ready** (`ml/COMBINED_TEST.md`): board results carry their source (`listen.py --source`), model version and staleness; v4's board detections become API incidents (I-1 mostly done; I-8 done); the orchestrator names where detections came from, writes a deterministic handoff for an empty shift, and never-blank fallbacks for triage / handoff. `python -m hutd_ml.combined_suite`: board stages bit-exact → agents at 4 cutoffs → API path → stale drill. 6/6 PASS on the software board with live Nemotron (key stored for this session's environment, never in the repo); the quality gaps it measured are in I-17. API 130 pass / 1 skip / 0 fail. |
 | Sun Nov 8 07:25 | **Agents and Nemotron: Mudit + Jason jointly** (O18 resolved). **Combined-test plan** (`docs/plan/mudit/nemotron_v4_fpga_test.md`). The deep dive found that v4's leak and degradation detections never become API incidents: without a registered model the runtime opens only pump failures. At step 1080 the API shows nothing while the board flags 3 problems. Board facts are always labeled `fakeboard` and carry no staleness or model version. Steps 0–8 with owners, sizes and pass criteria. |
 | Sun Nov 8 07:15 | **Closed-loop Nemotron agents (Mudit, with Grok) integrated** from `feat/agent-loop-poc`: a deterministic orchestrator with scoped sub-agents and bounded recursive delegation; a prompt registry, outcome records and a weekly champion / challenger loop; a console Agents view. Promoted as **PROPOSED**: C12 updated (grounded check), new C13; the architecture shows the loop. Live, single runs: 8 / 8 analyses accepted from Nemotron. I-10 and I-15 done; I-8 done except the `nowUnix` default; new I-16 … I-19; O18 (who owns agents). Merged tree: API 124 pass / 1 skip / 0 fail, typecheck clean, console build OK, ML 14 / 14. |
