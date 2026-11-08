@@ -277,6 +277,44 @@ module fv_eog_validate #(
         assume (f_fld < NFLD);
     end
 
+`ifdef FV_NARROW
+    // bmc only: data narrowing. The history properties are about counters, flags and time deltas, not data width;
+    // the full widths are covered by the per-record properties in `prove` and by simulation. Readings, well water
+    // and every LO/HI limit are sign-extended 4-bit values (-8..7), pump status < 8, and TS moves in a 12-bit
+    // window (TS[31:12] constant), so 300/600/900 deltas, duplicates and out-of-order all remain possible.
+    (* anyconst *) logic [19:0] f_tshi;
+    logic [15:0] nw_in, nw_row;
+    integer nq;
+    always_comb begin
+        for (nq = 0; nq < 16; nq = nq + 1) begin
+            nw_in[nq]  = 1'b1;
+            nw_row[nq] = 1'b1;
+        end
+        for (nq = 0; nq < 6; nq = nq + 1)     // INFLOW..PIPE_PSI (16-bit fields at 96..191)
+            nw_in[nq] = in_data[EOG_BU_REC + EOG_D_INFLOW + 16 * nq + 3 +: 13] ==
+                        {13{in_data[EOG_BU_REC + EOG_D_INFLOW + 16 * nq + 3]}};
+        for (nq = 0; nq < N_WELL; nq = nq + 1)
+            nw_in[6 + nq] = in_data[EOG_BU_REC + EOG_D_WELL_WATER + 16 * nq + 3 +: 13] ==
+                            {13{in_data[EOG_BU_REC + EOG_D_WELL_WATER + 16 * nq + 3]}};
+        nw_in[15] = (in_data[EOG_BU_REC + EOG_D_PUMP_ST + 3 +: 5] == 5'd0) &&
+                    (in_data[EOG_BU_REC + EOG_D_TS + 12 +: 20] == f_tshi);
+        for (nq = 0; nq < N_FAC * 16; nq = nq + 1)   // LO[0..6], HI[0..6], WELL_LO, WELL_HI of every slot
+            nw_row[nq % 16] = nw_row[nq % 16] &&
+                (f_rows[512 * (nq / 16) + EOG_CFG_LO + 16 * (nq % 16) + 3 +: 13] ==
+                 {13{f_rows[512 * (nq / 16) + EOG_CFG_LO + 16 * (nq % 16) + 3]}});
+        if (in_valid) assume (&nw_in);
+        assume (&nw_row);
+    end
+`endif
+`ifdef FV_FAST
+    // bmc only: full-throughput schedule (in_valid and out_ready held 1, no reset after the first cycle). The
+    // history properties do not depend on the handshake schedule; the stage contract and the per-record
+    // properties are proven for every schedule in `prove`.
+    logic f_rst_q;
+    always_ff @(posedge clk) f_rst_q <= rst_n;
+    always_comb if (f_past_valid) assume (rst_n && out_ready && (in_valid || !f_rst_q));
+`endif
+
     // ---------------------------------------------------------------------------------------------------------
     // DUT
     logic         in_ready, out_valid;
@@ -471,6 +509,7 @@ module fv_eog_validate #(
         end
     end
 
+`ifndef FV_NO_REC
     always_comb begin
         if (chk) begin
             // HDR: header pass-through (conventions §3; numerics §3 step 9: FAC = FAC_ID[4:0] also when DROPPED)
@@ -539,6 +578,7 @@ module fv_eog_validate #(
             if (o_wok) INC_wok: assert (o_rsn[EOG_R_WELL_INCONS] == winc_poss);
         end
     end
+`endif
 
 `ifndef FV_NO_HIST
     // =========================================================================================================
@@ -644,86 +684,55 @@ module fv_eog_validate #(
         end
     end
 
+`ifndef FV_NO_REF
     // =========================================================================================================
-    // 3b. Reference model of every slot (bmc): REF (every output bit) and V13 (slot f_slot's outputs)
-    logic [N_FAC-1:0]         rs_has_ts, rs_pend, rs_pok;
-    logic [N_FAC*32-1:0]      rs_last_ts;
-    logic [N_FAC*8-1:0]       rs_since;
-    logic [N_FAC*16-1:0]      rs_plev;
-    logic [N_FAC*NFLD*16-1:0] rs_fval;
-    logic [N_FAC*NFLD-1:0]    rs_fhas;
-    logic [N_FAC*NFLD*2-1:0]  rs_fmiss;
+    // 3b. REF / V13: every output bit of slot f_slot's records against fv_validate_ref applied to the record and
+    // the slot state the spec gives it. That state is rebuilt from the slot's previous outputs (has_ts, pend,
+    // last_ts, since, prev_level: the sh_* shadow above, from the DUT's TS / STATUS / SINCE_RESET / LEVEL) and
+    // from the reference's own per-field update (last value, has-value, miss counter), with touches and reset
+    // ordered as above. prev_ok is 1: a record that continues a history follows a VALID/HELD record of it (an
+    // INVALID one forces a new history), and a new history ignores it. Up to the first wrong output this state
+    // is exactly the spec's, so the first divergence of the DUT from numerics.md §3 on slot f_slot fails REF.
+    // It depends only on f_slot's own records, touches and resets, so equality while the other slot's records
+    // are interleaved is V13 (slot independence; f_slot is anyconst, so this covers every slot).
+    logic [NFLD*16-1:0] dv_fval;
+    logic [NFLD-1:0]    dv_fhas;
+    logic [NFLD*2-1:0]  dv_fmiss;
 
-    logic [15:0]        i_id;
-    logic [4:0]         i_sl;
-    assign i_id = in_data[EOG_BU_REC + EOG_D_FAC_ID +: 16];
-    assign i_sl = (i_id < N_FAC) ? i_id[4:0] : 5'd0;
-    logic [511:0] i_row;
-    assign i_row = f_rows[i_sl * 512 +: 512];
-
-    logic [372:0]       r_v;
-    logic               r_upd, r_has_ts, r_pend, r_pok;
-    logic [31:0]        r_last_ts;
-    logic [7:0]         r_since;
-    logic [15:0]        r_plev;
-    logic [NFLD*16-1:0] r_fval;
-    logic [NFLD-1:0]    r_fhas;
-    logic [NFLD*2-1:0]  r_fmiss;
+    logic [372:0]       e_v;
+    logic [NFLD*16-1:0] e_fval;
+    logic [NFLD-1:0]    e_fhas;
+    logic [NFLD*2-1:0]  e_fmiss;
     fv_validate_ref #(.N_FAC(N_FAC), .N_WELL(N_WELL)) u_ref (
-        .u(in_data), .row(i_row), .glb(f_glb),
-        .s_has_ts(rs_has_ts[i_sl]), .s_pend(rs_pend[i_sl]), .s_last_ts(rs_last_ts[i_sl*32 +: 32]),
-        .s_since(rs_since[i_sl*8 +: 8]), .s_prev_level(rs_plev[i_sl*16 +: 16]), .s_prev_ok(rs_pok[i_sl]),
-        .s_fval(rs_fval[i_sl*NFLD*16 +: NFLD*16]), .s_fhas(rs_fhas[i_sl*NFLD +: NFLD]),
-        .s_fmiss(rs_fmiss[i_sl*NFLD*2 +: NFLD*2]),
-        .v(r_v), .upd(r_upd), .n_has_ts(r_has_ts), .n_pend(r_pend), .n_last_ts(r_last_ts), .n_since(r_since),
-        .n_prev_level(r_plev), .n_prev_ok(r_pok), .n_fval(r_fval), .n_fhas(r_fhas), .n_fmiss(r_fmiss),
+        .u(c_x), .row(c_row), .glb(f_glb),
+        .s_has_ts(p_has_ts), .s_pend(p_pend), .s_last_ts(sh_last_ts), .s_since(sh_since),
+        .s_prev_level(sh_level), .s_prev_ok(1'b1), .s_fval(dv_fval), .s_fhas(dv_fhas), .s_fmiss(dv_fmiss),
+        .v(e_v), .upd(), .n_has_ts(), .n_pend(), .n_last_ts(), .n_since(), .n_prev_level(), .n_prev_ok(),
+        .n_fval(e_fval), .n_fhas(e_fhas), .n_fmiss(e_fmiss),
         .d_framing(), .d_unknown(), .d_req(), .d_present(), .d_legal(), .d_inr(), .d_obs(), .d_raw(),
         .d_n_wells(), .d_hold());
 
-    integer s;
+    // (a new history clears the per-field state inside the reference, so it needs no reset here)
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
-            rs_has_ts <= '0;
-            rs_pend   <= '1;
-        end else begin
-            for (s = 0; s < N_FAC; s = s + 1) begin
-                if (in_fire && r_upd && i_sl == s) begin
-                    rs_has_ts[s]                   <= r_has_ts;
-                    rs_pend[s]                     <= r_pend;
-                    rs_last_ts[s*32 +: 32]         <= r_last_ts;
-                    rs_since[s*8 +: 8]             <= r_since;
-                    rs_plev[s*16 +: 16]            <= r_plev;
-                    rs_pok[s]                      <= r_pok;
-                    rs_fval[s*NFLD*16 +: NFLD*16]  <= r_fval;
-                    rs_fhas[s*NFLD +: NFLD]        <= r_fhas;
-                    rs_fmiss[s*NFLD*2 +: NFLD*2]   <= r_fmiss;
-                end
-                if (fac_touch[s]) begin            // after this cycle's record: applies to the slot's next record
-                    rs_has_ts[s] <= 1'b0;
-                    rs_pend[s]   <= 1'b1;
-                end
-            end
+        if (out_fire && mine && !drop) begin
+            dv_fval  <= e_fval;
+            dv_fhas  <= e_fhas;
+            dv_fmiss <= e_fmiss;
         end
     end
-
-    logic [372:0] q_e0, q_e1, c_e;
-    always_ff @(posedge clk) if (in_fire) begin
-        if (f_in_cnt[0]) q_e1 <= r_v;
-        else             q_e0 <= r_v;
-    end
-    assign c_e = (f_in_flight == 8'd0) ? r_v : (f_out_cnt[0] ? q_e1 : q_e0);
 
     always_comb begin
-        if (chk) begin
-            REF_hdr:    assert (out_data[EOG_BV_STATUS - 1:0] == c_e[EOG_BV_STATUS - 1:0]);
-            REF_status: assert (o_st == c_e[EOG_BV_STATUS +: 3]);
-            REF_reason: assert (o_rsn == c_e[EOG_BV_REASON +: 16]);
+        if (chk && mine) begin
+            REF_hdr:    assert (out_data[EOG_BV_STATUS - 1:0] == e_v[EOG_BV_STATUS - 1:0]);
+            REF_status: assert (o_st == e_v[EOG_BV_STATUS +: 3]);
+            REF_reason: assert (o_rsn == e_v[EOG_BV_REASON +: 16]);
             REF_since:  assert (out_data[EOG_BV_INFLOW - 1:EOG_BV_SINCE_RESET] ==
-                                c_e[EOG_BV_INFLOW - 1:EOG_BV_SINCE_RESET]);
-            REF_values: assert (o_payload == c_e[372:EOG_BV_INFLOW]);
-            if (mine) V13: assert (out_data == c_e);
+                                e_v[EOG_BV_INFLOW - 1:EOG_BV_SINCE_RESET]);
+            REF_values: assert (o_payload == e_v[372:EOG_BV_INFLOW]);
+            V13:        assert (out_data == e_v);
         end
     end
+`endif
 `endif
 
     // =========================================================================================================
