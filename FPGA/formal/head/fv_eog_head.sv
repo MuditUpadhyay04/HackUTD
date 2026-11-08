@@ -68,6 +68,9 @@
 //   FSET / WSET   assumed operand sets (real-multiplier tasks): 0 free; 2 {0, 1, -1, 32767, -32768};
 //                 3 (features) {0} + {2^j, j = 0..14}; 4 (features) {0, 1}; 5 (features) {0, 1, -1}
 //   WR            1: writes and reads only touch shadowed words (bmc run time)
+//   SOUT_SET      1: S_OUT (word 1 [4:0]) written as 0, 16 or 31 only (bmc_arith run time: a symbolic 64-bit
+//                 rounding shift next to a multi-term sum was intractable; every S_OUT 0..31 is checked by H6 in
+//                 bmc_bank, and 31 exposes accumulator bits 31 and up)
 //   MAX_INFLIGHT  records the DUT may hold (the spec does not bound it; 4 leaves room for a pipelined head)
 //   LAT_MAX       st_lat bound (spec: 128)
 //   SWAP_MAX      H2_live bound (the spec says "next record boundary" without a number; 16 = II_MAX)
@@ -94,6 +97,7 @@ module fv_eog_head #(
     parameter integer FSET         = 0,
     parameter integer WSET         = 0,
     parameter integer WR           = 0,
+    parameter integer SOUT_SET     = 0,
     parameter integer MAX_INFLIGHT = 4,
     parameter integer LAT_MAX      = 128,
     parameter integer SWAP_MAX     = 16,
@@ -269,6 +273,8 @@ module fv_eog_head #(
             a_wb_addr: assume (wb_addr <= 7'd70 && used_word(wb_addr));
             if (wb_addr == 7'd70) a_wb_ver:  assume (wb_wdata[31:8] == 24'd0);
             if (wb_addr == 7'd1)  a_wb_sout: assume (wb_wdata[7:5] == 3'd0);
+            if (wb_addr == 7'd1 && SOUT_SET == 1)
+                a_wb_sset: assume (wb_wdata[4:0] == 5'd0 || wb_wdata[4:0] == 5'd16 || wb_wdata[4:0] == 5'd31);
             if (wb_addr >= 7'd2 && wb_addr <= 7'd63) begin
                 a_wb_pad: assume ((32'(half_feat(wb_addr, 1'b0)) < N_FEAT || w_lo == 16'd0)
                                   && (32'(half_feat(wb_addr, 1'b1)) < N_FEAT || w_hi == 16'd0));
