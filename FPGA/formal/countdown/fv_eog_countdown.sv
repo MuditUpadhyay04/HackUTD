@@ -64,8 +64,9 @@
 //
 // Defines: FV_STAGE (stage contract only: no per-record checks, no shadow), FV_PROVE (record-local checks +
 //          pass-through, no shadow), FV_ARITH (real arithmetic: + C6/C5_ord/C3_eq), FV_COVER (cover goals); none of
-//          them: record-local + history checks. Only FV_PROVE checks pass-through (H_*): the other tasks tie the
-//          uninterpreted payload to 0 (PAYLOAD = 0) so the FEAT datapath leaves the cone of influence.
+//          them: record-local + history checks. Only FV_PROVE (tasks bmc_pass, prove_one) checks pass-through (H_*);
+//          the history tasks tie the uninterpreted payload to 0 (PAYLOAD = 0) so the FEAT datapath leaves the cone
+//          of influence.
 
 `default_nettype none
 
@@ -92,7 +93,7 @@ module fv_eog_countdown #(
     parameter integer READY1  = 0,     // 1: assume out_ready = 1 (no back-pressure; deep history tasks)
     parameter integer PAYLOAD = 1      // 0: input bits the countdown does not interpret (IN_LAST, FAC_RAW, TS, REASON,
                                        // SINCE_RESET, FEAT, RULES4, REC_NO above RW) are tied to 0; used by the
-                                       // history tasks, whose pass-through is covered by `prove` (H_*)
+                                       // history tasks; pass-through (H_*) is checked by bmc_pass / prove_one
 ) (
     input  logic         clk,          // top-level inputs are free: the solver drives them
     input  logic         rst_n,

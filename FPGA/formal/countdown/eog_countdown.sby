@@ -23,15 +23,18 @@
 #            f_trk. Uses the RTL's opt-in formal invariant -DEOG_FV_RECNO_SEQ=8 (FIFO entries hold consecutive
 #            REC_NOs; true whenever st_recno_in is assumed), which makes st_link_r inductive. Depth 12.
 #            II and latency bounds are not in this task (they need depth > 16 / > 128): bmc / bmc_deep.
-# prove_one  (default) k-induction, II = 64 (the RTL processes one record at a time at II >= 57), -DFV_PROVE: the
-#            record-local checks, unbounded: H_hdr/H_feat/H_rules (header, FEAT, RULES4 copied), C1_cd/C1_nf,
-#            C1x_cd/C1x_nf (TASKS #1), C2_cd/C2_nf (#21), C3_hr, C5_nf, C5_q, C5_qbig. A record is hidden inside the
-#            stage for at most its latency (55) when one is in flight, so depth 60 > 55 closes without RTL
-#            invariants. Checker asserts are removed here (prove covers them).
-# bmc        (default) bmc from reset, II = 16, back-pressure free: record-local + history (C4_nf, C5_m10/m50/m90
+# bmc_pass   (default) bmc from reset, II = 16 (several records in flight, out_ready free), -DFV_PROVE: the
+#            record-local checks with pass-through, PAYLOAD free: H_hdr/H_feat/H_rules (header, FEAT, RULES4
+#            copied), C1_cd/C1_nf, C1x_cd/C1x_nf (TASKS #1), C2_cd/C2_nf (#21), C3_hr, C5_nf, C5_q, C5_qbig.
+#            Depth 70 > first output (~66). Bounded: per-record checks are not port-inductive at II = 16.
+# prove_one  (opt-in, slow: the base case alone passes step 24 after ~10 min on the stub) the same checks as
+#            bmc_pass, unbounded: k-induction at II = 64 (the RTL processes one record at a time at II >= 57), so a
+#            record is hidden inside the stage for at most its latency (55) and depth 60 closes without RTL
+#            invariants. Keeps the u_stage asserts (st_cnt / st_link_* are needed as induction hypotheses).
+# bmc        (default) bmc from reset, II = 16, out_ready free: record-local + history (C4_nf, C5_m10/m50/m90
 #            on the shadow ring; C1 "no ring change" and C7 slot independence through the per-slot shadow) +
-#            u_stage.st_ii (II <= 16 after the sweep). PAYLOAD = 0 (uninterpreted input bits tied to 0; prove_one
-#            checks pass-through), INFLOW from 5 bits (q = 0..15, so mean = 0 and > 0 both occur). Depth 85:
+#            u_stage.st_ii (II <= 16 after the sweep). PAYLOAD = 0 (uninterpreted input bits tied to 0; bmc_pass /
+#            prove_one check pass-through), INFLOW from 5 bits (q = 0..15, so mean = 0 and > 0 both occur). Depth 85:
 #            the outputs of the first two records (fill, then one push or another slot / HIST_RESET / INVALID).
 # bmc_arith  (default) bmc from reset, real eog_mul + eog_div, -DFV_ARITH: + C6_p10/p50/p90 (m(q) exact), C5_ord,
 #            C3_eq. out_ready = 1 (READY1; the arithmetic does not depend on back-pressure), operands narrowed
@@ -52,10 +55,11 @@
 
 [tasks]
 prove: default
-prove_one: default
 bmc: default
+bmc_pass: default
 bmc_arith: default
 cover: default
+prove_one
 bmc_deep
 cover_wrap
 
@@ -66,6 +70,8 @@ prove_one:  mode prove
 prove_one:  depth 60
 bmc:        mode bmc
 bmc:        depth 85
+bmc_pass:   mode bmc
+bmc_pass:   depth 70
 bmc_arith:  mode bmc
 bmc_arith:  depth 85
 cover:      mode cover
@@ -79,6 +85,7 @@ cover_wrap: depth 135
 prove:      smtbmc yices
 prove_one:  smtbmc yices
 bmc:        abc bmc3
+bmc_pass:   abc bmc3
 bmc_arith:  abc bmc3
 cover:      smtbmc yices
 bmc_deep:   abc bmc3
@@ -87,6 +94,7 @@ cover_wrap: smtbmc yices
 [script]
 prove:      read_verilog -formal -sv -I . -DFV_STAGE -DEOG_FV_RECNO_SEQ=8 eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
 prove_one:  read_verilog -formal -sv -I . -DFV_PROVE eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+bmc_pass:   read_verilog -formal -sv -I . -DFV_PROVE eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
 bmc:        read_verilog -formal -sv -I .            eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
 bmc_arith:  read_verilog -formal -sv -I . -DFV_ARITH eog_fv_props.sv eog_mul.sv eog_div.sv eog_countdown.sv fv_eog_countdown.sv
 cover:      read_verilog -formal -sv -I . -DFV_COVER eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
@@ -95,12 +103,14 @@ cover_wrap: read_verilog -formal -sv -I . -DFV_COVER eog_fv_props.sv eog_mul_abs
 prove:      chparam -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 prove_one:  chparam -set II 64 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 bmc:        chparam -set PAYLOAD 0 -set N_IB 5 -set LAT_CHK 0 fv_eog_countdown
+bmc_pass:   chparam -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 bmc_arith:  chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 -set N_LB 11 -set N_KB 15 -set N_SB 10 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 cover:      chparam -set PAYLOAD 0 -set N_IB 5 fv_eog_countdown
 bmc_deep:   chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 fv_eog_countdown
 cover_wrap: chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 fv_eog_countdown
 prep -top fv_eog_countdown
-prove_one:  chformal -assert -remove *eog_fv_stage *eog_fv_axis
+prove_one:  chformal -assert -remove *eog_fv_axis
+bmc_pass:   chformal -assert -remove *eog_fv_stage *eog_fv_axis
 bmc:        chformal -assert -remove *eog_fv_axis *eog_fv_stage/st_order *eog_fv_stage/st_no_ghost *eog_fv_stage/st_inflight *eog_fv_stage/st_cnt *eog_fv_stage/st_link_n *eog_fv_stage/st_link_r
 bmc_arith:  chformal -assert -remove *eog_fv_stage *eog_fv_axis
 cover:      chformal -assert -remove
