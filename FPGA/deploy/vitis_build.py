@@ -188,10 +188,11 @@ def app_links_xilffs():
         if "xilffs" in m.group(1):
             continue
         body = m.group(1).strip()
-        body = '"-lxilffs"' if body in ('""', "") else body + ' "-lxilffs"'
+        # names only: the template's CMake adds the -l itself ("-lxilffs" became -l-lxilffs on the laptop)
+        body = '"xilffs"' if body in ('""', "") else body + ' "xilffs"'
         txt = txt[:m.start()] + "set(USER_LINK_LIBRARIES " + body + ")" + txt[m.end():]
         open(cfg, "w", encoding="utf-8").write(txt)
-        log("added -lxilffs to", cfg)
+        log("added xilffs to USER_LINK_LIBRARIES in", cfg)
 
 
 def find_fsbl():
