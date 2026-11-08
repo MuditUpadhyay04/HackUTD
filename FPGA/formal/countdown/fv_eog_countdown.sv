@@ -4,7 +4,8 @@
 // Written from spec v4 (FROZEN): spec/modules/eog_countdown.md, spec/numerics.md §1 (D1, D2, D4, D6) and §7,
 // spec/conventions.md §1-§3 and §7, the answers in FPGA/TASKS.md (#1, #20, #21, #33, #34; Lucas's rulings #20/#21
 // override the numerics §7 v4 text), and, where the spec defers to it, Mudit's ml/hutd_ml/features_int.py @ d1ba779
-// (`review_r1r2` countdown: Engine._countdown and the ring update in process()).
+// (`review_r1r2` countdown: Engine._countdown and the ring update in process()). Cross-checked: an independent
+// throwaway stub written from this text passes tb/countdown bit for bit on every v4 vector case.
 // Only the DUT's port list (spec port table) is used; no RTL internals.
 //
 // DUT: eog_countdown #(N_FAC, II, CD_LOG2): clk, rst_n, in_valid/in_ready/in_data (bus M, 646 b),
@@ -46,7 +47,7 @@
 //   C6_p10, C6_p50, C6_p90   each value equals m(q) on the shadow's max / mean / min
 //   C5_ord                   below shutdown, all three finite (< 0xFFFF) -> p10 <= p50 <= p90
 //   C3_eq                    a fill (first VALID/HELD after reset or HIST_RESET), below shutdown: p10 = p50 = p90
-// C3 (fill) and C4 (ring = last 2^CD_LOG2 VALID/HELD INFLOW values after the fill) are the shadow itself; the DUT's
+// C3 (fill) and C4 (ring = last 2^CD_LOG2 VALID/HELD max(INFLOW, 0) values after the fill) are the shadow; the DUT's
 // ring is compared through NOT_FILLING (mean, always) and the quotients (bmc_arith: max, mean, min). C7 (slot
 // independence) and C1's "no ring change": the shadow is per slot and only VALID/HELD in-range records push, only
 // non-DROPPED HIST_RESET records clear; every record is checked against its own slot while records of the other
@@ -80,7 +81,7 @@
 module fv_eog_countdown #(
     parameter integer N_FAC   = 2,
     parameter integer CD_LOG2 = 2,     // ring depth 2^CD_LOG2 (spec: formal may set 2; RTL default 4)
-    parameter integer II      = 16,    // DUT parameter (64: one record at a time, used by `prove`)
+    parameter integer II      = 16,    // DUT parameter (64: one record at a time, used by `prove_one`)
     parameter integer II_CHK  = 16,    // eog_fv_stage II_MAX  (0 = not checked)
     parameter integer LAT_CHK = 128,   // eog_fv_stage LAT_MAX (0 = not checked)
     parameter integer RW      = 8,     // REC_NO low bits compared by eog_fv_stage
@@ -100,7 +101,7 @@ module fv_eog_countdown #(
     input  logic         clk,          // top-level inputs are free: the solver drives them
     input  logic         rst_n,
     input  logic         in_valid,
-    input  logic [645:0] in_bus,       // becomes in_data (bus M); narrowed in FV_ARITH
+    input  logic [645:0] in_bus,       // becomes in_data (bus M); narrowed per task (N_IB, N_LB, PAYLOAD)
     input  logic         out_ready
 );
     `include "eog_defs.svh"
