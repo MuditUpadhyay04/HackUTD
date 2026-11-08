@@ -2,8 +2,9 @@
 //   bash scripts/formal.sh countdown        (formal/countdown/eog_countdown.sby; task split and depths are there)
 //
 // Written from spec v4 (FROZEN): spec/modules/eog_countdown.md, spec/numerics.md §1 (D1, D2, D4, D6) and §7,
-// spec/conventions.md §1-§3 and §7, the lead's answers in FPGA/TASKS.md, and, where the spec defers to it, Mudit's
-// ml/hutd_ml/features_int.py (`review_r1r2` countdown: Engine._countdown and the ring update in process()).
+// spec/conventions.md §1-§3 and §7, the answers in FPGA/TASKS.md (#1, #20, #21, #33, #34; Lucas's rulings #20/#21
+// override the numerics §7 v4 text), and, where the spec defers to it, Mudit's ml/hutd_ml/features_int.py @ d1ba779
+// (`review_r1r2` countdown: Engine._countdown and the ring update in process()).
 // Only the DUT's port list (spec port table) is used; no RTL internals.
 //
 // DUT: eog_countdown #(N_FAC, II, CD_LOG2): clk, rst_n, in_valid/in_ready/in_data (bus M, 646 b),
@@ -11,12 +12,12 @@
 // formal-only observation ports f_inflight[7:0] / f_oldest_recno[31:0] (conventions §7).
 //
 // ---- Reference semantics (numerics §7, v4) ----
-// Per slot: a ring of 2^CD_LOG2 signed INFLOW values and a "has ring" bit (0 after reset). For an accepted record
-// of slot f < N_FAC: a non-DROPPED HIST_RESET record first clears has[f]; then a VALID/HELD record either fills the
-// whole ring with its INFLOW (has[f] = 0) or shifts its INFLOW in, and sets has[f]. sum = ring sum,
-// mean = sum >>> CD_LOG2, max/min over the ring (signed). Output, VALID/HELD:
-//   NOT_FILLING = (mean <= 0) always; LEVEL >= SHUT_LVL (signed, SHUT_LVL zero-extended) -> CD = 0;
-//   else Δ = SHUT_LVL - LEVEL, K = K_CD: p10 = m(max), p50 = m(mean), p90 = m(min),
+// Per slot: a ring of 2^CD_LOG2 values q = max(INFLOW, 0) (#20) and a "has ring" bit (0 after reset). For an
+// accepted record of slot f < N_FAC: a non-DROPPED HIST_RESET record first clears has[f]; then a VALID/HELD record
+// either fills the whole ring with its q (has[f] = 0) or shifts its q in, and sets has[f]. sum = ring sum,
+// mean = sum >>> CD_LOG2, max/min over the ring. Output, VALID/HELD:
+//   LEVEL >= SHUT_LVL (signed, SHUT_LVL zero-extended) -> CD = 0 and NOT_FILLING = 0 (#21);
+//   else NOT_FILLING = (mean <= 0), Δ = SHUT_LVL - LEVEL, K = K_CD: p10 = m(max), p50 = m(mean), p90 = m(min),
 //   m(q) = q <= 0 ? 0xFFFF : min((K·Δ) // (q << 8), 0xFFFF).
 // INVALID/DROPPED: CD = 3 x 0xFFFF, NOT_FILLING = 0, no ring change (INVALID may clear via HIST_RESET).
 // FAC >= N_FAC (TASKS.md answer 1): never touches state; a VALID/HELD one is output like INVALID (model).
@@ -32,13 +33,14 @@
 //   H_hdr, H_feat, H_rules   header and FEAT copied, RULES[3:0] = RULES4 (module spec "Behavior")
 //   C1_cd, C1_nf             INVALID/DROPPED -> CD = 3 x 0xFFFF, NOT_FILLING = 0
 //   C1x_cd, C1x_nf           VALID/HELD with FAC >= N_FAC: same as INVALID (TASKS.md spec answer 1, model)
-//   C2_cd                    LEVEL >= SHUT_LVL -> CD = 0 (all three)
-//   C2_hr                    ... and on a HIST_RESET record (ring filled with INFLOW): NOT_FILLING = (INFLOW <= 0)
-//   C3_hr                    HIST_RESET, below shutdown: NOT_FILLING = (INFLOW <= 0); INFLOW <= 0 -> all 0xFFFF
-//   C5_nf                    below shutdown, NOT_FILLING (mean <= 0, so min <= 0) -> p50 = p90 = 0xFFFF
-//   C5_q                     below shutdown, INFLOW <= 0 (it is in the ring, so min <= 0) -> p90 = 0xFFFF
+//   C2_cd, C2_nf             LEVEL >= SHUT_LVL -> CD = 0 (all three), NOT_FILLING = 0 (#21)
+//   C3_hr                    HIST_RESET, below shutdown (ring filled with q): NOT_FILLING = (INFLOW <= 0);
+//                            INFLOW <= 0 -> all three 0xFFFF
+//   C5_nf                    below shutdown, NOT_FILLING (mean = 0, so min = 0) -> p50 = p90 = 0xFFFF
+//   C5_q                     below shutdown, INFLOW <= 0 (q = 0 is in the ring, so min = 0) -> p90 = 0xFFFF
+//   C5_qbig                  below shutdown, INFLOW >= 2^CD_LOG2 (so sum >= 2^CD_LOG2, mean >= 1) -> NOT_FILLING = 0
 //   (history: shadow ring of every slot, bmc from reset)
-//   C4_nf                    NOT_FILLING == (shadow mean <= 0), tripped or not (C2's NOT_FILLING clause too)
+//   C4_nf                    below shutdown: NOT_FILLING == (shadow mean <= 0)
 //   C5_m10, C5_m50, C5_m90   below shutdown: shadow max / mean / min <= 0 -> that value is 0xFFFF
 //   (real arithmetic, rtl/eog_mul.sv + rtl/eog_div.sv, bmc_arith)
 //   C6_p10, C6_p50, C6_p90   each value equals m(q) on the shadow's max / mean / min
@@ -208,6 +210,7 @@ module fv_eog_countdown #(
     logic [511:0]       i_row;
     logic               i_vh, i_in, i_upd, i_clr, i_trip;
     logic [16:0]        i_dl;
+    logic signed [15:0] i_q;
     logic [1:0]         i_kind;
 
     assign i_st     = in_data[EOG_BM_STATUS +: 3];
@@ -228,6 +231,7 @@ module fv_eog_countdown #(
     assign i_trip   = $signed({i_level[15], i_level}) >= $signed({1'b0, i_shut});
     assign i_dl     = {1'b0, i_shut} - {i_level[15], i_level};          // Δ (1..98303 when not tripped)
     assign i_kind   = !i_vh ? K_NONE : !i_in ? K_OOB : i_trip ? K_TRIP : K_COMP;
+    assign i_q      = i_inflow[15] ? 16'sd0 : i_inflow;                 // max(INFLOW, 0) (#20)
 
     always_comb if (in_valid) begin
         a_status: assume (i_st == EOG_ST_VALID || i_st == EOG_ST_HELD || i_st == EOG_ST_INVALID ||
@@ -258,8 +262,8 @@ module fv_eog_countdown #(
             o_p    = sh_push[s*PB +: PB];
         end
         x_fill = !o_has || i_hr;                       // a non-DROPPED HIST_RESET clears first (DROPPED: no HR)
-        if (x_fill) x_ring = {CD_N{i_inflow}};
-        else        x_ring = {o_ring[(CD_N-1)*16-1:0], i_inflow};
+        if (x_fill) x_ring = {CD_N{i_q}};
+        else        x_ring = {o_ring[(CD_N-1)*16-1:0], i_q};
         if (x_fill)                  x_p = '0;
         else if (o_p >= PB'(CD_N))   x_p = PB'(CD_N);
         else                         x_p = o_p + 1'b1;
@@ -299,7 +303,8 @@ module fv_eog_countdown #(
     logic          trk_v;            // accepted, output not yet transferred
     logic [645:0]  trk_in;
     logic [1:0]    trk_kind;
-    logic          trk_qle0;         // INFLOW <= 0
+    logic          trk_qle0;         // INFLOW <= 0 (q = 0)
+    logic          trk_qbig;         // INFLOW >= 2^CD_LOG2
     always_ff @(posedge clk) begin
         if (!rst_n) trk_v <= 1'b0;
         else begin
@@ -310,6 +315,7 @@ module fv_eog_countdown #(
             trk_in   <= in_data;
             trk_kind <= i_kind;
             trk_qle0 <= (i_inflow <= 0);
+            trk_qbig <= (i_inflow >= (1 <<< CD_LOG2));
         end
     end
 
@@ -377,7 +383,7 @@ module fv_eog_countdown #(
         end
         if (trk_kind == K_TRIP) begin
             C2_cd:  assert (out_data[EOG_BC_CD +: 48] == 48'd0);
-            if (trk_in[EOG_BM_HIST_RESET]) C2_hr: assert (o_nf == trk_qle0);
+            C2_nf:  assert (!o_nf);
         end
         if (trk_kind == K_COMP) begin
             if (trk_in[EOG_BM_HIST_RESET]) begin
@@ -386,12 +392,11 @@ module fv_eog_countdown #(
             end
             if (o_nf)     C5_nf: assert (o_p50 == NONE && o_p90 == NONE);
             if (trk_qle0) C5_q:  assert (o_p90 == NONE);
+            if (trk_qbig) C5_qbig: assert (!o_nf);
         end
 `ifndef FV_NOSHADOW
-        if (trk_kind == K_TRIP || trk_kind == K_COMP) begin
-            C4_nf: assert (o_nf == (trk_mean <= 0));
-        end
         if (trk_kind == K_COMP) begin
+            C4_nf: assert (o_nf == (trk_mean <= 0));
             if (trk_max <= 0)  C5_m10: assert (o_p10 == NONE);
             if (trk_mean <= 0) C5_m50: assert (o_p50 == NONE);
             if (trk_min <= 0)  C5_m90: assert (o_p90 == NONE);
