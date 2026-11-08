@@ -17,12 +17,15 @@
 #   prove_glb  G3*
 #   prove_fifo G5_*                       prove_data G6_* R_rec
 # bmc   : abc bmc3 (smtbmc/boolector took > 10 min to reach step 10 on this design), every assertion from reset,
-#         depth 20 (reset + sweep + 3-4 AXI transactions, or a push with its 6 beats plus a RESULT record and its
-#         pop). Each step costs ~1 min at depth 15-20, so deeper runs belong to `prove`.
+#         depth 14 (reset + sweep + 2-3 AXI transactions, or a push and its first beats). Quick counterexamples
+#         only: every assertion is proven unbounded by the prove_* tasks; steps beyond ~15 cost several minutes each.
 # cover : the spec's cover (CONFIG row written, slot enabled, DATA record pushed, RESULT read back) and sanity
 #         covers; depth 40.
 #
-# Run times: see the end of this header (filled in from the stub shake-out).
+# Run times against the verifier's throwaway stub (never committed), all tasks in parallel (sby default) on the shared
+# WSL machine, Sun Nov 8 ~04:30 CST: all PASS. prove_puls 38 s, prove_axi 44 s, prove_ctl 76 s, prove_cfg 77 s,
+# prove_rd 88 s, prove_glb 343 s, prove_cq0..3 432-546 s, prove_fifo 946 s, prove_data 958 s, cover 42 s (C_main at
+# step 22), bmc 110 s. Wall clock ~16 min. A timeout of 1800 s per prove task leaves ~2x margin.
 
 [tasks]
 prove_axi prove
@@ -44,7 +47,7 @@ cover
 prove: mode prove
 prove: timeout 1800
 bmc:   mode bmc
-bmc:   depth 20
+bmc:   depth 14
 cover: mode cover
 cover: depth 40
 
