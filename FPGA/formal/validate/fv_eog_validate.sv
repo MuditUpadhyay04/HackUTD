@@ -79,9 +79,10 @@
 // DROPPED, so the slot state takes the n_* values), and the record-only decode (d_*) used by the per-record
 // properties. Field index k: 0..6 facility fields in PRESENT-bit order (0 inflow, 1 level, 2 pump status,
 // 3 pump flow, 4 discharge, 5 receive flow, 6 pipeline; LO/HI index = k); 7..7+N_WELL-1 well status i;
-// 7+N_WELL.. well water i. Slot state: has_ts, pending (touch), last_ts, since, hold_run, prev_level/prev_ok,
-// per field last_valid value + has bit. A touch sets pending and clears has_ts; the history is cleared lazily
-// when the next non-DROPPED record is processed (no DROPPED record can observe the difference).
+// 7+N_WELL.. well water i. Slot state: has_ts, last_ts, since, hold_run, prev_level/prev_ok, per field
+// last_valid value + has bit (s_pend is an alias of !has_ts, kept for the stub; tie it to 0). Reset and a touch
+// clear has_ts; the slot's next non-DROPPED record is then its "first" record: a history reset, flagged (#24),
+// which clears the rest of the state lazily (no DROPPED record can observe the difference).
 // ---- BEGIN fv_validate_ref ----
 module fv_validate_ref #(
     parameter integer N_FAC  = 2,
@@ -749,7 +750,7 @@ module fv_eog_validate #(
 `ifndef FV_NO_REF
     // =========================================================================================================
     // 3b. REF / V12: every output bit of slot f_slot's records against fv_validate_ref applied to the record and
-    // the shadow state above (has_ts, pending, last_ts, since, hold_run, prev from the DUT's outputs; per-field
+    // the shadow state above (has_ts, last_ts, since, hold_run, prev from the DUT's outputs; per-field
     // last_valid from the reference's own update, below). Up to the first wrong output this state is exactly the
     // spec's, so the first divergence of the DUT from numerics.md §3 on slot f_slot fails REF. It depends only on
     // f_slot's own records, touches and resets, so equality with the other slot's records interleaved is V12.
