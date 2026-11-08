@@ -91,7 +91,11 @@ export function Console({
   const nothingCost = sumKnown(failures.map((a) => a.options?.find((o) => o.kind === "do_nothing")?.cost));
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
-  const noData = facilities.filter((f) => f.health === "no_data" || f.health === "unknown");
+  const noData = facilities.filter((f) => f.health === "no_data");
+  // "unknown": readings are there, but leaks and pump wear can't be assessed (no board results, no model). Never shown
+  // as healthy (hard rule 9), and not as missing readings either.
+  const unchecked = facilities.filter((f) => f.health === "unknown");
+  const uncheckedNote = "Leak and pump-wear checks are unavailable without the board's results; pump failures are still detected.";
   let headline: string;
   if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
   else if (sysWithFailures.length === 1) {
@@ -105,6 +109,7 @@ export function Console({
   if (noData.length)
     headline += ` ${count(noData.length)} ${noData.length === 1 ? "facility has" : "facilities have"} no recent readings.`;
   if (inspections.length) headline += ` ${count(inspections.length)} ${inspections.length === 1 ? "problem needs" : "problems need"} an inspector.`;
+  if (unchecked.length) headline += ` ${uncheckedNote}`;
 
   const onView = (v: View) => {
     setView(v);
@@ -193,7 +198,7 @@ export function Console({
                 ))}
               </div>
             ) : (
-              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">{noData.length ? "No pumps are reported down. Some facilities have no recent readings; see Check sensors." : "No pumps are down. Every tank is cycling normally."}</div>
+              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">{noData.length ? "No pumps are reported down. Some facilities have no recent readings; see Check sensors." : unchecked.length ? "No pumps are down." : "No pumps are down. Every tank is cycling normally."}</div>
             )}
 
             {noData.length > 0 && (

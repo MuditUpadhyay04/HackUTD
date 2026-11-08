@@ -1,4 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { Application } from "../../application";
+import { loadConfig } from "../../infrastructure/config";
+import { createStore } from "../../infrastructure/database";
+import { findDatasetFolders } from "./folders";
 import { importDataset } from "./service";
 
 function fixture(facilityCount = 1, wellCount = 1) {
@@ -58,5 +65,28 @@ describe("dataset import", () => {
     await expect(importDataset(extra)).rejects.toThrow();
     files.telemetry += '2026-01-01T00:00:01Z,1767225601,pump-0,status,1\n';
     await expect(importDataset(files)).rejects.toThrow("300-second grid");
+  });
+});
+
+describe("dataset folders (DATA_ROOT)", () => {
+  test("finds root/test and root/history/<name>, never reads other files, skips bad folders, picks up new ones", async () => {
+    const root = await mkdtemp(join(tmpdir(), "hutd-data-"));
+    try {
+      const put = async (dir: string, files: Record<string, string>) => { await mkdir(join(root, dir), { recursive: true }); for (const [n, t] of Object.entries(files)) await writeFile(join(root, dir, n), t); };
+      const f = fixture().files();
+      await put("history/full_week", { "network.json": f.network, "ops.json": f.ops, "telemetry.csv": f.telemetry, "answer_key.json": "not json: must never be read" });
+      await put("history/broken", { "network.json": "{", "ops.json": f.ops, "telemetry.csv": f.telemetry });
+      await put("history/partial", { "network.json": f.network });
+      expect((await findDatasetFolders(root)).map((d) => d.label)).toEqual(["broken", "full_week"]);
+      const store = createStore({ memory: true }); await store.init();
+      const app = new Application(store, { ...loadConfig({ STORAGE_MODE: "memory", ALLOW_INSECURE_LOCAL: "1" }), dataRoots: [root] });
+      await app.syncFolders();
+      expect((await store.listDatasets()).map((d) => d.label)).toEqual(["full_week"]);
+      expect([...app.folderErrors.keys()].map((k) => k.split(/[\\/]/).pop())).toEqual(["broken"]);
+      const t = fixture(2).files();
+      await put("test", { "network.json": t.network, "ops.json": t.ops, "telemetry.csv": t.telemetry });
+      await app.syncFolders();
+      expect((await store.listDatasets()).map((d) => d.label).sort()).toEqual(["full_week", "test"]);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

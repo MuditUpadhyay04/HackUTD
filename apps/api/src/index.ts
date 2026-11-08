@@ -11,6 +11,7 @@ const store = createStore({ databaseUrl: config.databaseUrl, memory: config.memo
 await store.init();
 const service = new Application(store, config, config.modelMetadataPath ? await readRegisteredModel(config.modelMetadataPath) : undefined);
 const app = createApp(service).listen({ port: config.port, hostname: config.host });
+if (config.dataRoots?.length) { console.log(`[datasets] loading dataset folders under ${config.dataRoots.join(", ")}`); void service.syncFolders(); }
 const controller = new AbortController();
 if (process.env.INLINE_WORKER !== "0") void runWorker(service, controller.signal);
 console.log(`Operator API listening on ${config.host}:${config.port}; storage=${config.memory ? "memory (NONPERSISTENT)" : "PostgreSQL"}`);

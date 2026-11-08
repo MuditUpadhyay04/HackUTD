@@ -24,7 +24,8 @@ function delay(ms: number, signal: AbortSignal) {
 
 /** Listener-free application factory. Browser imports ONLY its inferred type. */
 export function createApp(service: Application) {
-  return new Elysia({ serve: { maxRequestBodySize: 48 * 1024 * 1024 } })
+  // Room for the largest network the board takes (32 facilities x 8 wells, a week: ~1.5M rows, ~90 MB) plus multipart.
+  return new Elysia({ serve: { maxRequestBodySize: 176 * 1024 * 1024 } })
     .onRequest(({ request, set }) => {
       const origin = request.headers.get("origin");
       if (request.method === "OPTIONS") {
@@ -46,14 +47,14 @@ export function createApp(service: Application) {
     .group("/api", api => api
       .get("/health", () => ({ status: "ok", storage: service.config.memory ? "memory-nonpersistent" : "postgresql", agents: service.config.provider ? "configured-unverified" : "draft-only",
         ...(service.config.provider ? { agentModel: { thinking: service.config.provider.thinking?.mode ?? "off", contextWindow: service.config.provider.contextWindow ?? null, maxOutputTokens: service.config.provider.maxOutputTokens ?? null } } : {}), hardware: "not-verified", hardwareBatches: "unsupported-sink-documented" }))
-      .get("/datasets", () => service.store.listDatasets())
+      .get("/datasets", async () => { await service.syncFolders(); return service.store.listDatasets(); })
       .post("/datasets", async ({ body, set }) => {
         if (body.network.name !== "network.json" || body.ops.name !== "ops.json" || body.telemetry.name !== "telemetry.csv") throw new DomainError("INVALID_FILES", "Upload network.json, ops.json and telemetry.csv with their original filenames");
         const [network, ops, telemetry] = await Promise.all([body.network.text(), body.ops.text(), body.telemetry.text()]);
         const result = await service.upload({ network, ops, telemetry }, body.label);
         set.status = 201;
         return result;
-      }, { body: t.Object({ network: t.File({ maxSize: "2m" }), ops: t.File({ maxSize: "2m" }), telemetry: t.File({ maxSize: "40m" }), label: t.Optional(t.String({ maxLength: 120 })) }, { additionalProperties: false }) })
+      }, { body: t.Object({ network: t.File({ maxSize: "2m" }), ops: t.File({ maxSize: "2m" }), telemetry: t.File({ maxSize: "160m" }), label: t.Optional(t.String({ maxLength: 120 })) }, { additionalProperties: false }) })
       .get("/runs", () => service.store.listRuns())
       .post("/runs", async ({ body, request, set }) => { const r = await service.createRun({ ...body, idempotencyKey: keyOf(request) }); set.status = 202; return r; }, {
         body: t.Object({ datasetId: id, at: t.Optional(t.Integer({ minimum: 0 })), runtime: mode, parentRunId: t.Optional(id) }, { additionalProperties: false })
