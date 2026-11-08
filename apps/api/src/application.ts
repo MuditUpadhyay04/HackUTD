@@ -3,6 +3,7 @@ import { DomainError, type AnalysisRecord, type ImportedDataset, type OperatorAc
 import type { Job, Store } from "./store";
 import { importDataset } from "./features/datasets/service";
 import { findDatasetFolders, readDatasetFolder } from "./features/datasets/folders";
+import { boardStamp, buildTimeline, TimelineCache } from "./features/simulation/timeline";
 import { buildRunSnapshot, planningInputForSnapshot, readBoardIndex } from "./features/runtimes/service";
 import { BoardFeed } from "./features/runtimes/board-status";
 import type { RegisteredModel } from "./features/runtimes/model";
@@ -23,6 +24,14 @@ export class Application {
     this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl, boardSource: config.boardSource });
     this.boardFeed = new BoardFeed(config.boardJsonl, config.boardSource);
     this.modelFingerprint = model ? createHash("sha256").update(JSON.stringify(model)).digest("hex") : null;
+  }
+  private readonly timelines = new TimelineCache();
+  /** The Simulation view's story of a dataset (incidents, plans at onset, trucks, levels). Cached per dataset and
+   * board-file state; read-only. */
+  async timeline(datasetId: string) {
+    const d = await this.requireDataset(datasetId);
+    return this.timelines.get(datasetId, `${boardStamp(this.config.boardJsonl)}|${this.modelFingerprint ?? ""}`, () => buildTimeline(d, {
+      model: this.model, board: this.config.boardJsonl ? readBoardIndex(this.config.boardJsonl, this.config.boardSource) : undefined }));
   }
   private folderStamps = new Map<string, string>();
   private folderSync: Promise<void> | null = null;

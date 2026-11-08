@@ -56,6 +56,7 @@ export function createApp(service: Application) {
         set.status = 201;
         return result;
       }, { body: t.Object({ network: t.File({ maxSize: "2m" }), ops: t.File({ maxSize: "2m" }), telemetry: t.File({ maxSize: "160m" }), label: t.Optional(t.String({ maxLength: 120 })) }, { additionalProperties: false }) })
+      .get("/datasets/:id/timeline", ({ params }) => service.timeline(params.id))
       .get("/runs", () => service.store.listRuns())
       .post("/runs", async ({ body, request, set }) => { const r = await service.createRun({ ...body, idempotencyKey: keyOf(request) }); set.status = 202; return r; }, {
         body: t.Object({ datasetId: id, at: t.Optional(t.Integer({ minimum: 0 })), runtime: mode, parentRunId: t.Optional(id) }, { additionalProperties: false })

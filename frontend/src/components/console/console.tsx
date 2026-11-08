@@ -11,6 +11,7 @@ import { NetworkCard } from "./network";
 import { AlertsTable, KpiStrip, NetworkGraph } from "./ops-board";
 import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
+import { SimulationPanel } from "./simulation";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
 import { AgentsPanel, agentLines, useAgentRun } from "./agents";
@@ -117,7 +118,7 @@ export function Console({
           : "ok";
 
   const goSystem = (id: string) => {
-    if (view === "handoff" || view === "agents") setView(live ? "overview" : "replay");
+    if (view === "handoff" || view === "agents" || view === "simulation") setView(live ? "overview" : "replay");
     requestAnimationFrame(() => {
       document.getElementById(`pipes-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
@@ -232,11 +233,11 @@ export function Console({
       <main className="px-4 pt-7 pb-10 sm:px-7">
         <header>
           <h1 className="tracking-display font-display text-[30px] leading-[1.1] font-bold sm:text-[34px]">
-            {view === "handoff" ? "Shift handoff" : view === "agents" ? "Agents" : "Avon water network"}
+            {view === "handoff" ? "Shift handoff" : view === "agents" ? "Agents" : view === "simulation" ? "Simulation" : "Avon water network"}
           </h1>
           <p className="mt-1.5 text-[15px] text-muted-foreground">
-            {longDay.format(new Date(s.nowUnix * 1000))}, {clockFrom(s.nowUnix, s.nowUnix)} UTC.{" "}
-            {view === "handoff" ? "What the next operator needs to know." : view === "agents" ? "Chip detects. Server plans. Nemotron explains." : headline}
+            {view !== "simulation" && <>{longDay.format(new Date(s.nowUnix * 1000))}, {clockFrom(s.nowUnix, s.nowUnix)} UTC.{" "}</>}
+            {view === "handoff" ? "What the next operator needs to know." : view === "agents" ? "Chip detects. Server plans. Nemotron explains." : view === "simulation" ? "The week as it happens: failures, trucks, money kept, and the data path to the board and back." : headline}
           </p>
         </header>
         {notice && (
@@ -262,7 +263,9 @@ export function Console({
           </div>
         )}
 
-        {view === "agents" ? (
+        {view === "simulation" ? (
+          <SimulationPanel datasetId={s.dataset.id} />
+        ) : view === "agents" ? (
           <AgentsPanel agents={agents} nowUnix={s.nowUnix} onOpenIncident={openIncident} />
         ) : view === "handoff" ? (
           <div className="mt-6 grid gap-4">

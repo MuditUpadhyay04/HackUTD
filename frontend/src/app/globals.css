@@ -228,3 +228,8 @@ html.dark [class~="[&:hover>circle]:fill-[#f2f2f7]"]:hover > circle { fill: #2c2
 @media (prefers-reduced-transparency: reduce) {
   html.dark .glass { background: var(--panel); }
 }
+
+/* Simulation view: a packet moving along each hop of the data path while the simulation plays. */
+@keyframes sim-packet { from { left: -4px; } to { left: 100%; } }
+.sim-packet { animation: sim-packet 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sim-packet { animation: none; } }
