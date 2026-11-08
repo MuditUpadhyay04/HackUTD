@@ -57,7 +57,8 @@ module fv_eog_unpack #(
     input  logic        s_valid,
     input  logic [63:0] s_data,
     input  logic        s_last,
-    input  logic        out_ready
+    input  logic        out_ready,
+    input  logic        trk_go      // P3: picks the tracked record (free, like an anyconst record number)
 );
     `include "eog_defs.svh"
 
@@ -106,7 +107,6 @@ module fv_eog_unpack #(
     // ---------------------------------------------------------------------------------------------------------
     // Shadow of the beat stream
     logic [2:0]  f_beat;      // beats of the record being filled
-    logic [31:0] f_formed;    // records completed since reset
     logic [31:0] f_out_cnt;   // records transferred since reset
     logic        done;        // this cycle's beat completes a record
     logic [2:0]  c_nb;        // beat count of the completing record
@@ -118,18 +118,32 @@ module fv_eog_unpack #(
     logic       c_b2b;
     assign c_b2b = (c_nb == 3'd6) && (f_run >= 4'd11);
 
+    // P3 tracking: the record whose first beat is accepted while trk_go = 1 (once per reset) is the tracked
+    // record; its beat at position f_trk_j (anyconst) is captured in f_tval.
+    (* anyconst *) logic [2:0] f_trk_j;
+    logic        f_tused;     // a record has been picked since reset
+    logic        f_tp;        // the record being filled is the tracked one
+    logic [63:0] f_tval;      // captured beat f_trk_j of the tracked record
+    logic        t_start, t_cur, t_cap;
+    logic [63:0] t_val;
+    assign t_start = in_fire && f_beat == 3'd0 && trk_go && !f_tused;
+    assign t_cur   = f_tp || t_start;
+    assign t_cap   = in_fire && t_cur && f_beat == f_trk_j;
+    assign t_val   = t_cap ? s_data : f_tval;
+
     // Pending records, oldest first. Entry layout (EW bits):
     //   [2:0] nb    beats received (1..6)          [3] last  s_last of its last beat
     //   [4]   b2b   C1 bookkeeping                 [6:5] age cycles since its last beat (1..3, saturating)
     //   [7]   rok   out_ready was 1 in every cycle from its last beat on (P5)
-    localparam integer EW = 8;
+    //   [8]   trk   the tracked record (P3)
+    localparam integer EW = 9;
     logic [1:0]    f_cnt;     // 0..2 legal; 3 = overflow (B_hold fails)
     logic [EW-1:0] f_e0, f_e1;
     logic [EW-1:0] cn;        // the completing record as an entry
-    assign cn = {out_ready, 2'd1, c_b2b, s_last, c_nb};
+    assign cn = {t_cur, out_ready, 2'd1, c_b2b, s_last, c_nb};
 
     function automatic logic [EW-1:0] f_aged(input logic [EW-1:0] e, input logic rdy);
-        f_aged = {e[7] & rdy, (e[6:5] == 2'd3) ? 2'd3 : e[6:5] + 2'd1, e[4:0]};
+        f_aged = {e[8], e[7] & rdy, (e[6:5] == 2'd3) ? 2'd3 : e[6:5] + 2'd1, e[4:0]};
     endfunction
 
     // Queue after this cycle's push (aged), before this cycle's pop.
@@ -169,8 +183,9 @@ module fv_eog_unpack #(
 
     initial begin
         f_beat      = '0;
-        f_formed    = '0;
         f_out_cnt   = '0;
+        f_tused     = 1'b0;
+        f_tp        = 1'b0;
         f_cnt       = '0;
         f_run       = '0;
         f_have_prev = 1'b0;
@@ -179,8 +194,9 @@ module fv_eog_unpack #(
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             f_beat      <= '0;
-            f_formed    <= '0;
             f_out_cnt   <= '0;
+            f_tused     <= 1'b0;
+            f_tp        <= 1'b0;
             f_cnt       <= '0;
             f_e0        <= '0;
             f_e1        <= '0;
@@ -188,8 +204,12 @@ module fv_eog_unpack #(
             f_have_prev <= 1'b0;
             f_prev_fe   <= 1'b0;
         end else begin
-            if (in_fire) f_beat <= done ? 3'd0 : f_beat + 3'd1;
-            if (done) f_formed <= f_formed + 32'd1;
+            if (in_fire) begin
+                f_beat <= done ? 3'd0 : f_beat + 3'd1;
+                f_tp   <= t_cur && !done;
+            end
+            if (t_start) f_tused <= 1'b1;
+            if (t_cap)   f_tval  <= s_data;
             if (out_fire) begin
                 f_out_cnt   <= f_out_cnt + 32'd1;
                 f_have_prev <= 1'b1;
@@ -210,15 +230,8 @@ module fv_eog_unpack #(
     end
 
     // ---------------------------------------------------------------------------------------------------------
-    // P3 tracked beat: beat f_trk_j of record f_trk_rec carries f_trk_val.
-    (* anyconst *) logic [31:0] f_trk_rec;
-    (* anyconst *) logic [2:0]  f_trk_j;
-    (* anyconst *) logic [63:0] f_trk_val;
-
-    always_comb begin
-        assume (f_trk_j <= 3'd5);
-        if (in_fire && f_formed == f_trk_rec && f_beat == f_trk_j) assume (s_data == f_trk_val);
-    end
+    // P3: slot f_trk_j of bus U's REC
+    always_comb assume (f_trk_j <= 3'd5);
 
     logic [63:0] o_slot;
     always_comb begin
@@ -260,8 +273,8 @@ module fv_eog_unpack #(
                 P4_fe:    assert (o_fe == (h_e[2:0] != 3'd6));
                 P4_last:  assert (o_last == h_e[3]);
                 // P3: the tracked beat at its offset of its record; slots not received are 0
-                if (f_out_cnt == f_trk_rec)
-                    P3_byte: assert (o_slot == ((f_trk_j < h_e[2:0]) ? f_trk_val : 64'd0));
+                if (h_e[8])
+                    P3_byte: assert (o_slot == ((f_trk_j < h_e[2:0]) ? t_val : 64'd0));
             end
 
             // P5 latency: a record whose last beat was accepted with out_ready = 1 then and since is out_valid by the
@@ -288,7 +301,9 @@ module fv_eog_unpack #(
         // Harness-internal consistency (true by construction)
         if (f_past_valid) begin
             H_beat:  assert (f_beat <= 3'd5);
-            H_cnt:   assert (f_formed - f_out_cnt == {30'd0, f_cnt});
+            H_trk:   assert ({1'b0, f_tp} + {1'b0, f_cnt != 2'd0 && f_e0[8]} + {1'b0, f_cnt >= 2'd2 && f_e1[8]} <= 2'd1
+                             && (!f_tp || (f_tused && f_beat != 3'd0))
+                             && (!(f_cnt != 2'd0 && f_e0[8]) || f_tused) && (!(f_cnt >= 2'd2 && f_e1[8]) || f_tused));
             H_run:   assert (f_run <= 4'd15);
             if (f_cnt != 2'd0)
                 H_e0: assert (f_e0[2:0] >= 3'd1 && f_e0[2:0] <= 3'd6 && (f_e0[2:0] == 3'd6 || f_e0[3])
