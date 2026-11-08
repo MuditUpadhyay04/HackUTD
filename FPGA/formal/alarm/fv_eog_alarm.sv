@@ -24,6 +24,7 @@
 //                {THR[k], THR[k] + 1}, CH3 in {GAP_THR, GAP_THR + 1}. Solver load only (see the assumptions).
 //   FV_NO_A5 / FV_ONLY_A5  split the model checks over two bmc tasks (the ALERT-sequence checks are the costly ones).
 //   FV_KMAX      bound PERSIST_K and PERSIST_K4[k] (solver load).
+//   FV_ACKFAST   out_ready = 1, al_full = 0, no reset after the first cycle (the deeper ACKED-sweep task).
 //   FV_A8        debounce: every btn0 high level is shorter than A8_L cycles, ack_srv = 0 -> never an ACKED ALERT
 //                and never a latch bit falling on the Pmods.
 //
@@ -292,8 +293,8 @@ module fv_eog_alarm #(
             AL_fmt_nsr: assert (a_src[4] == 1'b0 && a_src[1:0] != 2'd0);
         if (a_kind == EOG_AK_ES_RAISED)
             AL_fmt_esr: assert (a_src[4] && a_cls[0]);
-        if (a_kind == EOG_AK_ACKED)    // SOURCE bit 2: 0 (TASKS #4) or autonomous (v4 SOURCE table): spec question
-            AL_fmt_ack: assert ((a_src & 8'hEB) == 8'd0 && al_data[EOG_AL_TS +: 32] == 32'd0
+        if (a_kind == EOG_AK_ACKED)    // SOURCE = {type, 4'b0}: bit 2 = 0 per TASKS #26 (proposed, = #4)
+            AL_fmt_ack: assert ((a_src & 8'hEF) == 8'd0 && al_data[EOG_AL_TS +: 32] == 32'd0
                                 && al_data[EOG_AL_RESULT_NO +: 32] == 32'd0 && a_rules == 8'd0 && a_cls == 8'd0
                                 && al_data[EOG_AL_CD_P10 +: 16] == 16'hFFFF);
     end
@@ -337,7 +338,8 @@ module fv_eog_alarm #(
         end
         m_vh  = (i_st == EOG_ST_VALID) || (i_st == EOG_ST_HELD);
         m_upd = (m_vh || i_st == EOG_ST_INVALID) && (i_fac < N_FAC);       // TASKS #1, #10
-        m_clr = i_hr || i_st == EOG_ST_INVALID;     // counters cleared before the update (D7)
+        m_clr = i_hr || i_st == EOG_ST_INVALID;     // counters cleared before the update (D7; TASKS #25 proposed:
+                                                    // HIST_RESET on INVALID clears only the counters)
         if (m_clr) begin m_oc = '0; m_ol = '0; end
         m_gap = (i_ch3 > g_gap);                    // strict (D7)
         for (k = 0; k < 4; k = k + 1) begin
@@ -370,7 +372,6 @@ module fv_eog_alarm #(
     logic [7:0]       rs_ca, rs_fl;     // 4 bits per slot
     logic [3:0]       rs_ok;            // 2 bits per slot
     logic [N_FAC-1:0] ak_ns, ak_es;
-    logic             ak_ok1;           // autonomous was 1 at some cycle since the ack request (or one before)
     logic [N_FAC-1:0] clr_ns, clr_es;
     assign clr_ns = m_nsl & ~m_nsc;
     assign clr_es = m_esl & ~m_esc;
@@ -421,9 +422,8 @@ module fv_eog_alarm #(
         pend = ak_any || open0 || open1;
         if (ak_any) begin
             exp_al = mk_al(ak_f, EOG_AK_ACKED, {3'd0, ak_t, 4'd0}, 32'd0, 32'd0, 8'd0, 8'd0, 16'hFFFF);
-            // SOURCE bit 2 of ACKED: 0 (TASKS #4, v1) or autonomous during the ack (v4's general SOURCE definition):
-            // both accepted until the spec question is answered
-            exp_ok = {ak_ok1 || autonomous, 1'b1};
+            // SOURCE bit 2 of ACKED = 0: TASKS #26 (proposed, = #4; T0.2b confirms against Mudit's code)
+            exp_ok = 2'b01;
         end else begin
             exp_al = mk_al(cur_rec[EOG_BL_FAC +: 5], cur_kind, cur_src, cur_rec[EOG_BL_TS +: 32],
                            cur_rec[EOG_BL_REC_NO +: 32], {3'd0, cur_rec[EOG_BL_RULES +: 5]}, {4'd0, cur_ca},
@@ -452,7 +452,7 @@ module fv_eog_alarm #(
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             m_cnt <= '0; m_leak <= '0; m_nsl <= '0; m_esl <= '0; m_nsc <= '0; m_esc <= '0;
-            rs_fl <= '0; ak_ns <= '0; ak_es <= '0; ak_ok1 <= 1'b0;
+            rs_fl <= '0; ak_ns <= '0; ak_es <= '0;
             ack_busy <= 1'b0; ack_age <= '0; quiet_run <= '0;
         end else begin
             // the oldest pending ALERT leaves on every push or drop
@@ -464,18 +464,16 @@ module fv_eog_alarm #(
             end
             // autonomous values seen while a record's ALERTs wait
             rs_ok <= rs_ok | {autonomous, !autonomous, autonomous, !autonomous};
-            ak_ok1 <= ak_ok1 || autonomous;
             if (m_ack) begin
                 m_nsl <= m_nsl & m_nsc;
                 m_esl <= m_esl & m_esc;
                 ak_ns <= clr_ns;
                 ak_es <= clr_es;
-                ak_ok1 <= autonomous || p_auto;
             end else if (m_rec) begin
                 if (m_upd) for (fu = 0; fu < N_FAC; fu = fu + 1) if (i_fac == fu) begin
                     m_cnt[fu*32 +: 32] <= m_ncnt;
                     m_leak[fu*8 +: 8]  <= m_nleak;
-                    if (m_vh) begin     // INVALID: counters only (D7)
+                    if (m_vh) begin     // INVALID: counters only (D7, TASKS #25 proposed)
                         m_nsl[fu] <= m_nsl[fu] | m_nsc_new;
                         m_esl[fu] <= m_esl[fu] | m_esc_new;
                         m_nsc[fu] <= m_nsc_new;
@@ -506,6 +504,14 @@ module fv_eog_alarm #(
         if (ack_busy) MD_ack_hold: assume (!in_valid);
     end
 
+`ifdef FV_ACKFAST
+    // Deeper, narrower run for the ACKED sweep (bmc_ack): no back-pressure, no drops, no reset after the first
+    // cycle, no LED override, so the solver reaches a two-latch ack sweep within the depth.
+    always_comb begin
+        MD_af_rdy:  assume (out_ready && !al_full && !ledovr[31]);
+        if (f_past_valid) MD_af_rst: assume (rst_n);
+    end
+`endif
 `ifdef FV_TIE
     // Solver load: the fields bus A / the ALERTs only copy are tied to the record's REC_NO byte (r), so a copy of
     // the wrong record or a misplaced field is still caught, but the solver does not carry 200 free bits per
