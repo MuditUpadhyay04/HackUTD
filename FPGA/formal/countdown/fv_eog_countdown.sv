@@ -60,11 +60,19 @@
 //     SHUT_LVL < 2^N_SB (structural narrowing, so adders, multipliers and dividers shrink; defaults = full range)
 // Nothing else about the input is assumed (FAC, HIST_RESET on VALID/HELD/INVALID, LEVEL, INFLOW, FEAT are free).
 //
-// Defines: FV_PROVE (record-local checks + pass-through; no shadow), FV_ARITH (real arithmetic, C6/C5_ord/C3_eq),
-//          FV_COVER (cover goals). The history tasks leave out the pass-through checks (H_*), which `prove` covers,
-//          so the FEAT datapath falls out of the cone of influence.
+// Defines: FV_STAGE (stage contract only: no per-record checks, no shadow), FV_PROVE (record-local checks +
+//          pass-through, no shadow), FV_ARITH (real arithmetic: + C6/C5_ord/C3_eq), FV_COVER (cover goals); none of
+//          them: record-local + history checks. Only FV_PROVE checks pass-through (H_*): the other tasks tie the
+//          uninterpreted payload to 0 (PAYLOAD = 0) so the FEAT datapath leaves the cone of influence.
 
 `default_nettype none
+
+`ifdef FV_PROVE
+`define FV_NOSHADOW
+`endif
+`ifdef FV_STAGE
+`define FV_NOSHADOW
+`endif
 
 module fv_eog_countdown #(
     parameter integer N_FAC   = 2,
@@ -73,6 +81,7 @@ module fv_eog_countdown #(
     parameter integer II_CHK  = 16,    // eog_fv_stage II_MAX  (0 = not checked)
     parameter integer LAT_CHK = 128,   // eog_fv_stage LAT_MAX (0 = not checked)
     parameter integer RW      = 8,     // REC_NO low bits compared by eog_fv_stage
+    parameter integer MAX_IF  = 8,     // eog_fv_stage MAX_INFLIGHT (the spec sets no bound; the RTL holds <= 4)
     // Operand ranges (structural narrowing; the defaults are the full spec ranges):
     parameter integer N_IB    = 16,    // INFLOW sign-extended from N_IB bits: [-2^(N_IB-1), 2^(N_IB-1))
     parameter integer N_LB    = 16,    // LEVEL  sign-extended from N_LB bits
@@ -177,7 +186,7 @@ module fv_eog_countdown #(
 
     logic [RW-1:0] f_in_cnt, f_out_cnt;
     logic [7:0]    f_in_flight;
-    eog_fv_stage #(.RW(RW), .MAX_INFLIGHT(8), .II_MAX(II_CHK), .LAT_MAX(LAT_CHK), .SWEEP(N_FAC + 8)) u_stage (
+    eog_fv_stage #(.RW(RW), .MAX_INFLIGHT(MAX_IF), .II_MAX(II_CHK), .LAT_MAX(LAT_CHK), .SWEEP(N_FAC + 8)) u_stage (
         .clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
         .in_valid(in_valid), .in_ready(in_ready), .in_recno(in_data[EOG_BM_REC_NO +: RW]),
         .out_valid(out_valid), .out_ready(out_ready), .out_recno(out_data[EOG_BC_REC_NO +: RW]),
@@ -229,7 +238,7 @@ module fv_eog_countdown #(
     // ---------------------------------------------------------------------------------------------------------
     // Shadow ring of every slot (not in FV_PROVE: history is not port-inductive). Slot s, entry i (0 = newest) at
     // sh_ring[(s*CD_N + i)*16 +: 16].
-`ifndef FV_PROVE
+`ifndef FV_NOSHADOW
     logic [N_FAC*CD_N*16-1:0] sh_ring;
     logic [N_FAC-1:0]         sh_has;
     logic [N_FAC*PB-1:0]      sh_push;
@@ -304,7 +313,7 @@ module fv_eog_countdown #(
         end
     end
 
-`ifndef FV_PROVE
+`ifndef FV_NOSHADOW
     logic               trk_fill, trk_wrap, trk_had;
     logic signed [15:0] trk_max, trk_mean, trk_min;
     always_ff @(posedge clk) if (in_fire && f_in_cnt == f_k) begin
@@ -351,6 +360,7 @@ module fv_eog_countdown #(
     assign o_p90 = out_data[EOG_BC_CD + 32 +: 16];
     assign o_nf  = out_data[EOG_BC_RULES + EOG_RULE_NOT_FILLING];
 
+`ifndef FV_STAGE
     always_comb if (chk) begin
 `ifdef FV_PROVE
         H_hdr:   assert (out_data[EOG_BC_FEAT-1:0] == trk_in[EOG_BM_FEAT-1:0]);
@@ -377,7 +387,7 @@ module fv_eog_countdown #(
             if (o_nf)     C5_nf: assert (o_p50 == NONE && o_p90 == NONE);
             if (trk_qle0) C5_q:  assert (o_p90 == NONE);
         end
-`ifndef FV_PROVE
+`ifndef FV_NOSHADOW
         if (trk_kind == K_TRIP || trk_kind == K_COMP) begin
             C4_nf: assert (o_nf == (trk_mean <= 0));
         end
@@ -399,6 +409,7 @@ module fv_eog_countdown #(
         end
 `endif
     end
+`endif
 
     // ---------------------------------------------------------------------------------------------------------
     // Cover goals (spec: tripped, not filling, finite, a ring that has wrapped; plus fills and record kinds)
