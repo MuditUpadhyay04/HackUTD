@@ -1,12 +1,12 @@
 # ML architecture — release candidate v3
 
-Owner: Mudit (ML) · Sun Nov 8 2026, 01:50 CST · Status: **FROZEN for the demo.** Only a bug, Lucas's R7 decision
-or new data reopens it.
+Owner: Mudit (ML) · Sun Nov 8 2026, 01:50 CST (updated 02:40 for R7 option C) · Status: **FROZEN for the demo.**
+The FPGA spec is locked; only a bug or new data reopens this.
 
 | Item | Version |
 | --- | --- |
 | Wire format | v1 (`docs/plan/lucas/fpga_hardware_plan.md`) |
-| FPGA spec | **v4** (`FPGA/spec/numerics.md` on branch `FPGA`) + Lucas's final rulings, spec questions 20–25; proposed questions 26–28 in [`fpga_spec_questions.md`](fpga_spec_questions.md) |
+| FPGA spec | **v4, locked** (`FPGA/spec/numerics.md`) + Lucas's final rulings: FPGA spec questions 20–25, 38, 67–70 (**70 = R7 option C**). Our questions ML-1 … ML-13 and their answers: [`fpga_spec_questions.md`](fpga_spec_questions.md) |
 | Normative integer reference | `ml/hutd_ml/features_int.py` (spec v4 says so); exact semantics in `ml/README.md` → "RESULT semantics" |
 | Feature set | id **1**: 31 integer features, unchanged since the FPGA plan's "memory feature set v1" |
 | Deployed weights | **v3** (`weights_ver` 3): `ml/artifacts/v3/` |
@@ -65,7 +65,9 @@ flowchart LR
   - every reading carries a present bit.
 - **Validation** happens on the FPGA (A4/A6, spec v4 §3):
   - duplicates and out-of-order records are dropped;
-  - a missing or impossible reading is held for ≤ 2 steps, then the facility's history resets;
+  - a missing or impossible reading is held for ≤ 2 steps. After that (R7 option C) records are INVALID until a
+    fully-OK record arrives. Memory is **not** reset; only a time gap, a CONFIG write or a facility's first record
+    starts a new history;
   - every RESULT says VALID / HELD / INVALID / DROPPED with reason bits. Bad data is never "healthy".
 
 ## 4. Features (31, frozen)
@@ -186,7 +188,8 @@ facility-day, leak / degradation:
 | Healthy pressure offsets ×0.7 | 0.04 / 0.03 | 0.01 / 0.04 |
 | Healthy pressure offsets ×1.3 | 0.08 / 0.27 | 0.05 / 0.11 |
 | Extra sensor noise | 0.19 / 0.17 | 0.13 / 0.09 |
-| 2 % of readings missing | 0.33 / 0.26 (AP 0.83 / 0.73) | 0.15 / 0.20 (AP 0.80 / 0.71) |
+| 2 % of readings missing, old hold rule A6 | 0.33 / 0.26 (AP 0.83 / 0.73) | 0.15 / 0.20 (AP 0.80 / 0.71) |
+| 2 % of readings missing, **R7 option C (current)** | — | 0.21 / 0.11 (AP **0.93 / 0.77**) |
 | All sizes ×0.5 / ×2, disposal pressure +200 psi | identical to clean | identical to clean (normalization makes this structural) |
 
 **What the weights learned**, which is good for explaining the model:
@@ -255,7 +258,9 @@ the board picks up by loading a new 980-byte weight blob.
 
 | Item | Owner | Effect on ML |
 | --- | --- | --- |
-| R7: hold/reset policy under missing data | Lucas | only matters if the judging data has gaps; a change means retraining (~3 min) + regenerating goldens |
-| Spec questions 26–28 | Lucas | documentation / goldens only |
-| `eog_ref.py` at v4 (FPGA T0.2b) | Lucas's team | then `fpga_sync.py` should report PASS without flags |
+| ~~R7 hold/reset policy~~ | Lucas | **Decided: option C** (FPGA spec question 70), implemented in `features_int.py`; golden sets regenerated (ml `59f3746`). C vs A6 under missing data: `ml/artifacts/missing_data/report.md` |
+| ~~ML-1 … ML-13~~ | Lucas | **All answered** (FPGA spec questions 38, 67–70); see [`fpga_spec_questions.md`](fpga_spec_questions.md) |
+| ~~`eog_ref.py` at v4~~ | Lucas's team | **Done** (`f264be2`): v4 `eog_ref.py` and `features_int.py` agree bit for bit on G0/G1/G2 |
+| `eog_ref.py` with option C (FPGA T0.2c) | Lucas's team | then `python -m hutd_ml.fpga_sync` must PASS without flags on the regenerated G2 |
+| Leak false alarms with missing readings under C | ML | rise at fixed thresholds (one flow field held while its partner updates). Testing missing-data augmentation; weights only, no RTL change |
 | Judging network `test/` (S6–S11) | — | run `replay.py` on it unchanged; check the facility count ≤ 32 and wells ≤ 8 (the encoder refuses otherwise) |

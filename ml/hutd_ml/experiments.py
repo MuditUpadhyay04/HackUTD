@@ -166,7 +166,8 @@ def main(argv=None):
     for n, fn in makers.items():
         sets[n] = base_run(*fn(net, tel), a.answer_key)
         print(f"built {n}", flush=True)
-    configs = CONFIGS if not a.configs else [CONFIGS[int(i)] for i in a.configs.split(",")]
+    configs = (CONFIGS if not a.configs else [] if a.configs == "none"
+               else [CONFIGS[int(i)] for i in a.configs.split(",")])
     if a.extra:
         configs = configs + [tuple(x) for x in json.loads(a.extra)]
     results = {}
