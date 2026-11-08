@@ -43,7 +43,10 @@ localparam integer EOG_R_WELL_INCONS = 7;
 localparam integer EOG_R_DUPLICATE = 8;
 localparam integer EOG_R_OUT_OF_ORDER = 9;
 localparam integer EOG_R_UNKNOWN_FAC = 10;
+localparam integer EOG_R_FIELD_ABSENT = 11;
 localparam integer EOG_R_FRAMING = 12;
+localparam integer EOG_R_NO_MODEL = 13;
+localparam integer EOG_R_FIELD_LOST = 14;
 
 // ---- rule bits (RESULT.rules) ----
 localparam integer EOG_RULE_PUMP_FAULT = 0;
