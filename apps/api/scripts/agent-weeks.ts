@@ -26,8 +26,9 @@ const model = createModel(config.provider, { concurrency: Number(arg("concurrenc
 const weeks = Number(arg("weeks", "3")), perWeek = Number(arg("cases", "2"));
 const train = await loadDataset(arg("train", "../HackUTD-ZeroDay/history/full_week")!);
 const held = await loadDataset(arg("heldout", "../HackUTD-ZeroDay/history/mock_test_2026-10-10T1530")!);
-const board = readBoardJsonl(arg("board"));
-const heldBoard = readBoardJsonl(arg("heldout-board"));
+const boardSource = arg("board-source") === "fpga" || arg("board-source") === "fakeboard" ? arg("board-source") as "fpga" | "fakeboard" : undefined;
+const board = readBoardJsonl(arg("board"), boardSource);
+const heldBoard = readBoardJsonl(arg("heldout-board"), boardSource);
 const heldCases = await buildCases(held, { from: held.info.startUnix, to: held.info.nowUnix + 1 }, { strideHours: 3, limit: Number(arg("heldout-cases", "2")) });
 console.log(`Held-out: ${held.info.label}: ${heldCases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
 // Weeks start at the first cutoff with an ongoing incident: a quiet stretch has nothing to deploy agents on.

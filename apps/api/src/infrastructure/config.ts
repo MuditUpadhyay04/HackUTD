@@ -6,7 +6,7 @@ export interface AppConfig {
   apiToken?: string; insecureLocal: boolean; allowedOrigins: string[];
   sessionDir: string; modelMetadataPath?: string; provider?: Provider;
   /** Agent learning state in memory mode (shared with scripts/agent-weeks.ts) and the board results file listen.py writes. */
-  agentLearningFile?: string; boardJsonl?: string;
+  agentLearningFile?: string; boardJsonl?: string; boardSource?: "fpga" | "fakeboard";
 }
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const memory = env.STORAGE_MODE === "memory";
@@ -30,7 +30,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   return { host, port, memory, databaseUrl: env.DATABASE_URL, apiToken: env.API_TOKEN, insecureLocal,
     allowedOrigins: (env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000").split(",").filter(Boolean),
     sessionDir: env.FX_SESSIONS_DIR ?? ".data/fx-sessions", modelMetadataPath: env.MODEL_METADATA_PATH, provider,
-    agentLearningFile: env.AGENT_LEARNING_FILE ?? ".data/agent-learning.json", boardJsonl: env.BOARD_JSONL || undefined };
+    agentLearningFile: env.AGENT_LEARNING_FILE ?? ".data/agent-learning.json", boardJsonl: env.BOARD_JSONL || undefined,
+    boardSource: env.BOARD_SOURCE === "fpga" || env.BOARD_SOURCE === "fakeboard" ? env.BOARD_SOURCE : undefined };
 }
 
 function optionalInteger(raw: string | undefined, name: string, min: number): number | undefined {

@@ -1,6 +1,6 @@
 /**
  * One orchestrated agent run on a dataset cutoff, printed as a task tree (CLI trace).
- * bun apps/api/scripts/agent-run.ts --data <dataset dir> --at <unix> [--strategy 1|2] [--board results.jsonl] [--json out.json]
+ * bun apps/api/scripts/agent-run.ts --data <dataset dir> --at <unix> [--strategy 1|2] [--board results.jsonl] [--board-source fpga|fakeboard] [--json out.json]
  * Reads NVIDIA_BASE_URL / NEMOTRON_MODEL / NVIDIA_API_KEY from the root .env (never printed).
  */
 import { writeFileSync } from "node:fs";
@@ -19,6 +19,7 @@ const at = Number(arg("at") ?? dataset.info.nowUnix);
 const snapshot = await snapshotAt(dataset, at);
 const strategy = SEED_STRATEGIES.find((s) => s.version === Number(arg("strategy") ?? 2)) ?? SEED_STRATEGIES[1]!;
 const prompts = Object.fromEntries(RUN_ROLES.map((r) => [r, { version: 1, template: SEED_TEMPLATES[r] }]));
-const trace = await orchestrate({ model: createModel(config.provider), snapshot, board: readBoardJsonl(arg("board")), prompts, strategy });
+const boardSource = arg("board-source") === "fpga" || arg("board-source") === "fakeboard" ? arg("board-source") as "fpga" | "fakeboard" : undefined;
+const trace = await orchestrate({ model: createModel(config.provider), snapshot, board: readBoardJsonl(arg("board"), boardSource), prompts, strategy });
 printTrace(trace);
 if (arg("json")) writeFileSync(arg("json")!, JSON.stringify(trace, null, 2));

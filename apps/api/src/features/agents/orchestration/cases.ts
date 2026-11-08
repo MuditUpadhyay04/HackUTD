@@ -3,7 +3,7 @@ import { join } from "node:path";
 import type { ImportedDataset, Snapshot } from "@hackutd/contracts";
 import { importDataset } from "../../datasets/service";
 import { buildRunSnapshot } from "../../runtimes/service";
-import { boardFacts, type BoardFact } from "./facts";
+import { boardFacts, type BoardFact, type BoardSource } from "./facts";
 
 /** Reads only the three runtime input files of a dataset folder; any answer key in the folder is never opened. */
 export async function loadDataset(dir: string, label?: string): Promise<ImportedDataset> {
@@ -15,8 +15,9 @@ export async function snapshotAt(dataset: ImportedDataset, at: number, runId?: s
   return buildRunSnapshot(dataset, { runId: runId ?? `case-${dataset.info.label}-${at}`, at, runtime: "software", revision: 1 });
 }
 
-/** listen.py --jsonl output (C11 JSON lines), if present. */
-export function readBoardJsonl(path: string | undefined, source: BoardFact["source"] = "fakeboard"): BoardFact[] {
+/** listen.py --jsonl output (C11 JSON lines), if present. Lines carry their own source (listen.py --source); `source`
+ * is only the fallback for lines without one, and it is "unverified" unless the caller knows better. */
+export function readBoardJsonl(path: string | undefined, source: BoardSource = "unverified"): BoardFact[] {
   if (!path || !existsSync(path)) return [];
   const lines = readFileSync(path, "utf8").split("\n").filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
   return boardFacts(lines, source);

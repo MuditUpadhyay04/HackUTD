@@ -16,7 +16,7 @@ export class Application {
   readonly modelFingerprint: string | null;
   constructor(readonly store: Store, readonly config: AppConfig, readonly model?: RegisteredModel) {
     this.agents = createAnalysisService({ store, provider: config.provider, sessionDir: config.sessionDir });
-    this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl });
+    this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl, boardSource: config.boardSource });
     this.modelFingerprint = model ? createHash("sha256").update(JSON.stringify(model)).digest("hex") : null;
   }
   async upload(files: { network: string; ops: string; telemetry: string }, label?: string) {

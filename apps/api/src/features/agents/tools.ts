@@ -13,7 +13,9 @@ export function factsFor(snapshot: Snapshot) {
     plans: [incident.plan, ...(incident.options ?? [])].filter((p): p is NonNullable<typeof p> => !!p && snapshot.recommendation.state === "ready" && snapshot.recommendation.inputRevision === snapshot.revision && p.inputRevision === snapshot.revision)
       .map((p) => ({ id: p.id, kind: p.kind, cost: p.cost, searchStatus: p.searchStatus, feasibility: p.feasibility })),
   }));
-  return { runId: snapshot.runId, revision: snapshot.revision, nowUnix: snapshot.nowUnix ?? 0,
+  // "Now" is the snapshot's last telemetry time (hard rule 3); never invent one.
+  if (!Number.isFinite(snapshot.nowUnix)) throw new Error("Snapshot has no telemetry time; refusing to build agent facts");
+  return { runId: snapshot.runId, revision: snapshot.revision, nowUnix: snapshot.nowUnix,
     coverage: snapshot.coverage ?? { expected: 0, received: 0, complete: false },
     recommendation: snapshot.recommendation ?? { state: "unavailable", inputRevision: 0, currentRevision: 0 },
     scoresAvailable: snapshot.runtime?.scoresAvailable ?? false, incidents };

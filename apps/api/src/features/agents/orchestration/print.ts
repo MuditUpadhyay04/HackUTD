@@ -3,7 +3,7 @@ import type { AgentRunTrace, TaskNode } from "./orchestrator";
 /** Plain-text task tree for the CLI. */
 export function formatTrace(trace: AgentRunTrace): string {
   const lines = [`Agent run ${trace.id} | run ${trace.runId} rev ${trace.revision} | telemetry now ${trace.now} | strategy v${trace.strategy.version} (${trace.strategy.name})`,
-    `Board: ${trace.board.length ? trace.board.filter((b) => b.heads.length).map((b) => `${b.facilityId} [${b.heads.join(",")}] ${b.status}`).join("; ") || "no active heads" : "none"}`,
+    `Board: ${trace.board.length ? trace.board.filter((b) => b.heads.length).map((b) => `${b.facilityId} [${b.heads.join(",")}] ${b.status} (${b.source}${b.weightsVer != null ? `, weights v${b.weightsVer}` : ""}${b.stale ? ", STALE" : ""})`).join("; ") || "no active heads" : "none"}`,
     "Alerts view (deterministic, rule 7):", ...trace.alertsView.map((a) => `  ${a.rank}. ${a.line}`), "Task tree:"];
   const walk = (n: TaskNode, indent: string) => {
     const head = n.role === "orchestrator" ? `orchestrator: ${n.reason}` :

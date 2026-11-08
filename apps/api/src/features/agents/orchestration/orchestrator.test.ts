@@ -24,6 +24,18 @@ describe("deterministic facts", () => {
   });
 });
 
+describe("board provenance", () => {
+  test("each line keeps its own source and model version; unlabeled lines are unverified; old results are stale", () => {
+    const board = boardFacts([
+      { type: "result", facility: "S4_FACILITY_A", ts_unix: snapshot.nowUnix - 300, status: "VALID", active: ["pump_failure"], source: "fpga", weights_ver: 4 },
+      { type: "result", facility: "S4_FACILITY_C", ts_unix: snapshot.nowUnix - 3600, status: "VALID", active: [], weights_ver: 4 },
+    ]);
+    const now = runFacts(snapshot, board).board;
+    expect(now.find((b) => b.facilityId === "S4_FACILITY_A")).toMatchObject({ source: "fpga", weightsVer: 4, stale: false });
+    expect(now.find((b) => b.facilityId === "S4_FACILITY_C")).toMatchObject({ source: "unverified", weightsVer: 4, stale: true });
+  });
+});
+
 describe("orchestrator task tree", () => {
   test("grants, caches and refuses sub-agent requests under the guards, and records every node", async () => {
     const { model } = scripted({

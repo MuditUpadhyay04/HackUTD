@@ -12,7 +12,11 @@ export interface IncidentFact {
   confidence: number | null; dataQuality: string | null; planningStatus: string | null;
   evidence: { id: string; text: string }[]; plans: PlanFact[];
 }
-export interface BoardFact { facilityId: string; status: string; heads: string[]; rules: string[]; countdown: string | null; tsUnix: number; source: "fakeboard" | "fpga" | "unverified" }
+export type BoardSource = "fakeboard" | "fpga" | "unverified";
+/** One board result (C11 JSON from listen.py). `stale`: older than STALE_AFTER_S at the cutoff, so it must not be
+ * presented as the current state (hard rule 9). `weightsVer`: the model that produced it (4 = weights v4). */
+export interface BoardFact { facilityId: string; status: string; heads: string[]; rules: string[]; countdown: string | null; tsUnix: number; source: BoardSource; weightsVer: number | null; stale: boolean }
+export const STALE_AFTER_S = 600; // two 5-minute steps
 export interface RunFacts {
   runId: string; revision: number; nowUnix: number; now: string; scoresAvailable: boolean; coverageComplete: boolean;
   recommendationReady: boolean; incidents: IncidentFact[]; board: BoardFact[];
@@ -81,13 +85,16 @@ export function groundingForRun(facts: RunFacts, data: unknown = facts): Groundi
 }
 
 /** Board results (C11 JSON lines from listen.py), one per facility and timestamp; runFacts picks the latest at or before the cutoff. */
-export function boardFacts(lines: unknown[], source: BoardFact["source"] = "unverified"): BoardFact[] {
+export function boardFacts(lines: unknown[], source: BoardSource = "unverified"): BoardFact[] {
   const out = new Map<string, BoardFact>();
   for (const line of lines) {
-    const r = line as { type?: string; facility?: string; ts_unix?: number; status?: string; active?: unknown[]; above_threshold?: unknown[]; rules?: unknown[]; countdown_min?: { p50?: number } };
+    const r = line as { type?: string; facility?: string; ts_unix?: number; status?: string; active?: unknown[]; above_threshold?: unknown[]; rules?: unknown[]; countdown_min?: { p50?: number }; source?: unknown; weights_ver?: unknown };
     if (r?.type !== "result" || typeof r.facility !== "string" || typeof r.ts_unix !== "number") continue;
+    // listen.py --source labels every line; a line without a label keeps the caller's default (unverified unless told).
+    const src: BoardSource = r.source === "fpga" || r.source === "fakeboard" ? r.source : source;
     out.set(`${r.facility}@${r.ts_unix}`, { facilityId: r.facility, status: String(r.status ?? "UNKNOWN"), heads: [...(r.active ?? r.above_threshold ?? [])].map(String),
-      rules: [...(r.rules ?? [])].map(String), countdown: typeof r.countdown_min?.p50 === "number" ? duration(r.countdown_min.p50 / 60) : null, tsUnix: r.ts_unix, source });
+      rules: [...(r.rules ?? [])].map(String), countdown: typeof r.countdown_min?.p50 === "number" ? duration(r.countdown_min.p50 / 60) : null, tsUnix: r.ts_unix, source: src,
+      weightsVer: typeof r.weights_ver === "number" ? r.weights_ver : null, stale: false });
   }
   return [...out.values()].sort((a, b) => a.facilityId.localeCompare(b.facilityId) || a.tsUnix - b.tsUnix);
 }
@@ -96,5 +103,5 @@ export function boardFacts(lines: unknown[], source: BoardFact["source"] = "unve
 export function boardAt(board: BoardFact[], nowUnix: number): BoardFact[] {
   const latest = new Map<string, BoardFact>();
   for (const b of board) if (b.tsUnix <= nowUnix && (latest.get(b.facilityId)?.tsUnix ?? -Infinity) <= b.tsUnix) latest.set(b.facilityId, b);
-  return [...latest.values()].sort((a, b) => a.facilityId.localeCompare(b.facilityId));
+  return [...latest.values()].map((b) => ({ ...b, stale: nowUnix - b.tsUnix > STALE_AFTER_S })).sort((a, b) => a.facilityId.localeCompare(b.facilityId));
 }

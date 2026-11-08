@@ -11,7 +11,7 @@ import { champions, MemoryLearningStore, PostgresLearningStore, type LearningSto
 import { decisionsFor } from "./outcomes";
 import { cycleTrend, planOutcomes, versionTable } from "./rollup";
 
-export interface AgentLoopOptions { provider?: Provider; databaseUrl?: string; memory: boolean; learningFile?: string; boardJsonl?: string }
+export interface AgentLoopOptions { provider?: Provider; databaseUrl?: string; memory: boolean; learningFile?: string; boardJsonl?: string; boardSource?: "fpga" | "fakeboard" }
 export interface LiveAgentRun { id: string; runId: string; status: "running" | "done" | "failed"; error: string | null; nodes: TaskNode[]; trace: AgentRunTrace | null; startedAt: string }
 
 /**
@@ -31,7 +31,7 @@ export class AgentLoopService {
   }
   private ready?: Promise<void>;
   init() { return (this.ready ??= this.learning.init()); }
-  board(): BoardFact[] { return this.o.boardJsonl ? readBoardJsonl(this.o.boardJsonl) : []; }
+  board(): BoardFact[] { return this.o.boardJsonl ? readBoardJsonl(this.o.boardJsonl, this.o.boardSource) : []; }
 
   async start(snapshot: Snapshot, actions: OperatorAction[], test?: { model: NonNullable<AgentLoopService["model"]> }): Promise<LiveAgentRun> {
     const model = test?.model ?? this.model;
