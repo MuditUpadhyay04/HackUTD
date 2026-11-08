@@ -45,7 +45,7 @@ export function createApp(service: Application) {
       return { error: "Service unavailable; request was not completed", code: "INTERNAL" };
     })
     .group("/api", api => api
-      .get("/health", () => ({ status: "ok", storage: service.config.memory ? "memory-nonpersistent" : "postgresql", agents: service.config.provider ? "configured-unverified" : "draft-only",
+      .get("/health", () => ({ status: "ok", storage: service.config.memory ? "memory-nonpersistent" : "postgresql", agents: service.config.provider ? "configured-unverified" : "draft-only", agentsAuto: service.autoAgents.enabled,
         ...(service.config.provider ? { agentModel: { thinking: service.config.provider.thinking?.mode ?? "off", contextWindow: service.config.provider.contextWindow ?? null, maxOutputTokens: service.config.provider.maxOutputTokens ?? null } } : {}), hardware: "not-verified", hardwareBatches: "unsupported-sink-documented" }))
       .get("/board", () => service.boardFeed.status())
       .get("/internal/providers", () => service.pool.status())
@@ -71,7 +71,7 @@ export function createApp(service: Application) {
       .get("/analyses/:id", ({ params }) => service.requireAnalysis(params.id))
       .post("/analyses/:id/cancel", ({ params }) => service.cancelAnalysis(params.id))
       .post("/runs/:id/agents", async ({ params, set }) => { const r = await service.startAgentRun(params.id); set.status = 202; return r; })
-      .get("/runs/:id/agent-runs", async ({ params }) => { await service.requireRun(params.id); return service.agentLoop.listForRun(params.id); })
+      .get("/runs/:id/agent-runs", async ({ params }) => { await service.requireRun(params.id); return service.listAgentRuns(params.id); })
       .get("/agent-runs/:id", ({ params }) => service.agentLoop.get(params.id))
       .get("/agents/learning", () => service.agentLoop.summary())
       .get("/runs/:id/actions", async ({ params }) => { await service.requireRun(params.id); return service.store.listActions(params.id); })

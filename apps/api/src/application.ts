@@ -10,12 +10,15 @@ import type { RegisteredModel } from "./features/runtimes/model";
 import { validateSystemPlan } from "./features/planning/validator";
 import { createAnalysisService } from "./features/agents/service";
 import { AgentLoopService } from "./features/agents/learning/service";
+import { AutoAgents } from "./features/agents/auto";
 import { attachProviderPool, type ProviderPool } from "./features/agents/provider-pool";
 import type { AppConfig } from "./infrastructure/config";
 
 export class Application {
   readonly agents: ReturnType<typeof createAnalysisService>;
   readonly agentLoop: AgentLoopService;
+  /** Starts the agents when the open incidents change at the newest moment (see auto.ts). */
+  readonly autoAgents: AutoAgents;
   readonly pool: ProviderPool;
   readonly cancellations = new Map<string, AbortController>();
   readonly modelFingerprint: string | null;
@@ -26,6 +29,15 @@ export class Application {
     this.agents = createAnalysisService({ store, provider: config.provider, sessionDir: config.sessionDir });
     this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl, boardSource: config.boardSource });
     this.boardFeed = new BoardFeed(config.boardJsonl, config.boardSource);
+    this.autoAgents = new AutoAgents({
+      enabled: config.agentsAuto !== false && this.agentLoop.available,
+      start: async (snapshot, trigger) => {
+        const run = await this.agentLoop.start(snapshot, await this.store.listActions(snapshot.runId), undefined, trigger);
+        await this.noteAgentRun(snapshot.runId);
+        return { id: run.id, done: this.agentLoop.settled(run.id) };
+      },
+      log: (m) => console.log(m),
+    });
     this.modelFingerprint = model ? createHash("sha256").update(JSON.stringify(model)).digest("hex") : null;
   }
   private readonly timelines = new TimelineCache();
@@ -120,7 +132,42 @@ export class Application {
   /** Starts the Nemotron orchestrator (advice only) on the run's current snapshot; operator approvals feed the decision records. */
   async startAgentRun(runId: string) {
     const s = await this.requireSnapshot(runId);
-    return this.agentLoop.start(s, await this.store.listActions(runId));
+    const run = await this.agentLoop.start(s, await this.store.listActions(runId), undefined, { kind: "manual", reason: "Started from the console" });
+    await this.noteAgentRun(runId);
+    return run;
+  }
+  /** Operator runs that have agent runs, per dataset and runtime (this process only), to find a run's latest advice. */
+  private readonly agentRunsByLineage = new Map<string, { at: number; runId: string }[]>();
+  private async noteAgentRun(runId: string) {
+    const r = await this.store.getRun(runId);
+    if (!r) return;
+    const key = `${r.datasetId}|${r.requested}`;
+    this.agentRunsByLineage.set(key, [...(this.agentRunsByLineage.get(key) ?? []).filter((x) => x.runId !== runId), { at: r.at, runId }]);
+  }
+  private readonly agentOwner = new Map<string, string>();
+  /** The run's agent runs, newest first. A run with none of its own shows the latest agents' notes from the same
+   * dataset at or before its moment, marked `inheritedFrom`: the console makes a run per board step (and per browser),
+   * and the agents run only when the open incidents change. */
+  async listAgentRuns(runId: string) {
+    const own = await this.agentLoop.listForRun(runId);
+    if (own.length) return own;
+    const run = await this.requireRun(runId);
+    const nearest = (this.agentRunsByLineage.get(`${run.datasetId}|${run.requested}`) ?? []).filter((x) => x.at <= run.at).sort((a, b) => a.at - b.at).at(-1);
+    if (nearest) return (await this.agentLoop.listForRun(nearest.runId)).map((r) => ({ ...r, inheritedFrom: nearest.runId }));
+    // A separate worker process starts its own agent runs: follow the run's ancestors (cached) instead.
+    const cached = this.agentOwner.get(runId);
+    if (cached) return (await this.agentLoop.listForRun(cached)).map((r) => ({ ...r, inheritedFrom: cached }));
+    let parent = run.parentRunId;
+    for (let hops = 0; parent && hops < 500; hops++) {
+      const p = await this.store.getRun(parent);
+      if (!p || p.datasetId !== run.datasetId) break;
+      if (p.at <= run.at) {
+        const list = await this.agentLoop.listForRun(p.id);
+        if (list.length) { this.agentOwner.set(runId, p.id); return list.map((r) => ({ ...r, inheritedFrom: p.id })); }
+      }
+      parent = p.parentRunId;
+    }
+    return [];
   }
   async requireAnalysis(id: string) {
     const a = await this.store.getAnalysis(id);
@@ -190,6 +237,7 @@ export class Application {
         });
         if (controller.signal.aborted) return;
         await this.store.saveRun({ ...r, status: "ready", snapshot }, claim);
+        this.autoAgents.onRunReady(r, snapshot);
       } else {
         const a = await this.requireAnalysis(job.payload.id);
         if (["completed", "cancelled", "failed"].includes(a.state)) return;
