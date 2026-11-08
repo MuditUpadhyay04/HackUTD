@@ -6,6 +6,7 @@ import { useTransition, type ReactNode } from "react";
 import type { BoardStatus, DatasetInfo, SystemState } from "@/lib/engine/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { systemNum } from "@/lib/format";
+import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
 import { NemotronMark } from "./nemotron";
 
@@ -251,7 +252,7 @@ export function Toolbar({
           <SelectValue>{current.label}</SelectValue>
           {/* Mockup A's up/down popup chevron in place of the shared down arrow (hidden above). */}
           <svg width="9" height="12" viewBox="0 0 9 12" className="size-auto" style={{ width: 9, height: 12 }} aria-hidden>
-            <path d="M1.5 4.5 4.5 1.5l3 3M1.5 7.5l3 3 3-3" fill="none" stroke="#3c3c43" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M1.5 4.5 4.5 1.5l3 3M1.5 7.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </SelectTrigger>
         <SelectContent>
@@ -265,11 +266,15 @@ export function Toolbar({
       {pending && <span className="text-[13px] text-faint">Loading…</span>}
 
       {board === undefined ? (
-        nemotron
+        <>
+          {nemotron}
+          <ThemeToggle />
+        </>
       ) : (
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <BoardChip board={board} />
           {nemotron}
+          <ThemeToggle />
         </div>
       )}
     </div>

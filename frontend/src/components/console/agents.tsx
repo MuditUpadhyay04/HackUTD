@@ -433,9 +433,11 @@ function FlowDiagram({
                 <span className="flex items-center gap-1.5 text-[13px] font-semibold">
                   <span aria-hidden className={cn("size-2 shrink-0 rounded-full", toneDot[st.tone])} />
                   <span className="truncate">{roleName(n.role)}</span>
-                  {fac && <span className="shrink-0 font-normal text-muted-foreground">· {fac}</span>}
                 </span>
-                <span className={cn("truncate pl-3.5 text-[12px]", toneText[st.tone])}>{st.label}</span>
+                <span className="truncate pl-3.5 text-[12px]">
+                  {fac && <span className="text-muted-foreground">{fac} · </span>}
+                  <span className={toneText[st.tone]}>{st.label}</span>
+                </span>
               </button>
             );
           })}
