@@ -1,8 +1,8 @@
 // fv_eog_alarm.sv — formal harness for eog_alarm (Verify role, task T1.alarm.fv).
 //
-// Written from spec/modules/eog_alarm.md, spec/numerics.md §9, spec/conventions.md (spec v2, FROZEN) and the lead's
-// answers in TASKS.md "Spec questions" #1, #3-#11, using the module's port table only; the RTL internals are not
-// read. Run with `bash scripts/formal.sh alarm` (formal/alarm/eog_alarm.sby; task split and depths are there).
+// Written from spec/modules/eog_alarm.md, spec/numerics.md §1 (D7, D8, D10) and §9, spec/conventions.md (spec v4)
+// and the lead's answers in TASKS.md "Spec questions" #1, #3-#11 (re-checked against v4), using the module's port
+// table only; the RTL internals are not read. Run with `bash scripts/formal.sh alarm` (formal/alarm/eog_alarm.sby; task split and depths are there).
 //
 // Port-level only (no hierarchical references). The stage contract uses the v2 observation ports f_inflight /
 // f_oldest_recno (conventions §7) through formal/common/eog_fv_stage.
@@ -21,9 +21,9 @@
 //                stays 0 until the ack's ACKED sweep is complete (+ ACK_G cycles). Why: the spec does not fix the
 //                order between an ack and a record that is in flight, and the order changes the outcome.
 //   FV_TIE       (with FV_MODEL) copied-only fields of bus L are functions of the REC_NO byte; FV_HITS: LOGIT[k] in
-//                {THR[k] - 1, THR[k]}, CH3 in {GAP_THR - 1, GAP_THR}. Solver load only (see the assumptions).
+//                {THR[k], THR[k] + 1}, CH3 in {GAP_THR, GAP_THR + 1}. Solver load only (see the assumptions).
 //   FV_NO_A5 / FV_ONLY_A5  split the model checks over two bmc tasks (the ALERT-sequence checks are the costly ones).
-//   FV_KMIN / FV_KMAX      bound PERSIST_K.
+//   FV_KMAX      bound PERSIST_K and PERSIST_K4[k] (solver load).
 //   FV_A8        debounce: every btn0 high level is shorter than A8_L cycles, ack_srv = 0 -> never an ACKED ALERT
 //                and never a latch bit falling on the Pmods.
 //
@@ -31,14 +31,15 @@
 //   stage  u_in.ax_*, u_out.ax_* (handshake), u_stage.st_* (one in / one out / in order / f_inflight link /
 //          II <= II_MAX except while `excl` / latency <= LAT_MAX), AL_hs* (ALERT push/drop handshake)
 //   A1     A1_es_kind (an ES_RAISED push matches an expected ES_RAISED: the model raises it only on a VALID/HELD
-//          record of f whose leak counter reached K), A1_rise (|es_latch on the Pmod rises only when the model's
+//          record of f whose leak counter reached K[0]), A1_rise (|es_latch on the Pmod rises only when the model's
 //          es_latch is set), A7_m_* (exact latch state when quiet)
 //   A2     A2_fall (a latch bit on the Pmods falls only inside an acknowledge window), the expected ACKED are
 //          latch & ~cond at the ack (A5_seq), A7_m_* (exact latch state when quiet)
 //   A3     A3_cls (CLASSES = class_active of the model's counters), A3_hit (a set CLASSES bit implies this
-//          record's LOGIT[k] >= THR[k]), A3_inv (INVALID / non-updating records: CLASSES = 0)
-//   A4     A4_drop (DROPPED: CLASSES = 0); DROPPED records do not touch the model, so the ALERT / latch checks
-//          also fail if the DUT changes state or raises an ALERT on one
+//          record's LOGIT[k] > THR[k], strict), A3_inv (INVALID / non-updating records: CLASSES = 0)
+//   A4     A4_drop (DROPPED: CLASSES = 0); DROPPED records do not touch the model and INVALID records only clear
+//          its counters, so the ALERT / latch checks also fail if the DUT changes conditions, latches or raises an
+//          ALERT on one
 //   A5     A5_seq / A5_auto (each push equals the next expected ALERT; SOURCE bit 2 = autonomous at some cycle
 //          while that record or ack was being processed), A5_ghost (no push/drop without an expected ALERT),
 //          A5_live (expected ALERTs are pushed or dropped within AL_LAT cycles), A5_open (at most two records
@@ -46,6 +47,8 @@
 //   A6     A6_auto, A6_rst, A6_hb, A6_step, A6_period, A6_late
 //   A7     A7_ovr, A7_ja*, A7_jb*, A7_ld0*, A7_ld1, A7_hbt (+ A7_m_* against the model when quiet)
 //   A8     A8_ack, A8_fall
+//   A9     per-class K (K[k] = PERSIST_K4[k] if nonzero, else max(PERSIST_K, 1)): the model uses it for A3_cls,
+//          A1 and A5; GLOBAL is free, so a DUT using one K for all classes fails A3_cls / A5_seq
 //   BA     BA_copy (bus A header, RULES, CD, LOGITS, WVER copied)
 //
 // Timing tolerance (the spec gives no cycle-exact timing for these outputs): the Pmod/LED outputs may show the
@@ -78,10 +81,9 @@ module fv_eog_alarm #(
     // GLOBAL CONFIG: constant (conventions §5). FV_KMIN / FV_KMAX bound PERSIST_K per task (see the .sby).
     (* anyconst *) logic [255:0] glb;
 `ifdef FV_KMAX
-    always_comb FV_kmax: assume (glb[EOG_G_PERSIST_K +: 8] <= `FV_KMAX);
-`endif
-`ifdef FV_KMIN
-    always_comb FV_kmin: assume (glb[EOG_G_PERSIST_K +: 8] >= `FV_KMIN);
+    always_comb FV_kmax: assume (glb[EOG_G_PERSIST_K +: 8] <= `FV_KMAX && glb[EOG_G_PERSIST_K4 +: 8] <= `FV_KMAX
+                                 && glb[EOG_G_PERSIST_K4 + 8 +: 8] <= `FV_KMAX && glb[EOG_G_PERSIST_K4 + 16 +: 8] <= `FV_KMAX
+                                 && glb[EOG_G_PERSIST_K4 + 24 +: 8] <= `FV_KMAX);
 `endif
 
     // ---------------------------------------------------------------------------------------------------------
@@ -158,10 +160,15 @@ module fv_eog_alarm #(
 
     // ---------------------------------------------------------------------------------------------------------
     // GLOBAL fields
-    logic [7:0]  g_k;
+    logic [7:0]  g_k;       // max(PERSIST_K, 1)
+    logic [31:0] g_k4;      // K[k] = PERSIST_K4[k] != 0 ? PERSIST_K4[k] : max(PERSIST_K, 1)   (A9, D10)
     logic [15:0] g_hbt;
     logic signed [15:0] g_gap;
-    assign g_k   = (glb[EOG_G_PERSIST_K +: 8] == 8'd0) ? 8'd1 : glb[EOG_G_PERSIST_K +: 8];   // K = max(PERSIST_K, 1)
+    assign g_k   = (glb[EOG_G_PERSIST_K +: 8] == 8'd0) ? 8'd1 : glb[EOG_G_PERSIST_K +: 8];
+    genvar gq;
+    generate for (gq = 0; gq < 4; gq = gq + 1) begin : g_kk
+        assign g_k4[8*gq +: 8] = (glb[EOG_G_PERSIST_K4 + 8*gq +: 8] != 8'd0) ? glb[EOG_G_PERSIST_K4 + 8*gq +: 8] : g_k;
+    end endgenerate
     assign g_hbt = glb[EOG_G_HB_TIMEOUT_MS +: 16];
     assign g_gap = glb[EOG_G_GAP_THR +: 16];                                                   // signed (TASKS #7)
 
@@ -177,8 +184,8 @@ module fv_eog_alarm #(
 
     // ---------------------------------------------------------------------------------------------------------
     // A3 / A4 at the output (no model needed): CLASSES is 0 for any record that does not update a slot
-    // (INVALID resets the counters, DROPPED / codes 2, 5-7 / FAC >= N_FAC change nothing: TASKS #1, #10), and a
-    // set CLASSES bit needs this record's own hit (cnt[k] = 0 on a miss).
+    // (INVALID clears the counters, DROPPED / codes 2, 5-7 / FAC >= N_FAC change nothing: TASKS #1, #10), and a
+    // set CLASSES bit needs this record's own hit, LOGIT[k] > THR[k] (cnt[k] = 0 on a miss).
     logic [2:0] o_st;
     logic [4:0] o_fac;
     logic [3:0] o_cls, o_hit;
@@ -189,7 +196,7 @@ module fv_eog_alarm #(
     assign o_vh  = (o_st == EOG_ST_VALID || o_st == EOG_ST_HELD) && (o_fac < N_FAC);
     genvar gk;
     generate for (gk = 0; gk < 4; gk = gk + 1) begin : g_ohit
-        assign o_hit[gk] = $signed(out_data[EOG_BA_LOGITS + 16*gk +: 16]) >= $signed(glb[EOG_G_LOGIT_THR + 16*gk +: 16]);
+        assign o_hit[gk] = $signed(out_data[EOG_BA_LOGITS + 16*gk +: 16]) > $signed(glb[EOG_G_LOGIT_THR + 16*gk +: 16]);
     end endgenerate
     always_comb if (f_past_valid && rst_n && out_valid) begin
         A4_drop: assert (o_st != EOG_ST_DROPPED || o_cls == 4'd0);
@@ -278,15 +285,15 @@ module fv_eog_alarm #(
         AL_fmt_kind: assert (a_kind >= EOG_AK_NS_RAISED && a_kind <= EOG_AK_ACKED);
         AL_fmt_fac:  assert (a_fac < N_FAC);
         AL_fmt_rsv:  assert (a_src[7:5] == 3'd0 && a_src[3] == 1'b0 && a_rules[7:5] == 3'd0 && a_cls[7:4] == 4'd0);
+        // record ALERTs: SOURCE bit 0 = RULES[3:0] != 0, bit 1 = class_active != 0 (numerics §9, features_int.py)
+        if (a_kind != EOG_AK_ACKED)
+            AL_fmt_src: assert (a_src[0] == (a_rules[3:0] != 4'd0) && a_src[1] == (a_cls != 8'd0));
         if (a_kind == EOG_AK_NS_RAISED)
-            AL_fmt_nsr: assert (a_src[4] == 1'b0 && a_src[0] == (a_rules[3:0] != 4'd0) && a_src[1] == (a_cls != 8'd0)
-                                && a_src[1:0] != 2'd0);
+            AL_fmt_nsr: assert (a_src[4] == 1'b0 && a_src[1:0] != 2'd0);
         if (a_kind == EOG_AK_ES_RAISED)
-            AL_fmt_esr: assert (a_src[4] && a_src[1:0] == 2'b11 && a_cls[0]);
-        if (a_kind == EOG_AK_CLEARED)
-            AL_fmt_clr: assert (a_src[1:0] == 2'd0);
-        if (a_kind == EOG_AK_ACKED)
-            AL_fmt_ack: assert ((a_src & 8'hEF) == 8'd0 && al_data[EOG_AL_TS +: 32] == 32'd0
+            AL_fmt_esr: assert (a_src[4] && a_cls[0]);
+        if (a_kind == EOG_AK_ACKED)    // SOURCE bit 2: 0 (TASKS #4) or autonomous (v4 SOURCE table): spec question
+            AL_fmt_ack: assert ((a_src & 8'hEB) == 8'd0 && al_data[EOG_AL_TS +: 32] == 32'd0
                                 && al_data[EOG_AL_RESULT_NO +: 32] == 32'd0 && a_rules == 8'd0 && a_cls == 8'd0
                                 && al_data[EOG_AL_CD_P10 +: 16] == 16'hFFFF);
     end
@@ -305,6 +312,7 @@ module fv_eog_alarm #(
     logic [31:0] i_recno, i_ts;
     logic [4:0]  i_fac, i_rul;
     logic [2:0]  i_st;
+    logic        i_hr;
     logic [15:0] i_p10;
     logic signed [15:0] i_ch3;
     assign i_recno = in_data[EOG_BL_REC_NO +: 32];
@@ -314,8 +322,9 @@ module fv_eog_alarm #(
     assign i_st    = in_data[EOG_BL_STATUS +: 3];
     assign i_p10   = in_data[EOG_BL_CD +: 16];
     assign i_ch3   = in_data[EOG_BL_CH3 +: 16];
+    assign i_hr    = in_data[EOG_BL_HIST_RESET];
 
-    logic        m_vh, m_upd, m_gap, m_lh, m_nsc_new, m_esc_new, m_onl, m_oel, m_onc, m_oec;
+    logic        m_vh, m_upd, m_gap, m_lh, m_nsc_new, m_esc_new, m_onl, m_oel, m_onc, m_oec, m_clr;
     logic [3:0]  m_hit, m_ca;
     logic [31:0] m_oc, m_ncnt;
     logic [7:0]  m_ol, m_nleak;
@@ -328,16 +337,19 @@ module fv_eog_alarm #(
         end
         m_vh  = (i_st == EOG_ST_VALID) || (i_st == EOG_ST_HELD);
         m_upd = (m_vh || i_st == EOG_ST_INVALID) && (i_fac < N_FAC);       // TASKS #1, #10
-        m_gap = (i_ch3 >= g_gap);
+        m_clr = i_hr || i_st == EOG_ST_INVALID;     // counters cleared before the update (D7)
+        if (m_clr) begin m_oc = '0; m_ol = '0; end
+        m_gap = (i_ch3 > g_gap);                    // strict (D7)
         for (k = 0; k < 4; k = k + 1) begin
-            m_hit[k] = $signed(in_data[EOG_BL_LOGITS + 16*k +: 16]) >= $signed(glb[EOG_G_LOGIT_THR + 16*k +: 16]);
+            m_hit[k] = $signed(in_data[EOG_BL_LOGITS + 16*k +: 16]) > $signed(glb[EOG_G_LOGIT_THR + 16*k +: 16]);
             m_ncnt[8*k +: 8] = !(m_vh && m_hit[k]) ? 8'd0 : (m_oc[8*k +: 8] == 8'hFF) ? 8'hFF : m_oc[8*k +: 8] + 8'd1;
-            m_ca[k] = m_upd && m_vh && (m_ncnt[8*k +: 8] >= g_k);
+            m_ca[k] = m_upd && m_vh && (m_ncnt[8*k +: 8] >= g_k4[8*k +: 8]);
         end
         m_lh = m_hit[0] && m_gap;
         m_nleak = !(m_vh && m_lh) ? 8'd0 : (m_ol == 8'hFF) ? 8'hFF : m_ol + 8'd1;
-        m_esc_new = m_upd && m_vh && (m_nleak >= g_k);
-        m_nsc_new = m_upd && ((i_rul[3:0] != 4'd0) || (m_ca != 4'd0));
+        // VALID/HELD only: INVALID clears the counters and leaves conditions and latches alone (D7, A4)
+        m_esc_new = m_upd && m_vh && (m_nleak >= g_k4[7:0]);
+        m_nsc_new = m_upd && m_vh && ((i_rul[3:0] != 4'd0) || (m_ca != 4'd0));
     end
 
     // ---- expected ALERTs and bus A ----
@@ -358,6 +370,7 @@ module fv_eog_alarm #(
     logic [7:0]       rs_ca, rs_fl;     // 4 bits per slot
     logic [3:0]       rs_ok;            // 2 bits per slot
     logic [N_FAC-1:0] ak_ns, ak_es;
+    logic             ak_ok1;           // autonomous was 1 at some cycle since the ack request (or one before)
     logic [N_FAC-1:0] clr_ns, clr_es;
     assign clr_ns = m_nsl & ~m_nsc;
     assign clr_es = m_esl & ~m_esc;
@@ -366,8 +379,8 @@ module fv_eog_alarm #(
     logic m_rec;
     assign m_rec = rst_n && in_fire;
     logic [3:0] m_fl;       // this record's ALERTs
-    assign m_fl = !m_upd ? 4'd0 : {m_oec && !m_esc_new && m_oel, m_onc && !m_nsc_new && m_onl,
-                                   m_esc_new && !m_oel, m_nsc_new && !m_onl};
+    assign m_fl = !(m_upd && m_vh) ? 4'd0 : {m_oec && !m_esc_new && m_oel, m_onc && !m_nsc_new && m_onl,
+                                            m_esc_new && !m_oel, m_nsc_new && !m_onl};
     logic       i_slot;
     assign i_slot = in_data[EOG_BL_REC_NO];
 
@@ -397,18 +410,20 @@ module fv_eog_alarm #(
         cur_fl  = cur ? rs_fl[7:4] : rs_fl[3:0];
         cur_ca  = cur ? rs_ca[7:4] : rs_ca[3:0];
         cur_j   = cur_fl[0] ? 2'd0 : cur_fl[1] ? 2'd1 : cur_fl[2] ? 2'd2 : 2'd3;
+        // SOURCE: bit 0 RULES[3:0] != 0, bit 1 class_active != 0, bit 2 autonomous (checked by A5_auto), bit 4
+        // latch type (numerics §9; the same bits on every record ALERT, as features_int.py)
+        cur_src = {3'd0, cur_j[0], 2'd0, cur_ca != 4'd0, cur_rec[EOG_BL_RULES +: 4] != 4'd0};
         case (cur_j)
-            2'd0: begin cur_kind = EOG_AK_NS_RAISED;
-                        cur_src = {6'd0, cur_ca != 4'd0, cur_rec[EOG_BL_RULES +: 4] != 4'd0}; end
-            2'd1: begin cur_kind = EOG_AK_ES_RAISED;
-                        cur_src = {3'd0, 1'b1, 2'd0, cur_ca[0], $signed(cur_rec[EOG_BL_CH3 +: 16]) >= g_gap}; end
-            2'd2: begin cur_kind = EOG_AK_CLEARED; cur_src = 8'h00; end
-            default: begin cur_kind = EOG_AK_CLEARED; cur_src = 8'h10; end
+            2'd0:    cur_kind = EOG_AK_NS_RAISED;
+            2'd1:    cur_kind = EOG_AK_ES_RAISED;
+            default: cur_kind = EOG_AK_CLEARED;
         endcase
         pend = ak_any || open0 || open1;
         if (ak_any) begin
             exp_al = mk_al(ak_f, EOG_AK_ACKED, {3'd0, ak_t, 4'd0}, 32'd0, 32'd0, 8'd0, 8'd0, 16'hFFFF);
-            exp_ok = 2'b01;
+            // SOURCE bit 2 of ACKED: 0 (TASKS #4, v1) or autonomous during the ack (v4's general SOURCE definition):
+            // both accepted until the spec question is answered
+            exp_ok = {ak_ok1 || autonomous, 1'b1};
         end else begin
             exp_al = mk_al(cur_rec[EOG_BL_FAC +: 5], cur_kind, cur_src, cur_rec[EOG_BL_TS +: 32],
                            cur_rec[EOG_BL_REC_NO +: 32], {3'd0, cur_rec[EOG_BL_RULES +: 5]}, {4'd0, cur_ca},
@@ -437,7 +452,7 @@ module fv_eog_alarm #(
     always_ff @(posedge clk) begin
         if (!rst_n) begin
             m_cnt <= '0; m_leak <= '0; m_nsl <= '0; m_esl <= '0; m_nsc <= '0; m_esc <= '0;
-            rs_fl <= '0; ak_ns <= '0; ak_es <= '0;
+            rs_fl <= '0; ak_ns <= '0; ak_es <= '0; ak_ok1 <= 1'b0;
             ack_busy <= 1'b0; ack_age <= '0; quiet_run <= '0;
         end else begin
             // the oldest pending ALERT leaves on every push or drop
@@ -449,11 +464,13 @@ module fv_eog_alarm #(
             end
             // autonomous values seen while a record's ALERTs wait
             rs_ok <= rs_ok | {autonomous, !autonomous, autonomous, !autonomous};
+            ak_ok1 <= ak_ok1 || autonomous;
             if (m_ack) begin
                 m_nsl <= m_nsl & m_nsc;
                 m_esl <= m_esl & m_esc;
                 ak_ns <= clr_ns;
                 ak_es <= clr_es;
+                ak_ok1 <= autonomous || p_auto;
             end else if (m_rec) begin
                 if (m_upd) for (fu = 0; fu < N_FAC; fu = fu + 1) if (i_fac == fu) begin
                     m_cnt[fu*32 +: 32] <= m_ncnt;
@@ -505,23 +522,26 @@ module fv_eog_alarm #(
     end
 `endif
 `ifdef FV_HITS
-    // Solver load: each LOGIT[k] is THR[k] or THR[k] - 1 and CH3 is GAP_THR or GAP_THR - 1 (one free bit each), so
+    // Solver load: each LOGIT[k] is THR[k] or THR[k] + 1 and CH3 is GAP_THR or GAP_THR + 1 (one free bit each), so
     // the solver chooses hits instead of 80 bits of compare inputs. The signed compares are checked by A3_hit
     // (prove) and in simulation.
     logic [3:0] hit_near;
     genvar gh;
     generate for (gh = 0; gh < 4; gh = gh + 1) begin : g_hits
         assign hit_near[gh] = (in_data[EOG_BL_LOGITS + 16*gh +: 16] == glb[EOG_G_LOGIT_THR + 16*gh +: 16])
-                           || (in_data[EOG_BL_LOGITS + 16*gh +: 16] == glb[EOG_G_LOGIT_THR + 16*gh +: 16] - 16'd1);
+                           || (in_data[EOG_BL_LOGITS + 16*gh +: 16] == glb[EOG_G_LOGIT_THR + 16*gh +: 16] + 16'd1);
     end endgenerate
     always_comb if (in_valid) begin
         MD_hit: assume (hit_near == 4'hF);
-        MD_gap: assume (in_data[EOG_BL_CH3 +: 16] == g_gap || in_data[EOG_BL_CH3 +: 16] == g_gap - 16'sd1);
+        MD_gap: assume (in_data[EOG_BL_CH3 +: 16] == g_gap || in_data[EOG_BL_CH3 +: 16] == g_gap + 16'sd1);
     end
 `endif
 
     // ---- checks ----
+    // FV_NO_A5 / FV_ONLY_A5 split these over two bmc tasks (the ALERT-sequence group is the costly one for the
+    // solver: it pairs every push with an expectation over the whole trace).
     localparam logic [127:0] M_SRC2 = 128'd1 << (EOG_AL_SOURCE + 2);
+`ifndef FV_NO_A5
     always_comb if (f_past_valid && rst_n) begin
         A5_ghost: assert (!(al_valid || al_drop) || pend);
         A5_open:  assert (!(m_rec && (i_slot ? open1 : open0)));   // at most two records open
@@ -530,10 +550,6 @@ module fv_eog_alarm #(
             A5_auto: assert (al_data[EOG_AL_SOURCE + 2] ? exp_ok[1] : exp_ok[0]);
             if (al_data[EOG_AL_KIND +: 8] == EOG_AK_ES_RAISED)
                 A1_es_kind: assert (exp_al[EOG_AL_KIND +: 8] == EOG_AK_ES_RAISED && exp_al[EOG_AL_FAC_ID +: 16] == a_fac);
-        end
-        if (out_valid && (f_in_flight != 8'd0 || in_fire)) begin
-            BA_copy: assert (out_data[238:0] == o_exp[238:0]);
-            A3_cls:  assert (out_data[EOG_BA_CLASSES +: 4] == o_exp[EOG_BA_CLASSES +: 4]);
         end
     end
 
@@ -544,6 +560,13 @@ module fv_eog_alarm #(
         else if (q_wait != 5'h1F) q_wait <= q_wait + 5'd1;
     end
     always_comb if (f_past_valid && rst_n) A5_live: assert (q_wait < AL_LAT);
+`endif
+
+`ifndef FV_ONLY_A5
+    always_comb if (f_past_valid && rst_n && out_valid && (f_in_flight != 8'd0 || in_fire)) begin
+        BA_copy: assert (out_data[238:0] == o_exp[238:0]);
+        A3_cls:  assert (out_data[EOG_BA_CLASSES +: 4] == o_exp[EOG_BA_CLASSES +: 4]);
+    end
 
     // latch state on the Pmods vs the model
     logic [4:0] m_worst;
@@ -566,6 +589,7 @@ module fv_eog_alarm #(
             if ((p_ja[0] && !pmod_ja[0]) || (p_ja[1] && !pmod_ja[1])) A2_fall: assert (ack_busy);
         end
     end
+`endif
 `endif
 
 `ifdef FV_A8
