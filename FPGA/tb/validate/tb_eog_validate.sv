@@ -16,10 +16,13 @@
 //
 // Each case runs twice from reset:
 //   mode 0  random in_valid gaps (0-3 idle cycles, garbage data while idle) and random out_ready back-pressure
-//           (fixed seed); `touch` events are applied without draining the stage (so they often land while the
-//           previous record is in flight: spec "a fac_touch while slot f's record is in flight takes effect for
-//           f's next record"), `cfg` events after draining (the row of a record in flight never changes).
-//   mode 1  in_valid and out_ready held 1 (except event cycles); checks II <= 16 accepted-record spacing.
+//           (fixed seed). A `touch` event is pulsed either in the cycle the previous record is accepted or in an
+//           idle cycle after it, with or without draining first, so it often lands while the previous record is
+//           in flight (lead clarification: a fac_touch[f] in the cycle a slot-f record is accepted, or while it
+//           is held, applies to f's next record). `cfg` events are applied after draining (the row of a record
+//           in flight never changes).
+//   mode 1  in_valid and out_ready held 1 (except event cycles); every `touch` rides on the previous record's
+//           accept cycle; checks II <= 16 accepted-record spacing.
 // Every output transfer is compared bit for bit with the next expected line; also checked: out_valid = 0 after
 // reset, out_data stable while out_valid && !out_ready, no output without a pending record, latency <= 128
 // cycles (out_valid within 128 cycles while a record is pending), and the output count at the end.
@@ -48,10 +51,13 @@ module tb_eog_validate;
     logic [4:0]           cfg_fac;
     logic [511:0]         cfg_row;
     logic [255:0]         glb = '0;
-    logic [N_FAC-1:0]     fac_touch = '0;
+    logic [N_FAC-1:0]     fac_touch;
+    logic [N_FAC-1:0]     touch_pulse = '0;   // a 1-cycle pulse in an idle cycle
+    logic [N_FAC-1:0]     touch_acc = '0;     // pulsed in the cycle the current record is accepted
     logic [511:0]         rows [0:N_FAC-1];
 
-    assign cfg_row = rows[cfg_fac];
+    assign cfg_row   = rows[cfg_fac];
+    assign fac_touch = touch_pulse | (touch_acc & {N_FAC{in_valid && in_ready}});
 
     eog_validate #(.N_FAC(N_FAC), .N_WELL(N_WELL), .II(16)) dut (
         .clk(clk), .rst_n(rst_n),
@@ -72,6 +78,7 @@ module tb_eog_validate;
     integer              ev_kind [0:MAXEV-1];    // 0 touch, 1 cfg, 2 ignored
     integer              ev_slot [0:MAXEV-1];
     logic [511:0]        ev_row  [0:MAXEV-1];
+    logic                ev_done [0:MAXEV-1];
 
     string  case_name [0:MAXCASE-1];
     integer n_case;
@@ -189,8 +196,9 @@ module tb_eog_validate;
 
     task automatic idle_cycle();
         @(negedge clk); #2;
-        in_valid = 1'b0;
-        in_data  = garbage();
+        in_valid  = 1'b0;
+        in_data   = garbage();
+        touch_acc = '0;
     endtask
 
     task automatic drain();
@@ -202,21 +210,25 @@ module tb_eog_validate;
 
     task automatic pulse_touch(input integer slot);
         @(negedge clk); #2;
-        in_valid  = 1'b0;
-        in_data   = garbage();
-        fac_touch = '0;
-        fac_touch[slot] = 1'b1;
+        in_valid    = 1'b0;
+        in_data     = garbage();
+        touch_acc   = '0;
+        touch_pulse = '0;
+        touch_pulse[slot] = 1'b1;
         @(negedge clk); #2;
-        fac_touch = '0;
+        touch_pulse = '0;
     endtask
 
-    // offer one record and wait until it is accepted
-    task automatic send(input logic [EOG_BU_W-1:0] d);
+    // offer one record and wait until it is accepted; `tacc` slots are touched in the accept cycle (spec: such a
+    // touch applies to the slot's next record, i.e. it is ordered after this record, as the model's event is)
+    task automatic send(input logic [EOG_BU_W-1:0] d, input logic [N_FAC-1:0] tacc);
         @(negedge clk); #2;
-        in_valid = 1'b1;
-        in_data  = d;
+        in_valid  = 1'b1;
+        in_data   = d;
+        touch_acc = tacc;
         @(posedge clk);
         while (!(in_ready === 1'b1) && !failed) @(posedge clk);
+        // returns at the accept edge; the next idle_cycle / send / pulse_touch replaces in_data and touch_acc
     endtask
 
     // ---------------------------------------------------------------------------------------------------------
@@ -274,14 +286,17 @@ module tb_eog_validate;
     // ---------------------------------------------------------------------------------------------------------
     // One case, one mode
     task automatic run_case(input integer mode);
-        integer i, e, k;
+        integer i, e, k, q;
+        logic [N_FAC-1:0] tacc;
         cur_mode = mode;
         // reset with the case's CONFIG (rows and GLOBAL do not change across a reset)
         checking  = 1'b0;
         @(negedge clk); #2;
         rst_n     = 1'b0;
         in_valid  = 1'b0;
-        fac_touch = '0;
+        touch_pulse = '0;
+        touch_acc   = '0;
+        for (k = 0; k < n_ev; k = k + 1) ev_done[k] = 1'b0;
         glb = vcfg[0][255:0];
         for (k = 0; k < N_FAC; k = k + 1) rows[k] = vcfg[k + 1];
         repeat (3) idle_cycle();
@@ -293,7 +308,7 @@ module tb_eog_validate;
         for (i = 0; i < n_rec && !failed; i = i + 1) begin
             ii_on = 1'b0;
             while (e < n_ev && ev_idx[e] <= i) begin
-                if (ev_idx[e] == i) begin
+                if (ev_idx[e] == i && !ev_done[e]) begin
                     if (ev_kind[e] == 1) begin
                         drain();
                         rows[ev_slot[e]] = ev_row[e];
@@ -305,6 +320,14 @@ module tb_eog_validate;
                 end
                 e = e + 1;
             end
+            // `touch` events due before record i+1: in mode 1 (and half the time in mode 0) pulse them in the
+            // cycle record i is accepted
+            tacc = '0;
+            for (q = e; q < n_ev && ev_idx[q] <= i + 1; q = q + 1)
+                if (ev_idx[q] == i + 1 && ev_kind[q] == 0 && (mode == 1 || ($unsigned($random(seed)) % 2))) begin
+                    tacc[ev_slot[q]] = 1'b1;
+                    ev_done[q] = 1'b1;
+                end
             if (mode == 0) begin
                 k = $unsigned($random(seed)) % 8;
                 if (k >= 4) k = 0;             // half the records back to back
@@ -312,7 +335,7 @@ module tb_eog_validate;
             end else begin
                 ii_on = 1'b1;
             end
-            send(vin[i]);
+            send(vin[i], tacc);
         end
         ii_on = 1'b0;
         drain();

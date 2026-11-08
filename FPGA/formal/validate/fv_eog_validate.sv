@@ -16,25 +16,31 @@
 //      lost or invented, <= 2 in flight, II <= 16, latency <= 128, RAM sweep of up to N_FAC + 8 cycles allowed).
 //   2. Per-record properties: the output of a record against that record's own input (captured in a 2-entry
 //      shadow FIFO when accepted), the constant CONFIG row and GLOBAL. They need no per-slot history, so they are
-//      k-inductive (task `prove`): V1, V2, V3 (drop-reason part), V4, V8, V11, HDR, ST, RSN, HR, INC, PRV0, HLD0.
-//   3. History properties (task `bmc` only, compiled out with -DFV_NO_HIST): they relate a record to earlier
-//      records of its slot (V3 time part, V5, V6, V7, V9, V10, V12) or need a full reference of every slot
-//      (V13, REF). The DUT keeps that history in internal per-slot state that a port-only harness cannot see,
-//      so a harness shadow of it is not inductive (k-induction can start with shadow != DUT state and keep the
-//      slot idle for k steps); these are checked by BMC from reset instead.
-//      - V3/V5/V6/V7/V9/V10/V12 use an output-derived shadow of ONE anyconst slot (f_slot) and ONE anyconst
-//        field (f_fld), updated from the DUT's own outputs in output order.
-//      - REF/V13: fv_validate_ref (below) is an independent reference of numerics.md §3; the harness keeps its
-//        per-slot state for every slot, computes the expected bus V when a record is accepted, and compares
-//        every output bit. Each slot's reference state changes only on that slot's records, so equality on
-//        slot B's records while slot A's records are interleaved is V13 (the spec's "per-slot shadow model").
+//      k-inductive (task `prove`, every handshake schedule, full data widths): HDR ST RSN V1 V2 V3_rsn V3_only
+//      V4 PRV0 V11 V8_* V11_w0 HR HR_new HR_cont HLD0 INC_*.
+//   3. History properties (`bmc` tasks; -DFV_NO_HIST removes them): they relate a record to earlier records of
+//      its slot. The DUT keeps that history in per-slot RAM that a port-only harness cannot see, so no harness
+//      shadow of it is k-inductive (induction can start with shadow != DUT RAM and keep the slot idle for k
+//      steps); they are checked by BMC from reset instead. All of them watch ONE anyconst slot (f_slot) and are
+//      built from the DUT's own outputs in output order (= acceptance order), so each check relates a record to
+//      the slot's earlier, already-checked outputs:
+//      - V3 (time part) V5 V7 V9 V10 V12: shadow of the slot's has_ts / pending / last_ts / SINCE_RESET / LEVEL.
+//      - V6: one anyconst field (f_fld): run of records without an observed OK value, last observed value.
+//      - REF / V13: fv_validate_ref (below, an independent reading of numerics.md §3; the testbench checks it is
+//        bit-exact with model/eog_ref.py through the throwaway stub) applied to the record and that shadow
+//        state; every output bit of the slot's records must match. The state depends only on the slot's own
+//        records, touches and resets, so equality with the other slot's records interleaved is V13.
+//      Speed-ups for BMC (each documented where defined; none is used by `prove`): FV_FAST (in_valid and
+//      out_ready held 1, no mid-run reset: the schedule-dependent properties are all in `prove`), FV_NO_REC
+//      (per-record properties already proven), FV_NARROW (4-bit data values, 12-bit TS window), FV_NO_REF.
 //
 // Ordering of fac_touch (lead clarification): a touch of slot f in the cycle a slot-f record is accepted, or
 // while it is held, applies to f's next record. In general a touch in cycle t applies to the records accepted
 // after cycle t. Reset sets pending/has_ts of every slot.
 //
-// Assumption-free otherwise: no constraint on record contents, TS, FAC_ID, PRESENT, IN_LAST or the upper REC_NO
-// bits (eog_fv_stage assumes the low 8 REC_NO bits count accepted records).
+// Input assumptions (all tasks): the handshake rules of the input link and the low 8 REC_NO bits counting
+// accepted records (eog_fv_stage). Nothing else is assumed about record contents (TS, FAC_ID, PRESENT, values,
+// reserved fields, FRAME_ERR, IN_LAST, upper REC_NO bits) unless FV_NARROW / FV_FAST are defined (bmc only).
 
 `default_nettype none
 
