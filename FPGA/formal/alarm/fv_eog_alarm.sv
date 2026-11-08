@@ -527,7 +527,7 @@ module fv_eog_alarm #(
         MD_tie_raw:  assume (in_data[EOG_BL_FAC_RAW +: 16] == {r8, 3'd0, i_fac});
         MD_tie_ts:   assume (in_data[EOG_BL_TS +: 32] == {~r8, r8, ~r8, r8});
         MD_tie_rsn:  assume (in_data[EOG_BL_REASON +: 16] == {r8, ~r8});
-        MD_tie_sr:   assume (in_data[EOG_BL_SINCE_RESET +: 8] == ~r8 && in_data[EOG_BL_HIST_RESET] == r8[2]);
+        MD_tie_sr:   assume (in_data[EOG_BL_SINCE_RESET +: 8] == ~r8);     // HIST_RESET stays free (v4: it clears the counters)
         MD_tie_cd:   assume (in_data[EOG_BL_CD +: 48] == {r8, ~r8, ~r8, r8, r8, ~r8});
         MD_tie_wv:   assume (in_data[EOG_BL_WVER +: 8] == (r8 ^ 8'h5A));
     end
