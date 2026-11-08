@@ -1,0 +1,16 @@
+import { Application } from "./application";
+import { loadConfig } from "./infrastructure/config";
+import { createStore } from "./infrastructure/database";
+import { runWorker } from "./infrastructure/jobs/worker";
+import { readRegisteredModel } from "./features/runtimes/model";
+const config = loadConfig();
+if (config.memory) throw new Error("A separate worker requires PostgreSQL; memory is process-local");
+const store = createStore({ databaseUrl: config.databaseUrl });
+await store.init();
+const app = new Application(store, config, config.modelMetadataPath ? await readRegisteredModel(config.modelMetadataPath) : undefined);
+const controller = new AbortController();
+process.once("SIGTERM", () => controller.abort());
+process.once("SIGINT", () => controller.abort());
+await runWorker(app, controller.signal);
+await app.close();
+await store.close();
