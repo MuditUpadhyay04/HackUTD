@@ -259,37 +259,35 @@ function SystemTile({ s, tl, at, state, levelAt, fullAt, slots }: {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full rounded-xl" role="img" aria-label={`${s.id}: ${n} facilities`}
       style={{ background: down ? "color-mix(in oklab, var(--crit) 7%, transparent)" : "color-mix(in oklab, currentColor 3%, transparent)" }}>
-      <text x={10} y={16} fontSize={12.5} fontWeight={700} fill="currentColor">{s.id}<tspan fontWeight={500} opacity={0.6}>{` · ${free}/${s.fleetSize} trucks free`}</tspan></text>
+      <text x={10} y={16} fontSize={12.5} fontWeight={600} fill="currentColor">{s.id}<tspan fontWeight={500} fill="var(--faint)">{` · ${free}/${s.fleetSize} trucks free`}</tspan></text>
       {/* road and yard */}
       <line x1={yard.x} y1={ROAD} x2={exit.x} y2={ROAD} stroke="currentColor" strokeOpacity={0.18} strokeWidth={6} strokeLinecap="round" />
       <line x1={yard.x} y1={ROAD} x2={exit.x} y2={ROAD} stroke="currentColor" strokeOpacity={0.35} strokeWidth={1} strokeDasharray="4 6" />
-      <rect x={4} y={ROAD - 9} width={22} height={18} rx={4} fill="var(--background, white)" stroke="currentColor" strokeOpacity={0.5} />
-      <text x={15} y={ROAD + 4} textAnchor="middle" fontSize={9} fontWeight={700} fill="currentColor" opacity={0.7}>{free}</text>
       {/* disposal */}
       <rect x={30} y={BAR} width={W - 44} height={7} rx={3.5} fill="currentColor" opacity={0.22} />
-      <text x={W - 14} y={BAR + 21} textAnchor="end" fontSize={9.5} fill="currentColor" opacity={0.55}>disposal ◆</text>
+      <text x={W - 14} y={BAR + 21} textAnchor="end" fontSize={9.5} fill="var(--faint)">disposal ◆</text>
       {s.facilities.map((f, i) => {
         const x = xs[i]!, st = state(f.id), lvl = levelAt(f.id), full = fullAt(f.id);
         const fill = Math.max(0, Math.min(100, lvl ?? 0)) / 100, letter = (/_FACILITY_(.+)$/.exec(f.id)?.[1] ?? f.id).slice(0, 5);
         const tankX = x - 17, waterH = TH * fill;
         return (
           <g key={f.id}>
-            {/* pipe to disposal: flows while the pump runs */}
-            <line x1={x} y1={TOP + TH} x2={x} y2={BAR} stroke={color[st]} strokeOpacity={st === "ok" ? 0.35 : 0.8} strokeWidth={3} />
-            {st !== "crit" && <line x1={x} y1={TOP + TH} x2={x} y2={BAR} stroke={color[st]} strokeWidth={3} className="pipe-flow" />}
+            {/* pipe to disposal: flows while the pump runs; starts below the tank's letter so it never runs through it */}
+            <line x1={x} y1={TOP + TH + 20} x2={x} y2={BAR} stroke={color[st]} strokeOpacity={st === "ok" ? 0.35 : 0.8} strokeWidth={3} />
+            {st !== "crit" && <line x1={x} y1={TOP + TH + 20} x2={x} y2={BAR} stroke={color[st]} strokeWidth={3} className="pipe-flow" />}
             {/* tank */}
-            <rect x={tankX} y={TOP} width={34} height={TH} rx={6} fill="var(--background, white)" stroke={color[st]} strokeWidth={st === "ok" ? 1.5 : 2.5}>
+            <rect x={tankX} y={TOP} width={34} height={TH} rx={6} fill="var(--panel)" stroke={color[st]} strokeWidth={st === "ok" ? 1.5 : 2.5}>
               {st === "crit" && <animate attributeName="stroke-opacity" values="1;0.35;1" dur="1.4s" repeatCount="indefinite" />}
             </rect>
             <clipPath id={`clip-${f.id}`}><rect x={tankX + 1.5} y={TOP + 1.5} width={31} height={TH - 3} rx={5} /></clipPath>
             <rect x={tankX} y={TOP + TH - waterH} width={34} height={waterH} fill={st === "crit" ? "var(--crit)" : "var(--water)"} opacity={st === "crit" ? 0.55 : 0.4} clipPath={`url(#clip-${f.id})`} style={{ transition: "y 0.4s, height 0.4s" }} />
-            <line x1={tankX - 3} y1={TOP + TH * 0.08} x2={tankX + 37} y2={TOP + TH * 0.08} stroke="var(--crit)" strokeOpacity={0.6} strokeDasharray="2 2" />
-            <text x={x} y={TOP + TH / 2 + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="currentColor">{lvl == null ? "–" : `${Math.round(lvl)}%`}</text>
-            <text x={x} y={TOP + TH + 15} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="currentColor" opacity={0.75}>{letter}</text>
+            <line x1={tankX + 3} y1={TOP + TH * 0.08} x2={tankX + 31} y2={TOP + TH * 0.08} stroke="var(--crit)" strokeOpacity={0.6} strokeDasharray="2 2" />
+            <text x={x} y={TOP + TH / 2 + 4} textAnchor="middle" fontSize={11} fontWeight={600} fill="currentColor">{lvl == null ? "–" : `${Math.round(lvl)}%`}</text>
+            <text x={x} y={TOP + TH + 15} textAnchor="middle" fontSize={10.5} fontWeight={600} fill="var(--faint)">{letter}</text>
             {full && (
               <g>
                 <rect x={x - 30} y={TOP - 20} width={60} height={15} rx={7.5} fill={full.saved ? "var(--ok, #248a3d)" : "var(--crit)"} />
-                <text x={x} y={TOP - 9.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#fff">{full.saved ? "covered" : `full ${clock(full.at)}`}</text>
+                <text x={x} y={TOP - 9.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="white">{full.saved ? "covered" : `full ${clock(full.at)}`}</text>
               </g>
             )}
           </g>
@@ -301,6 +299,9 @@ function SystemTile({ s, tl, at, state, levelAt, fullAt, slots }: {
         const pos = truckPos(j, at, yard, { x: xs[i]!, y: ROAD }, exit); if (!pos) return null;
         return <g key={`${j.incidentId}#${j.truck}`} transform={`translate(${pos.x - 11} ${pos.y - 8})`}><Truck /></g>;
       })}
+      {/* yard drawn last, so a truck leaving or returning passes behind it and the free count stays readable */}
+      <rect x={4} y={ROAD - 9} width={22} height={18} rx={4} fill="var(--panel)" stroke="currentColor" strokeOpacity={0.5} />
+      <text x={15} y={ROAD + 4} textAnchor="middle" fontSize={9} fontWeight={600} fill="currentColor" opacity={0.7}>{free}</text>
     </svg>
   );
 }

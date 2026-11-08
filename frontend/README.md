@@ -1,4 +1,4 @@
-# Beat the Shutdown: operator console
+# Backpressure: operator console
 
 Web app for the HackUTD 2026 Zero Day EOG challenge. It reads a dataset folder (`network.json`, `ops.json`,
 `telemetry.csv`), finds pump failures, leaks and worn pumps, counts down to tank shutdown, and recommends the

@@ -1,4 +1,4 @@
-# Beat the Shutdown: design rules (v3)
+# Backpressure: design rules (v3)
 
 Approved 2026-11-07 by Gurneal: **Mockup A (macOS / visionOS)**, `public/mockups/a-macos.html`.
 That file is the visual spec. The app matches it; changes to the look need his OK first.

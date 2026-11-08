@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import type { DatasetInfo, SimulationTimeline } from "@hackutd/contracts";
 import { api, defaultDataset, unwrap } from "@/lib/api";
 import { categoryLabel, clock, dayClock, duration, facilityTitle, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FieldMap, SPEEDS, useBoardFeed, useSimulation, type BoardFeed } from "@/components/console/simulation";
+import { Rearrange } from "@/components/console/rearrange";
 
 /**
  * The live wall: one calm screen for the night shift and for presenting. Three questions, top to bottom:
@@ -25,8 +26,58 @@ const WIRE_US_PER_RECORD = 1e6 / 29_941;
 // Measured: the Nemotron agents' run on the laptop demo (35.6 s).
 const NEMOTRON_S = 35.6;
 
-const C = { bg: "#0a0e13", panel: "#121821", line: "rgba(255,255,255,0.10)", dim: "rgba(235,240,247,0.55)", text: "#eef2f7",
-  crit: "#ff5a4f", warn: "#ffae3d", ok: "#3ddc84", water: "#4aa3ff", chip: "#76b900" };
+// Colours are the main console's theme tokens (globals.css), so the wall follows the same light and dark modes.
+const C = { line: "var(--line)", dim: "var(--muted)", text: "var(--text)",
+  crit: "var(--crit)", warn: "var(--warn)", ok: "var(--ok)", water: "var(--water)", chip: "var(--nv)",
+  tint: "var(--raised)", tintSoft: "color-mix(in oklab, var(--text) 3%, transparent)", track: "var(--line)",
+  bar: "color-mix(in oklab, var(--text) 22%, transparent)", clock: "rgba(0,0,0,0.8)", segment: "rgba(118,118,128,0.12)", faint: "var(--faint)" };
+
+const THEME_KEY = "bts-theme"; // shared with the console's sun/moon button
+const themeListeners = new Set<() => void>();
+const readDark = () => document.documentElement.classList.contains("dark");
+/** Like the console's toggle: follow the system setting until the operator picks one, and react to any change of the class. */
+function subscribeTheme(cb: () => void) {
+  themeListeners.add(cb);
+  const mq = matchMedia("(prefers-color-scheme: dark)");
+  const onSystem = () => {
+    let saved: string | null = null;
+    try { saved = localStorage.getItem(THEME_KEY); } catch {}
+    if (saved !== "light" && saved !== "dark") document.documentElement.classList.toggle("dark", mq.matches);
+  };
+  const obs = new MutationObserver(cb);
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+  mq.addEventListener("change", onSystem);
+  return () => { themeListeners.delete(cb); obs.disconnect(); mq.removeEventListener("change", onSystem); };
+}
+/** Same switch as the console: a class on <html>, remembered in this browser. */
+function useWallTheme() {
+  const dark = useSyncExternalStore(
+    subscribeTheme,
+    readDark,
+    () => false,
+  );
+  const flip = () => {
+    const next = !readDark();
+    document.documentElement.classList.toggle("dark", next);
+    try { localStorage.setItem(THEME_KEY, next ? "dark" : "light"); } catch {}
+    themeListeners.forEach((cb) => cb());
+  };
+  return { light: !dark, flip };
+}
+
+function ThemeButton({ light, flip }: { light: boolean; flip: () => void }) {
+  const label = light ? "Switch to dark mode" : "Switch to light mode";
+  return (
+    <button type="button" onClick={flip} aria-label={label} title={label}
+      className="grid size-10 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-text">
+      {light ? (
+        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden><path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+      )}
+    </button>
+  );
+}
 
 function useRate(feed: BoardFeed | null) {
   const samples = useRef<{ t: number; n: number }[]>([]);
@@ -67,27 +118,29 @@ export function LiveWall() {
   const rate = useRate(feed);
   const [view, setView] = useState<"operator" | "hood">(params.get("view") === "hood" ? "hood" : "operator");
   const live = sim.liveHere && sim.follow;
+  const theme = useWallTheme();
 
   return (
-    <div className="min-h-screen" style={{ background: C.bg, color: C.text, ["--background" as string]: C.bg, ["--line" as string]: C.line, ["--line-soft" as string]: "rgba(255,255,255,0.06)", ["--water" as string]: C.water, ["--crit" as string]: C.crit, ["--warn-fill" as string]: C.warn }}>
+    <div className="min-h-screen" style={{ color: C.text }}>
       <div className="mx-auto flex max-w-[1500px] flex-col gap-4 px-4 py-4 sm:px-6">
-        <Header dataset={dataset} feed={feed} at={sim.t} live={live} view={view} setView={setView} />
+        <Header dataset={dataset} feed={feed} at={sim.t} live={live} view={view} setView={setView} theme={theme} />
         {err && <p role="alert" style={{ color: C.crit }}>Can’t reach the operator API: {err}</p>}
         {!sim.tl ? (
           <Panel><p className="px-6 py-10 text-[20px]" style={{ color: C.dim }}>{sim.error ? `Couldn't build the week: ${sim.error}` : dataset ? "Loading the week…" : "No dataset yet: upload one in the full console, or point the API at a data folder."}</p></Panel>
         ) : view === "operator" ? (
           <div key="operator" className="wall-fade flex flex-col gap-4">
-            <Operator story={story(sim.tl, sim.t, live ? feed?.flagged ?? [] : [])} tl={sim.tl} at={sim.t} />
-            {dataset && <Nemotron datasetId={dataset.id} tl={sim.tl} at={sim.t} />}
+            <Operator story={story(sim.tl, sim.t, live ? feed?.flagged ?? [] : [])} tl={sim.tl} at={sim.t}
+              nemotron={dataset ? <Nemotron datasetId={dataset.id} tl={sim.tl} at={sim.t} /> : null} />
           </div>
         ) : (
           <div key="hood" className="wall-fade flex flex-col gap-4">
-            <Feed feed={feed} rate={rate} live={sim.liveHere} />
-            <Funnel tl={sim.tl} at={sim.t} />
-            <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-              <Ledger tl={sim.tl} at={sim.t} />
-              <Speed />
-            </div>
+            {/* drag the arc in a panel's corner to put the panels in your own order */}
+            <Rearrange storageKey="bts-live-hood-order" className="grid grid-flow-row-dense gap-4 xl:grid-cols-[1fr_1fr]" widgets={[
+              { id: "feed", label: "the chip, live", className: "xl:col-span-2", node: <Feed feed={feed} rate={rate} live={sim.liveHere} /> },
+              { id: "funnel", label: "what the operator doesn't have to read", className: "xl:col-span-2", node: <Funnel tl={sim.tl} at={sim.t} /> },
+              { id: "ledger", label: "every plan so far", node: <Ledger tl={sim.tl} at={sim.t} /> },
+              { id: "speed", label: "how fast is the chip", node: <Speed /> },
+            ]} />
           </div>
         )}
         {sim.tl && !live && (
@@ -100,35 +153,36 @@ export function LiveWall() {
 
 function Panel({ children, className, title, right }: { children: React.ReactNode; className?: string; title?: string; right?: React.ReactNode }) {
   return (
-    <section className={cn("rounded-2xl", className)} style={{ background: C.panel, boxShadow: `0 0 0 1px ${C.line}` }}>
-      {title && <div className="flex items-baseline justify-between gap-3 px-5 pt-4"><h2 className="text-[13px] font-semibold tracking-[0.12em] uppercase" style={{ color: C.dim }}>{title}</h2>{right}</div>}
+    <section className={cn("glass rounded-2xl", className)}>
+      {title && <div className="flex items-baseline justify-between gap-3 px-5 pt-4"><h2 className="text-[13px] font-semibold" style={{ color: C.text }}>{title}</h2>{right}</div>}
       {children}
     </section>
   );
 }
 
-function Header({ dataset, feed, at, live, view, setView }: { dataset?: DatasetInfo; feed: BoardFeed | null; at: number; live: boolean; view: "operator" | "hood"; setView: (v: "operator" | "hood") => void }) {
+function Header({ dataset, feed, at, live, view, setView, theme }: { dataset?: DatasetInfo; feed: BoardFeed | null; at: number; live: boolean; view: "operator" | "hood"; setView: (v: "operator" | "hood") => void; theme: { light: boolean; flip: () => void } }) {
   const fpga = feed?.source === "fpga";
   const on = !!feed?.online;
   return (
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-[13px] font-semibold tracking-[0.14em] uppercase" style={{ color: C.dim }}>Beat the Shutdown · Night shift</p>
+        <p className="text-[13px] font-semibold" style={{ color: C.faint }}>Backpressure · Night shift</p>
         <p className="text-[15px]" style={{ color: C.dim }}>{dataset ? dataset.label : "—"}</p>
       </div>
-      <div role="tablist" aria-label="View" className="flex rounded-full p-1" style={{ background: "rgba(255,255,255,0.06)", boxShadow: `0 0 0 1px ${C.line}` }}>
+      <div role="tablist" aria-label="View" className="flex rounded-[9px] p-1" style={{ background: C.segment }}>
         {([["operator", "Operator"], ["hood", "Under the hood"]] as const).map(([k, label]) => (
           <button key={k} role="tab" aria-selected={view === k} type="button" onClick={() => setView(k)}
-            className="rounded-full px-5 py-2 text-[15px] font-semibold transition-colors" style={view === k ? { background: C.text, color: C.bg } : { color: C.dim }}>{label}</button>
+            className="rounded-[7px] px-5 py-2 text-[15px] font-semibold transition-colors" style={view === k ? { background: "var(--panel)", color: C.text, boxShadow: "0 1px 2px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.04)" } : { color: C.text }}>{label}</button>
         ))}
       </div>
       <div className="flex items-center gap-4">
-        <span className="flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[14px] font-semibold" style={{ background: on ? "rgba(61,220,132,0.12)" : "rgba(255,255,255,0.06)", color: on ? C.ok : C.dim }}>
-          <span className={cn("size-2.5 rounded-full", on && "animate-pulse")} style={{ background: on ? C.ok : C.dim }} />
+        <span className="flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-[14px] font-semibold" style={{ background: "var(--panel)", color: C.text, boxShadow: "0 0 0 0.5px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06)" }}>
+          <span className={cn("size-2.5 rounded-full", on && "animate-pulse")} style={{ background: on ? C.ok : C.faint }} />
           {on ? `${fpga ? "Eclypse Z7 FPGA" : "Software board"} live${feed?.weightsVersion != null ? ` · model v${feed.weightsVersion}` : ""}` : feed?.results ? "Board idle" : "Board not connected"}
         </span>
-        {at > 0 && <span className="rounded-xl px-4 py-2 font-mono text-[28px] font-semibold tabular-nums" style={{ background: "#000", boxShadow: `0 0 0 1px ${C.line}` }}>{dayClock(at)}{live && <span className="ml-2 align-middle text-[12px] font-sans" style={{ color: C.ok }}>LIVE</span>}</span>}
-        <Link href={dataset ? `/?dataset=${encodeURIComponent(dataset.id)}` : "/"} className="text-[14px] underline-offset-4 hover:underline" style={{ color: C.water }}>Full console →</Link>
+        {at > 0 && <span className="rounded-md px-4 py-2 font-mono text-[28px] font-normal tabular-nums" style={{ background: C.clock, color: "#fff" }}>{dayClock(at)}{live && <span className="ml-2 align-middle text-[12px] font-sans font-medium" style={{ color: "#34c759" }}>Live</span>}</span>}
+        <Link href={dataset ? `/?dataset=${encodeURIComponent(dataset.id)}` : "/"} className="text-[14px] font-medium underline-offset-4 hover:underline" style={{ color: C.water }}>Full console →</Link>
+        <ThemeButton light={theme.light} flip={theme.flip} />
       </div>
     </header>
   );
@@ -139,7 +193,7 @@ function Big({ label, value, sub, tone }: { label: string; value: string; sub?: 
     <div className="min-w-0">
       <p className="text-[13px]" style={{ color: C.dim }}>{label}</p>
       <p className="truncate text-[34px] leading-tight font-bold tabular-nums" style={{ color: tone ?? C.text }}>{value}</p>
-      {sub && <p className="text-[12px]" style={{ color: C.dim }}>{sub}</p>}
+      {sub && <p className="text-[12px]" style={{ color: C.faint }}>{sub}</p>}
     </div>
   );
 }
@@ -151,15 +205,15 @@ function Feed({ feed, rate, live }: { feed: BoardFeed | null; rate: number; live
   // dots move faster the more records per second actually arrive
   const dur = on ? Math.max(0.25, Math.min(2.5, 60 / Math.max(rate, 1))) : 0;
   return (
-    <Panel title="The chip, live" right={<span className="text-[13px]" style={{ color: C.dim }}>{on ? (live ? "streaming this dataset now" : "streaming") : "waiting for replay.py"}</span>}>
+    <Panel title="The chip, live" right={<span className="text-[13px]" style={{ color: C.faint }}>{on ? (live ? "streaming this dataset now" : "streaming") : "waiting for replay.py"}</span>}>
       <div className="grid gap-4 px-5 pt-3 pb-5 lg:grid-cols-[1.1fr_1fr]">
         <div>
           <div className="flex items-center gap-2" aria-label="Data path">
             {hops.map((h, i) => (
               <div key={h} className="flex flex-1 items-center gap-2 last:flex-none">
-                <span className="rounded-lg px-3 py-2 text-[15px] font-semibold" style={{ background: i === 2 ? "rgba(118,185,0,0.16)" : "rgba(255,255,255,0.06)", color: i === 2 ? C.chip : C.text }}>{h}</span>
+                <span className="rounded-lg px-3 py-2 text-[15px] font-semibold" style={i === 2 ? { background: "color-mix(in oklab, var(--nv) 16%, transparent)", color: C.text } : { background: "transparent", boxShadow: "0 0 0 0.5px var(--line)", color: C.text }}>{h}</span>
                 {i < hops.length - 1 && (
-                  <span className="relative h-[3px] flex-1 overflow-hidden rounded-full" style={{ background: "rgba(255,255,255,0.08)" }}>
+                  <span className="relative h-[3px] flex-1 overflow-hidden rounded-full" style={{ background: C.track }}>
                     {on && [0, 1, 2].map((k) => <span key={k} className="live-dot absolute top-0 h-[3px] w-3 rounded-full" style={{ background: C.water, animationDuration: `${dur}s`, animationDelay: `${(k * dur) / 3}s` }} />)}
                   </span>
                 )}
@@ -169,19 +223,19 @@ function Feed({ feed, rate, live }: { feed: BoardFeed | null; rate: number; live
           <div className="mt-4 grid grid-cols-3 gap-4">
             <Big label="Decisions from the chip" value={(feed?.results ?? 0).toLocaleString()} sub={feed?.stats ? `board counters: ${feed.stats.recordsIn.toLocaleString()} in · ${feed.stats.resultsOut.toLocaleString()} out` : "results read by listen.py"} />
             <Big label="Live rate" value={on ? `${Math.round(rate).toLocaleString()}/s` : "—"} sub="measured, records per second" />
-            <Big label="Lost or bad packets" value={feed?.stats ? String(feed.stats.seqGaps + feed.stats.badPackets) : "—"} tone={feed?.stats && feed.stats.seqGaps + feed.stats.badPackets > 0 ? C.warn : C.ok} sub="from the board's own counters" />
+            <Big label="Lost or bad packets" value={feed?.stats ? String(feed.stats.seqGaps + feed.stats.badPackets) : "—"} tone={!feed?.stats ? undefined : feed.stats.seqGaps + feed.stats.badPackets > 0 ? C.warn : C.ok} sub="from the board's own counters" />
           </div>
         </div>
         <div className="min-w-0">
           <p className="mb-1.5 text-[13px]" style={{ color: C.dim }}>What it just decided</p>
-          <ol className="grid gap-1 font-mono text-[14px]">
+          <ol className="grid gap-1 text-[14px] tabular-nums">
             {(feed?.recent ?? []).slice(0, 6).map((r, i) => {
               const bad = r.active.length > 0;
               return (
-                <li key={`${r.facility}${r.tsUnix}${i}`} className="flex items-center justify-between gap-3 rounded-md px-2.5 py-1" style={{ background: bad ? "rgba(255,90,79,0.12)" : "rgba(255,255,255,0.03)" }}>
-                  <span className="truncate">{clock(r.tsUnix)} · {facilityTitle(r.facility)}</span>
+                <li key={`${r.facility}${r.tsUnix}${i}`} className="flex items-center justify-between gap-3 rounded-md px-2.5 py-1" style={{ background: bad ? "color-mix(in oklab, var(--crit) 12%, transparent)" : C.tintSoft }}>
+                  <span className="truncate"><span className="font-mono tabular-nums" style={{ color: C.faint }}>{clock(r.tsUnix)}</span> · {facilityTitle(r.facility)}</span>
                   <span style={{ color: bad ? C.crit : r.status === "VALID" ? C.ok : C.warn }}>
-                    {bad ? r.active.map((a) => (categoryLabel[a as keyof typeof categoryLabel] ?? a).toUpperCase()).join(", ") : r.status === "VALID" ? "OK" : r.status}
+                    {bad ? r.active.map((a) => (categoryLabel[a as keyof typeof categoryLabel] ?? a)).join(", ") : r.status === "VALID" ? "OK" : r.status}
                   </span>
                 </li>
               );
@@ -233,19 +287,21 @@ function headline(st: Story, at: number) {
   return { text: parts.join(" "), tone: st.failures.length ? C.crit : C.warn };
 }
 
-function Operator({ story: st, tl, at }: { story: Story; tl: SimulationTimeline; at: number }) {
+function Operator({ story: st, tl, at, nemotron }: { story: Story; tl: SimulationTimeline; at: number; nemotron: React.ReactNode }) {
   const h = headline(st, at);
   return (
     <>
-      <p className="px-1 text-[30px] leading-tight font-bold sm:text-[36px]" style={{ color: h.tone }}>{h.text}</p>
-      <div className="grid gap-4 xl:grid-cols-[1fr_1.25fr]">
-        <Panel title="What to do" right={<span className="text-[13px]" style={{ color: C.dim }}>worst first</span>}>
+      <p className="px-1 font-display text-[30px] leading-tight font-bold tracking-display sm:text-[36px]" style={{ color: h.tone }}>{h.text}</p>
+      {/* drag the arc in a panel's corner to put the panels in your own order */}
+      <Rearrange storageKey="bts-live-operator-order" className="grid grid-flow-row-dense gap-4 xl:grid-cols-[1fr_1.25fr]" widgets={[
+        { id: "todo", label: "what to do", node: (
+        <Panel title="What to do" right={<span className="text-[13px]" style={{ color: C.faint }}>worst first</span>}>
           <ol className="grid gap-2.5 px-4 pt-3 pb-4">
-            {st.items.length === 0 && <li className="rounded-xl px-4 py-6 text-[20px]" style={{ background: "rgba(61,220,132,0.10)", color: C.ok }}>Nothing to do. The chip is watching every facility.</li>}
+            {st.items.length === 0 && <li className="rounded-[10px] px-4 py-6 text-[20px]" style={{ background: "color-mix(in oklab, var(--ok) 11%, transparent)", color: C.ok }}>Nothing to do. The chip is watching every facility.</li>}
             {st.items.slice(0, 5).map((i) => {
               const p = st.plan.get(i.id), failure = i.category === "pump_failure", arr = failure ? st.nextArrival(i.id) : undefined;
               return (
-                <li key={i.id} className="rounded-xl px-4 py-3" style={{ background: failure ? "rgba(255,90,79,0.12)" : "rgba(255,174,61,0.10)", boxShadow: `inset 3px 0 0 ${failure ? C.crit : C.warn}` }}>
+                <li key={i.id} className="rounded-[10px] px-4 py-3" style={{ background: failure ? "color-mix(in oklab, var(--crit) 12%, transparent)" : "color-mix(in oklab, var(--warn-fill) 15%, transparent)" }}>
                   <div className="flex items-baseline justify-between gap-3">
                     <p className="text-[20px] leading-snug font-bold">{facilityTitle(i.facilityId)}: {(categoryLabel[i.category as keyof typeof categoryLabel] ?? i.category).toLowerCase()}</p>
                     {failure && p && <Countdown at={at} shutdown={p.shutdownUnix} planShutdown={p.planShutdownUnix} kind={p.kind} />}
@@ -261,10 +317,13 @@ function Operator({ story: st, tl, at }: { story: Story; tl: SimulationTimeline;
             {st.items.length > 5 && <li className="px-1 text-[14px]" style={{ color: C.dim }}>+{st.items.length - 5} more under the hood</li>}
           </ol>
         </Panel>
-        <Panel title="The field" right={<span className="text-[13px]" style={{ color: C.dim }}><Dot c={C.crit} /> pump down <Dot c={C.warn} /> inspect <Dot c={C.water} /> running</span>}>
+        ) },
+        { id: "field", label: "the field", node: (
+        <Panel title="The field" right={<span className="text-[13px]" style={{ color: C.faint }}><Dot c={C.crit} /> pump down <Dot c="var(--warn-fill)" /> inspect <Dot c={C.water} /> running</span>}>
           <div className="px-2 pb-2"><FieldMap tl={tl} at={at} ongoing={st.ongoing} bare /></div>
         </Panel>
-      </div>
+        ) },
+        { id: "money", label: "the money", className: "xl:col-span-2", node: (
       <Panel>
         <div className="grid grid-cols-3 gap-4 px-6 py-4">
           <Big label="If nobody had acted" value={money(st.sum("doNothingCost"))} tone={C.crit} />
@@ -272,6 +331,9 @@ function Operator({ story: st, tl, at }: { story: Story; tl: SimulationTimeline;
           <Big label="Kept" value={money(st.sum("kept"))} tone={C.ok} />
         </div>
       </Panel>
+        ) },
+        ...(nemotron ? [{ id: "nemotron", label: "Nemotron's shift handoff", className: "xl:col-span-2", node: nemotron }] : []),
+      ]} />
     </>
   );
 }
@@ -301,14 +363,14 @@ function Funnel({ tl, at }: { tl: SimulationTimeline; at: number }) {
   ];
   const max = Math.log10(Math.max(10, readings));
   return (
-    <Panel title="What the operator doesn't have to read" right={<span className="text-[13px]" style={{ color: C.dim }}>so far this week</span>}>
+    <Panel title="What the operator doesn't have to read" right={<span className="text-[13px]" style={{ color: C.faint }}>so far this week</span>}>
       <div className="grid gap-2 px-5 pt-3 pb-5">
         {rows.map((r) => (
           <div key={r.label} className="grid grid-cols-[150px_1fr] items-center gap-4">
-            <span className="text-right font-mono text-[26px] font-bold tabular-nums">{r.n.toLocaleString()}</span>
+            <span className="text-right font-display text-[26px] font-semibold tracking-display tabular-nums">{r.n.toLocaleString()}</span>
             <div>
-              <div className="h-3 rounded-full" style={{ width: `${Math.max(2, (Math.log10(Math.max(1, r.n)) / max) * 100)}%`, background: r.label.startsWith("things") ? C.ok : r.label.startsWith("decisions") ? C.chip : "rgba(255,255,255,0.25)" }} />
-              <p className="mt-1 text-[15px]"><span className="font-semibold">{r.label}</span> <span style={{ color: C.dim }}>· {r.sub}</span></p>
+              <div className="h-3 rounded-full" style={{ width: `${Math.max(2, (Math.log10(Math.max(1, r.n)) / max) * 100)}%`, background: r.label.startsWith("things") ? C.ok : r.label.startsWith("decisions") ? C.chip : C.bar }} />
+              <p className="mt-1 text-[15px]"><span className="font-semibold">{r.label}</span> <span style={{ color: C.faint }}>· {r.sub}</span></p>
             </div>
           </div>
         ))}
@@ -321,14 +383,14 @@ function Funnel({ tl, at }: { tl: SimulationTimeline; at: number }) {
 function Ledger({ tl, at }: { tl: SimulationTimeline; at: number }) {
   const rows = tl.plans.filter((p) => p.plannedUnix <= at).reverse();
   return (
-    <Panel title="Every plan so far" right={<span className="text-[13px]" style={{ color: C.dim }}>planned at each failure</span>}>
+    <Panel title="Every plan so far" right={<span className="text-[13px]" style={{ color: C.faint }}>planned at each failure</span>}>
       <ol className="max-h-[360px] overflow-y-auto px-5 pt-2 pb-4">
         {!rows.length && <li className="py-4 text-[15px]" style={{ color: C.dim }}>No pump failures yet.</li>}
         {rows.map((p) => (
-          <li key={p.incidentId} className="grid grid-cols-[90px_1fr_auto] items-baseline gap-3 border-t py-2 text-[15px] first:border-t-0" style={{ borderColor: C.line }}>
+          <li key={p.incidentId} className="grid grid-cols-[90px_1fr_auto] items-baseline gap-3 border-t py-2 text-[15px] first:border-t-0" style={{ borderColor: "var(--line-soft)" }}>
             <span className="font-mono tabular-nums" style={{ color: C.dim }}>{dayClock(p.plannedUnix)}</span>
             <span><span className="font-semibold">{facilityTitle(p.facilityId)}</span> <span style={{ color: C.dim }}>{plural(p.label)}</span></span>
-            <span className="tabular-nums">{p.doNothingCost != null && p.cost != null && p.doNothingCost > p.cost && <s className="mr-2" style={{ color: C.crit }}>{money(p.doNothingCost)}</s>}<span className="font-semibold" style={{ color: C.ok }}>{p.cost != null ? money(p.cost) : "—"}</span></span>
+            <span className="tabular-nums">{p.doNothingCost != null && p.cost != null && p.doNothingCost > p.cost && <s className="mr-2" style={{ color: "color-mix(in oklab, var(--crit) 80%, transparent)" }}>{money(p.doNothingCost)}</s>}<span className="font-semibold" style={{ color: C.ok }}>{p.cost != null ? money(p.cost) : "—"}</span></span>
           </li>
         ))}
       </ol>
@@ -340,10 +402,10 @@ function Ledger({ tl, at }: { tl: SimulationTimeline; at: number }) {
 function Countdown({ at, shutdown, planShutdown, kind }: { at: number; shutdown: number | null; planShutdown: number | null; kind: string }) {
   if (shutdown == null) return <span className="shrink-0 text-[14px] font-semibold" style={{ color: C.ok }}>no shutdown before the repair</span>;
   const saved = kind !== "do_nothing" && kind !== "unavailable" && planShutdown == null;
-  if (at >= shutdown && !saved) return <span className="shrink-0 rounded-md px-2 py-0.5 text-[15px] font-bold" style={{ background: C.crit, color: "#fff" }}>SHUT IN since {clock(shutdown)}</span>;
+  if (at >= shutdown && !saved) return <span className="shrink-0 rounded-md px-2 py-0.5 text-[15px] font-bold" style={{ background: C.crit, color: "#fff" }}>Shut in since {clock(shutdown)}</span>;
   return (
     <span className="shrink-0 text-right leading-tight">
-      <span className={cn("block font-mono text-[22px] font-bold tabular-nums", saved && "line-through opacity-60")} style={{ color: C.crit }}>{at < shutdown ? duration((shutdown - at) / 3600) : clock(shutdown)}</span>
+      <span className={cn("block font-display text-[22px] font-semibold tracking-display tabular-nums", saved && "line-through opacity-60")} style={{ color: C.crit }}>{at < shutdown ? duration((shutdown - at) / 3600) : clock(shutdown)}</span>
       <span className="block text-[12px]" style={{ color: saved ? C.ok : C.dim }}>{saved ? "plan prevents the shutdown" : `tank full at ${clock(shutdown)}`}</span>
     </span>
   );
@@ -355,14 +417,14 @@ function Transport({ tl, t, setT, playing, setPlaying, speed, setSpeed, liveHere
   tl: SimulationTimeline; t: number; setT: (t: number) => void; playing: boolean; setPlaying: (p: boolean) => void; speed: number; setSpeed: (s: number) => void; liveHere: boolean; setFollow: (f: boolean) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3" style={{ background: C.panel, boxShadow: `0 0 0 1px ${C.line}` }}>
+    <div className="glass flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3">
       <button type="button" aria-label={playing ? "Pause the week" : "Play the week"} onClick={() => { if (t >= tl.nowUnix) setT(tl.startUnix); setPlaying(!playing); }}
-        className="rounded-lg px-5 py-2 text-[16px] font-bold" style={{ background: C.water, color: "#fff" }}>{playing ? "Pause" : t >= tl.nowUnix ? "Replay the week" : "Play the week"}</button>
-      <div className="flex overflow-hidden rounded-lg" style={{ boxShadow: `0 0 0 1px ${C.line}` }}>
-        {SPEEDS.map((s, i) => <button key={s.label} type="button" onClick={() => setSpeed(i)} className="px-3 py-2 text-[14px] tabular-nums" style={{ background: i === speed ? "rgba(74,163,255,0.25)" : "transparent" }}>{s.label}</button>)}
+        className="rounded-md px-5 py-2 text-[16px] font-semibold" style={{ background: C.water, color: "#fff" }}>{playing ? "Pause" : t >= tl.nowUnix ? "Replay the week" : "Play the week"}</button>
+      <div className="flex overflow-hidden rounded-md" style={{ boxShadow: "0 0 0 0.5px var(--line)" }}>
+        {SPEEDS.map((s, i) => <button key={s.label} type="button" onClick={() => setSpeed(i)} className={cn("px-3 py-2 text-[14px] tabular-nums", i !== speed && "hover:bg-black/5")} style={{ background: i === speed ? "var(--water)" : "transparent", color: i === speed ? "#fff" : undefined }}>{s.label}</button>)}
       </div>
       <input type="range" aria-label="Time" className="min-w-[160px] flex-1" style={{ accentColor: C.water }} min={tl.startUnix} max={tl.nowUnix} step={tl.stepSeconds} value={Math.min(Math.max(t, tl.startUnix), tl.nowUnix)} onChange={(e) => setT(Number(e.target.value))} />
-      {liveHere && <button type="button" onClick={() => setFollow(true)} className="rounded-lg px-3 py-2 text-[14px] font-semibold" style={{ color: C.ok, boxShadow: `0 0 0 1px ${C.ok}` }}>Back to live</button>}
+      {liveHere && <button type="button" onClick={() => setFollow(true)} className="rounded-full px-3 py-2 text-[14px] font-medium" style={{ color: C.ok, background: "color-mix(in oklab, var(--ok) 15%, transparent)" }}>Back to live</button>}
     </div>
   );
 }
@@ -411,7 +473,7 @@ function Nemotron({ datasetId, tl, at }: { datasetId: string; tl: SimulationTime
   };
   const laneName = lane?.lane === "brev" ? "NVIDIA Nemotron (Brev)" : lane?.lane === "openrouter" ? "Nemotron via OpenRouter" : "no model configured";
   return (
-    <Panel title="Nemotron's shift handoff" right={<span className="text-[13px]" style={{ color: C.dim }}>{laneName}</span>}>
+    <Panel title="Nemotron's shift handoff" right={<span className="text-[13px]" style={{ color: C.faint }}>{laneName}</span>}>
       <div className="flex flex-wrap items-start gap-4 px-5 pt-3 pb-5">
         <button type="button" onClick={() => void ask()} disabled={phase === "run" || phase === "agents"}
           className="shrink-0 rounded-lg px-4 py-2.5 text-[15px] font-bold disabled:opacity-60" style={{ background: C.chip, color: "#0a0e13" }}>
@@ -423,7 +485,7 @@ function Nemotron({ datasetId, tl, at }: { datasetId: string; tl: SimulationTime
           {phase === "done" && (
             <>
               <p className="text-[19px] leading-relaxed">{text}</p>
-              <p className="mt-1.5 text-[13px]" style={{ color: byModel ? C.chip : C.warn }}>{byModel ? `Written by Nemotron and checked against the facts · ${meta}` : `Written from the facts: Nemotron's draft didn't pass the checks · ${meta}`}</p>
+              <p className="mt-1.5 text-[13px]" style={{ color: byModel ? C.dim : C.warn }}>{byModel ? `Written by Nemotron and checked against the facts · ${meta}` : `Written from the facts: Nemotron's draft didn't pass the checks · ${meta}`}</p>
             </>
           )}
           {phase === "error" && <p className="text-[16px]" style={{ color: C.crit }}>Couldn’t get a handoff: {text}</p>}
@@ -438,25 +500,25 @@ function Speed() {
   const rows = [
     { label: "The FPGA decides one reading", s: CHIP_US_PER_RECORD / 1e6, note: "0.3 µs · RTL design: 15 cycles at 50 MHz", c: C.chip },
     { label: "That reading's trip over Ethernet and back", s: WIRE_US_PER_RECORD / 1e6, note: "33 µs · measured on the board", c: C.water },
-    { label: "Nemotron writes the shift handoff", s: NEMOTRON_S, note: `${NEMOTRON_S} s · measured`, c: C.warn },
+    { label: "Nemotron writes the shift handoff", s: NEMOTRON_S, note: `${NEMOTRON_S} s · measured`, c: "var(--warn-fill)" },
     { label: "The sensors report again", s: 300, note: "every 5 min", c: C.dim },
   ];
   const lo = Math.log10(1e-7), hi = Math.log10(600);
   return (
-    <Panel title="How fast is the chip?" right={<span className="text-[13px]" style={{ color: C.dim }}>log scale</span>}>
+    <Panel title="How fast is the chip?" right={<span className="text-[13px]" style={{ color: C.faint }}>log scale</span>}>
       <div className="grid gap-2.5 px-5 pt-3 pb-4">
         {rows.map((r) => (
           <div key={r.label} className="grid grid-cols-[minmax(0,260px)_1fr] items-center gap-3 sm:grid-cols-[300px_1fr]">
             <span className="text-[15px]">{r.label}</span>
             <div className="flex items-center gap-3">
               <span className="h-3.5 rounded-full" style={{ width: `${Math.max(1.5, ((Math.log10(r.s) - lo) / (hi - lo)) * 100)}%`, background: r.c }} />
-              <span className="shrink-0 text-[13px] tabular-nums" style={{ color: C.dim }}>{r.note}</span>
+              <span className="shrink-0 text-[13px] tabular-nums" style={{ color: C.faint }}>{r.note}</span>
             </div>
           </div>
         ))}
         <p className="pt-1 text-[16px] font-semibold">
-          The chip answers about <span style={{ color: C.chip }}>{Math.round(WIRE_US_PER_RECORD / CHIP_US_PER_RECORD)}×</span> faster than the network can carry the question, and about{" "}
-          <span style={{ color: C.chip }}>a billion times</span> faster than the sensors report.
+          The chip answers about <span>{Math.round(WIRE_US_PER_RECORD / CHIP_US_PER_RECORD)}×</span> faster than the network can carry the question, and about{" "}
+          <span>a billion times</span> faster than the sensors report.
         </p>
       </div>
     </Panel>

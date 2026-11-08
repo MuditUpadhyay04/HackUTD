@@ -1,4 +1,4 @@
-# Photon: Beat the Shutdown on your phone
+# Photon: Backpressure on your phone
 
 Text the Photon line and get the console's answers back, straight from the operator API (`apps/api`).
 Advice only: nothing here approves or dispatches anything.

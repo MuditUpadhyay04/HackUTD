@@ -16,6 +16,7 @@ import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
 import { AgentsPanel, agentLines, useAgentRun } from "./agents";
 import { Timeline } from "./timeline";
+import { Rearrange } from "./rearrange";
 
 const longDay = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 const words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
@@ -288,7 +289,12 @@ export function Console({
                 {actionError}
               </p>
             )}
-            <div className="mt-5">
+            {/* The overview's widgets: drag the arc in a widget's corner to put them in your own order. */}
+            <Rearrange
+              storageKey="bts-overview-order"
+              className="mt-5 grid gap-4"
+              widgets={[
+                { id: "summary", label: "the summary", node: (
               <KpiStrip
                 items={[
                   { label: "Pumps down", value: String(failures.length), tone: failures.length ? "crit" : undefined },
@@ -297,9 +303,8 @@ export function Console({
                   { label: "If nobody acts", value: nothingCost == null ? "Unknown" : money(nothingCost) },
                 ]}
               />
-            </div>
-
-            <div className="mt-4">
+                ) },
+                { id: "network", label: "the network", node: (
               <NetworkGraph
                 systems={s.systems}
                 alerts={s.alerts}
@@ -307,8 +312,8 @@ export function Console({
                 trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
                 onFacility={(f) => setFacilityId(f.id)}
               />
-            </div>
-            <div className="mt-4">
+                ) },
+                { id: "alerts", label: "alerts", node: (
               <AlertsTable
                 failures={failures}
                 inspections={inspections}
@@ -321,11 +326,12 @@ export function Console({
                 onFacility={(f) => setFacilityId(f.id)}
                 agentNote={agentNote}
               />
-            </div>
-
-            <div className="mt-4">
+                ) },
+                { id: "pipelines", label: "pipelines", node: (
               <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
-            </div>
+                ) },
+              ]}
+            />
           </>
         )}
       </main>

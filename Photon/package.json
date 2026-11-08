@@ -2,7 +2,7 @@
   "name": "bts-photon-bot",
   "private": true,
   "type": "module",
-  "description": "Beat the Shutdown on your phone: text the Photon line for status, alerts and the agents' handoff.",
+  "description": "Backpressure on your phone: text the Photon line for status, alerts and the agents' handoff.",
   "scripts": {
     "start": "node --env-file=.env --import tsx bot.mts",
     "check": "node --env-file-if-exists=.env --import tsx console.mts --check"
