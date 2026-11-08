@@ -69,6 +69,12 @@ describe("operator API vertical slice", () => {
     const events = await exported.json();
     expect(events[0].category).toBe("pump_failure");
     expect(events[0]).not.toHaveProperty("confidence");
+    const agents = await post(`/runs/${r.id}/agents`, {});
+    expect(agents.status).toBe(409); // no provider: the orchestrator never fabricates agent output
+    const learning = await (await call("/agents/learning")).json();
+    expect(learning.champions).toEqual({ prompts: { triage: 1, plan_explainer: 1, evidence_reviewer: 1, handoff: 1, critic: 1 }, strategy: 1 });
+    expect(await (await call(`/runs/${r.id}/agent-runs`)).json()).toEqual([]);
+    expect((await call("/agent-runs/agents-missing")).status).toBe(404);
     const analysis = await (await post(`/runs/${r.id}/analyses`, {}, "brief-1")).json();
     await workOne(service);
     const brief = await (await call(`/analyses/${analysis.id}`)).json();

@@ -47,8 +47,8 @@ export function NemotronBrief({ runId, expanded }: { runId: string; expanded?: b
         <h3 className="text-[15px] font-semibold text-text">Note for the next operator</h3>
       </div>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        {brief?.source === "nemotron"
-          ? `Written by ${brief.model ?? "Nemotron"}`
+        {brief?.source === "nemotron" || brief?.source === "ai-sdk"
+          ? `Written by ${brief.model ?? "Nemotron"}${brief.source === "ai-sdk" ? " (fallback runtime)" : ""}; checked against the snapshot.`
           : brief
               ? "Draft from the plan solver."
               : "Reading the network…"}
