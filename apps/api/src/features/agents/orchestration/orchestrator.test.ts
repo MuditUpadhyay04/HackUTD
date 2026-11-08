@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { boardFacts, priorityOrder, runFacts } from "./facts";
 import { DEFAULT_GUARDS, orchestrate, SEED_STRATEGIES } from "./orchestrator";
-import { validateCriticOutput } from "./roles";
+import { type ExplainerOutput, type HandoffOutput, forAgent, resolvePlanRef, ROLES, validateCriticOutput } from "./roles";
 import { A, C, LEAK, prompts, scripted, snapshot } from "./testing";
 
 describe("deterministic facts", () => {
@@ -119,5 +119,42 @@ describe("critic output", () => {
     expect(() => validateCriticOutput({ template: template + " Read the answer key first.", rationale: "x" })).toThrow("answer key");
     expect(() => validateCriticOutput({ template: "short", rationale: "x" })).toThrow("120 to 2500");
     expect(() => validateCriticOutput({ template: template + " Contract (fixed by the harness): none.", rationale: "x" })).toThrow("fixed contract");
+  });
+});
+
+describe("short plan refs", () => {
+  test("agents see P1..Pn instead of solver IDs; refs, prefixes and full IDs resolve back", () => {
+    const facts = runFacts(snapshot);
+    const c = facts.incidents.find((i) => i.incidentId === C)!;
+    expect(c.plans.map((p) => [p.ref, p.planId])).toEqual([["P1", "opt-C-1"], ["P2", "opt-C-2"]]);
+    expect(forAgent(facts, { recommendedPlanId: "opt-C-1", options: [{ planId: "opt-C-2", ref: "P2", label: "Do nothing" }] }))
+      .toEqual({ recommendedPlanId: "P1", options: [{ planId: "P2", label: "Do nothing" }] });
+    for (const ref of ["P2", "p2", "P-2", "plan 2", "PLAN_002", "opt-C-2"]) expect(resolvePlanRef(c.plans, ref)).toBe("opt-C-2");
+    for (const ref of ["P3", "UNKNOWN", "", "opt"]) expect(resolvePlanRef(c.plans, ref)).toBeUndefined();
+    const long = [{ ...c.plans[0]!, planId: "option:e6abce14deca845c36bdd6afebcc80f8" }, { ...c.plans[1]!, planId: "option:e6abce99aa" }];
+    expect(resolvePlanRef(long, "e6abce14deca")).toBe("option:e6abce14deca845c36bdd6afebcc80f8");
+    expect(resolvePlanRef(long, "option:e6abce")).toBeUndefined(); // too short and ambiguous
+  });
+
+  test("the explainer takes a ref and a garbled incident ID that names its facility, and stores the solver's IDs", () => {
+    const facts = runFacts(snapshot);
+    const ctx = { facts, incident: facts.incidents.find((i) => i.incidentId === C)!, outputs: { explanations: [], reviews: [] } };
+    const out = ROLES.plan_explainer.validate(ctx, { incidentId: "run-9696:pump_failure:S4_FACILITY_C:1793878500", presentFirstPlanId: "P1", explanation: "Truck haul is the option to present first." }) as ExplainerOutput;
+    expect([out.incidentId, out.presentFirstPlanId]).toEqual([C, "opt-C-1"]);
+    const valid = (incidentId: string, presentFirstPlanId: string) => (ROLES.plan_explainer.validate(ctx, { incidentId, presentFirstPlanId, explanation: "Truck haul is the option to present first." }) as ExplainerOutput).presentFirstPlanId;
+    expect(valid("run-0713d802507b4cfc", "recommended")).toBe("opt-C-1"); // truncated run part of the ID: still this incident
+    expect(valid("S4 C", "Do nothing")).toBe("opt-C-2");
+    expect(valid(C, "do_nothing")).toBe("opt-C-2");
+    expect(() => ROLES.plan_explainer.validate(ctx, { incidentId: C, presentFirstPlanId: "P3", explanation: "x" })).toThrow("P1 (Truck haul, recommended); P2 (Do nothing)");
+    expect(() => ROLES.plan_explainer.validate(ctx, { incidentId: A, presentFirstPlanId: "P1", explanation: "x" })).toThrow("incidentId must be");
+  });
+
+  test("handoff citations take refs, name what is unknown, and store the solver's IDs", () => {
+    const facts = runFacts(snapshot);
+    const ctx = { facts, outputs: { explanations: [], reviews: [] } };
+    const ev = facts.incidents[0]!.evidence[0]!.id;
+    const out = ROLES.handoff.validate(ctx, { handoff: "S4 A and S4 C pumps are down; S5 B has a leak to inspect.", evidenceIds: [ev], planIds: ["P1", "p3"] }) as HandoffOutput;
+    expect(out.planIds).toEqual(["opt-C-1", "opt-A-1"]);
+    expect(() => ROLES.handoff.validate(ctx, { handoff: "S4 C pump is down.", evidenceIds: [ev], planIds: ["PLAN_X"] })).toThrow("not found: PLAN_X; valid: P1, P2, P3, P4");
   });
 });
