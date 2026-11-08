@@ -66,7 +66,7 @@
 //                 observed every cycle (inductive; prove); 1 = {anyconst word A, S_OUT, B[0..3], VER};
 //                 2 = SH 1 + every word holding a W[k][i < N_FEAT]; 3 = SH 1 + the 4 words of anyconst column i (H7)
 //   FSET / WSET   assumed operand sets (real-multiplier tasks): 0 free; 2 {0, 1, -1, 32767, -32768};
-//                 3 (features) {0} + {2^j, j = 0..14}; 4 (features) {0, 1}
+//                 3 (features) {0} + {2^j, j = 0..14}; 4 (features) {0, 1}; 5 (features) {0, 1, -1}
 //   WR            1: writes and reads only touch shadowed words (bmc run time)
 //   MAX_INFLIGHT  records the DUT may hold (the spec does not bound it; 4 leaves room for a pipelined head)
 //   LAT_MAX       st_lat bound (spec: 128)
@@ -184,7 +184,8 @@ module fv_eog_head #(
     endfunction
 
     function automatic logic opnd_ok(input integer set, input logic [15:0] x);
-        opnd_ok = (set == 2) ? small5(x) : (set == 3) ? pos_p2(x) : (set == 4) ? (x == 16'd0 || x == 16'd1) : 1'b1;
+        opnd_ok = (set == 2) ? small5(x) : (set == 3) ? pos_p2(x) : (set == 4) ? (x == 16'd0 || x == 16'd1)
+                : (set == 5) ? (x == 16'd0 || x == 16'd1 || x == 16'hFFFF) : 1'b1;
     endfunction
 
     // window word holding W[k][i], and the half (0 = [15:0], 1 = [31:16])
