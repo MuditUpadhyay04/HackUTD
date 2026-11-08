@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { computeLayout, layoutKey, polyLength, type Box, type Pt, type SystemInput } from "./pipeview-layout";
+import { ARC_RADIUS, computeLayout, layoutKey, polyLength, roundCorners, type Box, type Pt, type SystemInput } from "./pipeview-layout";
+import { labelBoxes, pillTier, shortPill } from "./pipeview-labels";
 import { dotSpacing, fitCam, zoomAt } from "./pipeview-camera";
 
 const sys = (id: string, nf: number, nw: number): SystemInput => ({
@@ -17,20 +18,42 @@ function cross(a: Pt, b: Pt, c: Pt, d: Pt): boolean {
   return d1 * d2 < 0 && d3 * d4 < 0; // proper crossing only (shared endpoints and collinear touches are fine)
 }
 
-describe("computeLayout angles", () => {
-  test("every segment is 0, 45 or 90 degrees, none has zero length", () => {
+describe("computeLayout angles and arcs", () => {
+  const heading = (a: Pt, b: Pt) => Math.atan2(b[1] - a[1], b[0] - a[0]);
+  test("bends are smooth arcs: no zero-length chord, no heading jump above one arc step, headings stay within 45 degrees of the flow", () => {
     for (const n of [1, 2, 3, 8, 17, 32]) {
       for (const nw of [0, 1, 2, 5, 8]) {
         const l = computeLayout([sys("S1", n, nw), sys("S2", Math.max(1, n - 1), nw)]);
         for (const path of allPaths(l)) {
           for (let i = 1; i < path.length; i++) {
-            const dx = Math.abs(path[i][0] - path[i - 1][0]), dy = Math.abs(path[i][1] - path[i - 1][1]);
-            expect(dx + dy).toBeGreaterThan(0);
-            expect(dx === 0 || dy === 0 || Math.abs(dx - dy) < 1e-6).toBe(true);
+            const dx = path[i][0] - path[i - 1][0], dy = path[i][1] - path[i - 1][1];
+            expect(Math.hypot(dx, dy)).toBeGreaterThan(0);
+            expect(Math.abs(Math.atan2(dy, dx))).toBeLessThanOrEqual(Math.PI / 4 + 1e-6);
+            if (i > 1) {
+              let d = heading(path[i - 1], path[i]) - heading(path[i - 2], path[i - 1]);
+              d = Math.atan2(Math.sin(d), Math.cos(d));
+              expect(Math.abs(d)).toBeLessThanOrEqual(Math.PI / 4 / 3 + 1e-6); // a sampled 45 degree arc turns in at least 3 steps
+            }
           }
         }
       }
     }
+  });
+  test("long straight runs stay exactly horizontal or on a 45 degree diagonal", () => {
+    const l = computeLayout([sys("S1", 9, 6)]);
+    for (const path of allPaths(l)) for (let i = 1; i < path.length; i++) {
+      const dx = Math.abs(path[i][0] - path[i - 1][0]), dy = Math.abs(path[i][1] - path[i - 1][1]);
+      if (Math.hypot(dx, dy) > 20) expect(dy < 1e-6 || Math.abs(dx - dy) < 1e-6).toBe(true);
+    }
+  });
+  test("roundCorners keeps endpoints, cuts the corner inside the hull and rounds with about the requested radius", () => {
+    const r = roundCorners([[0, 0], [100, 0], [200, 100]], ARC_RADIUS);
+    expect(r[0]).toEqual([0, 0]);
+    expect(r[r.length - 1]).toEqual([200, 100]);
+    expect(r.length).toBeGreaterThan(3);
+    for (const p of r) expect(p[1]).toBeGreaterThanOrEqual(Math.max(0, p[0] - 100) - 1e-6); // inside the corner
+    expect(polyLength(r)).toBeLessThan(100 + Math.hypot(100, 100));
+    expect(roundCorners([[0, 0], [10, 0]])).toEqual([[0, 0], [10, 0]]);
   });
 });
 
@@ -119,6 +142,49 @@ describe("camera", () => {
       const px = dotSpacing(z) * z;
       expect(px).toBeGreaterThanOrEqual(22 - 1e-9);
       expect(px).toBeLessThan(44 + 1e-9);
+    }
+  });
+});
+
+describe("label lanes", () => {
+  const five = computeLayout([sys("S5", 5, 2)]);
+  const lines = five.clusters[0].lines;
+  const texts = ["Pump down 03:28", "Pump down 02:03", "Inspect 120 bbl/d", "Pump down, unknown", "Inspect pump"];
+  test("for a 5-facility system, pills and id labels never intersect each other at any zoom (tier picked from the pitch)", () => {
+    for (const z of [0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1, 1.6]) {
+      const tier = pillTier(five.minRowPitch * z);
+      const boxes = lines.map((l, i) => labelBoxes(l, z, texts[i], tier));
+      const all = boxes.flatMap((b, i) => [b.id && { k: `id${i}`, b: b.id }, b.pill && { k: `pill${i}`, b: b.pill }]).filter((x): x is { k: string; b: Box } => !!x);
+      for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+        expect(overlap(all[i].b, all[j].b)).toBe(false);
+      }
+    }
+  });
+  test("each pill sits to the right of its own pump station, on its own row", () => {
+    const z = 0.6;
+    lines.forEach((l, i) => {
+      const { pill } = labelBoxes(l, z, texts[i], "full");
+      expect(pill!.x0).toBeGreaterThan(l.pump[0] * z);
+      expect((pill!.y0 + pill!.y1) / 2).toBeCloseTo(l.rowY * z);
+    });
+  });
+  test("tiers shrink as rows get tighter and the short form keeps the state word", () => {
+    expect(pillTier(72)).toBe("full");
+    expect(pillTier(34)).toBe("short");
+    expect(pillTier(22)).toBe("mini");
+    expect(pillTier(10)).toBe("none");
+    expect(shortPill("Pump down 03:28")).toBe("Down 03:28");
+    expect(shortPill("Inspect 120 bbl/d").length).toBeLessThan("Inspect 120 bbl/d".length);
+  });
+  test("the grid wrap maximizes the padded fit scale for the measured pane", () => {
+    const systems = Array.from({ length: 5 }, (_, i) => sys(`S${i + 1}`, 3, 2));
+    const scaleOf = (l: ReturnType<typeof computeLayout>, w: number, h: number) =>
+      Math.min((w - 64) / (l.bounds.x1 - l.bounds.x0), (h - 64) / (l.bounds.y1 - l.bounds.y0));
+    for (const [w, h] of [[1350, 380], [900, 700], [400, 800]] as const) {
+      const best = scaleOf(computeLayout(systems, { w, h }), w, h);
+      for (const other of [[1350, 380], [900, 700], [400, 800], [3000, 200]] as const) {
+        expect(best).toBeGreaterThanOrEqual(scaleOf(computeLayout(systems, { w: other[0], h: other[1] }), w, h) - 1e-9);
+      }
     }
   });
 });

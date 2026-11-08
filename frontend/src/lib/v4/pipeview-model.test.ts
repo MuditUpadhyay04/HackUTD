@@ -26,65 +26,74 @@ const snap = (f: FacilityState, alerts: Incident[] = [], board?: Snapshot["board
 });
 
 describe("lineViewAt state encoding", () => {
-  test("flowing shows flow in the single label slot and flow motion", () => {
+  test("flowing carries the flow text and flow motion", () => {
     const f = fac();
     const vm = lineViewAt(snap(f), f, NOW);
     expect(vm.status).toBe("flowing");
     expect(vm.motion).toBe("flow");
-    expect(vm.slot).toBe("100 BPD");
+    expect(vm.flowText).toBe("100 bpd");
+    expect(vm.problem).toBe(false);
+    expect(vm.pillText).toBe("");
     expect(vm.flowRatio).toBe(0.5);
   });
-  test("idle: no motion, IDLE", () => {
+  test("idle: no motion, Idle, not a problem", () => {
     const f = fac({}, Array(8).fill(50), Array(8).fill(0));
     const vm = lineViewAt(snap(f), f, NOW);
     expect(vm.status).toBe("idle");
     expect(vm.motion).toBe("none");
-    expect(vm.slot).toBe("IDLE");
+    expect(vm.stateText).toBe("Idle");
+    expect(vm.problem).toBe(false);
   });
-  test("pump down: red, no packets, countdown, unknown stays UNKNOWN", () => {
+  test("pump down: red, no packets, countdown, unknown stays unknown", () => {
     const f = fac();
     const down = inc({ id: "i1", category: "pump_failure", hoursToLimit: { p10: 10, p50: 13.85, p90: 20 } });
     const vm = lineViewAt(snap(f, [down]), f, NOW);
     expect(vm.status).toBe("down");
     expect(vm.redOn).toBe(true);
     expect(vm.motion).toBe("none");
-    expect(vm.stateText).toBe("SHUTDOWN 13:51");
+    expect(vm.stateText).toBe("Pump down, shutdown in 13:51");
+    expect(vm.pillText).toBe("Pump down 13:51");
+    expect(vm.problem).toBe(true);
     const unk = lineViewAt(snap(f, [inc({ id: "i2", category: "pump_failure", hoursToLimit: null })]), f, NOW);
-    expect(unk.stateText).toBe("SHUTDOWN UNKNOWN");
+    expect(unk.stateText).toBe("Pump down, shutdown time unknown");
   });
   test("leak and worn: hatch, inspect text, packets still move", () => {
     const f = fac();
     const leak = lineViewAt(snap(f, [inc({ id: "l", category: "pipeline_leak", estLeakBblPerDay: 120 })]), f, NOW);
     expect(leak.hatchPipe).toBe(true);
     expect(leak.motion).toBe("leak");
-    expect(leak.stateText).toBe("INSPECT 120 BBL/D EST");
-    expect(leak.slot.length).toBeLessThanOrEqual(20);
+    expect(leak.stateText).toBe("Inspect, leak about 120 bbl/d");
+    expect(leak.pillText).toBe("Inspect 120 bbl/d");
+    expect(leak.problem).toBe(true);
     const worn = lineViewAt(snap(f, [inc({ id: "w", category: "pump_degradation", capacityLossPct: 18 })]), f, NOW);
     expect(worn.hatchPump).toBe(true);
     expect(worn.motion).toBe("worn");
-    expect(worn.stateText).toBe("INSPECT 18% CAP LOSS");
+    expect(worn.stateText).toBe("Inspect, 18% capacity loss");
   });
   test("shut in: grey wells", () => {
     const f = fac();
     const vm = lineViewAt(snap(f, [inc({ id: "s", category: "facility_shut_in" })]), f, NOW);
     expect(vm.wellsGrey).toBe(true);
-    expect(vm.stateText).toBe("SHUT IN");
+    expect(vm.stateText).toBe("Shut in");
+    expect(vm.problem).toBe(true);
   });
-  test("missing data is never healthy: grain, NO DATA, no packets", () => {
+  test("missing data is never healthy: grain, No data, no packets", () => {
     const f = fac({ dataQuality: { quality: "DROPPED", reasons: ["Tank level not reported for 35 min"] } }, Array(7).fill(50).concat([null]), Array(7).fill(100).concat([null]));
     const vm = lineViewAt(snap(f), f, NOW);
     expect(vm.status).toBe("nodata");
     expect(vm.q).toBe(3);
     expect(vm.motion).toBe("none");
-    expect(vm.stateText).toBe("NO DATA");
-    expect(vm.reasonText).toBe("TANK LEVEL NOT REPORTED FOR 35 MIN");
-    expect(vm.tankText).toBe("UNKNOWN");
+    expect(vm.stateText).toBe("No data");
+    expect(vm.pillText).toBe("No data");
+    expect(vm.problem).toBe(true);
+    expect(vm.reasonText).toBe("Tank level not reported for 35 min");
+    expect(vm.tankText).toBe("Unknown");
   });
-  test("HELD data renders as grain level 1 with HELD text", () => {
+  test("HELD data renders as grain level 1 with Held text", () => {
     const f = fac({ dataQuality: { quality: "HELD", reasons: ["held"] } });
     const vm = lineViewAt(snap(f), f, NOW);
     expect(vm.q).toBe(1);
-    expect(vm.stateText.startsWith("HELD")).toBe(true);
+    expect(vm.stateText.startsWith("Held")).toBe(true);
     expect(vm.motion).toBe("none");
   });
   test("board alarm is a display-only badge with text for the tooltip", () => {
@@ -92,8 +101,16 @@ describe("lineViewAt state encoding", () => {
     const board = { source: "live", provenance: "fpga", online: true, mode: "NORMAL", lastSeenUnix: NOW, weightsVersion: 4, autonomousSinceUnix: null, replayedAlerts: 0,
       facilities: [{ facilityId: f.id, updatedUnix: NOW, scores: null, overThreshold: [], source: "rule", sinceReset: 1, alarm: "e_stop", alarmState: "raised", alarmSinceUnix: NOW - 600, replayed: false, degradationTrend: null }] } as Snapshot["board"];
     const vm = lineViewAt(snap(f, [], board), f, NOW);
-    expect(vm.alarm?.text).toBe("E-STOP (BOARD, DISPLAY ONLY)");
+    expect(vm.alarm?.text).toBe("E-stop (board, display only)")
+    expect(vm.problem).toBe(true);
     expect(lineViewAt(snap(f, [], board), f, NOW - 1200).alarm).toBeNull();
+  });
+  test("no on-canvas text is ALL CAPS", () => {
+    const f = fac();
+    for (const alerts of [[], [inc({ id: "l", category: "pipeline_leak" })], [inc({ id: "d", category: "pump_failure", hoursToLimit: { p10: 10, p50: 13.85, p90: 20 } })]]) {
+      const vm = lineViewAt(snap(f, alerts), f, NOW);
+      for (const t of [vm.stateText, vm.pillText, vm.flowText, vm.tankText, vm.etaText ?? ""]) expect(/[A-Z]{3,}/.test(t)).toBe(false);
+    }
   });
   test("strings never contain middle dots or em dashes", () => {
     const f = fac();

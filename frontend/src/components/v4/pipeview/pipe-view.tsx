@@ -7,13 +7,14 @@ import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, 
 import type { FacilityState, Snapshot, SystemState } from "@/lib/engine/types";
 import { isProjected, lineColor, projectionFollowing, type Following } from "@/lib/v4/derive";
 import { bpd } from "@/lib/v4/format";
+import { pillTier } from "@/lib/v4/pipeview-labels";
 import { dotSpacing, fitCam, lodAt, zoomAt, type Cam } from "@/lib/v4/pipeview-camera";
 import { computeLayout, layoutKey, type Box, type ClusterLayout, type PipeLayout, type SystemInput } from "@/lib/v4/pipeview-layout";
 import { makeLineSelector, type LineVM } from "@/lib/v4/pipeview-model";
 import { introSeen, markIntroSeen, reducedMotion, trackInputModality } from "@/lib/v4/pipeview-motion";
 import { usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
 import { LineView } from "./line-view";
-import { PacketEngine, type PacketLine } from "./packets";
+import { lighten, PacketEngine, type PacketLine } from "./packets";
 import { PvDefs } from "./pv-defs";
 import "./pipe-view.css";
 
@@ -21,11 +22,16 @@ const EASE_IN_OUT = "cubic-bezier(0.77, 0, 0.175, 1)";
 const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 // ---- layout memo (single entry: layout depends only on order and counts) ----------------------------------
-let cached: { key: string; layout: PipeLayout } | null = null;
-function layoutFor(snapshot: Snapshot, targetAspect?: number): { key: string; layout: PipeLayout } {
+let cached: { key: string; sig: string; req: string; layout: PipeLayout } | null = null;
+function layoutFor(snapshot: Snapshot, pane?: { w: number; h: number }): { key: string; layout: PipeLayout } {
   const input: SystemInput[] = snapshot.systems.map((s) => ({ id: s.id, facilities: s.facilities.map((f) => ({ id: f.id, wellIds: f.wells.map((w) => w.id) })) }));
-  const key = `${layoutKey(input)}@${targetAspect ?? "default"}`;
-  if (!cached || cached.key !== key) cached = { key, layout: targetAspect == null ? computeLayout(input) : computeLayout(input, targetAspect) };
+  const key = layoutKey(input);
+  const req = `${key}@${pane ? `${pane.w}x${pane.h}` : "default"}`;
+  if (cached?.req === req) return cached;
+  const lay = pane ? computeLayout(input, pane) : computeLayout(input);
+  // The pane size only changes which grid wrap wins: keep the previous object when the placement is identical.
+  const sig = `${key}@${lay.clusters.map((c) => c.origin.join(",")).join(";")}`;
+  cached = cached && cached.sig === sig ? { ...cached, req } : { key: req, sig, req, layout: lay };
   return cached;
 }
 
@@ -44,55 +50,62 @@ function TipCard({ snapshot, facility, color, instant }: { snapshot: Snapshot; f
     const id = requestAnimationFrame(() => { el.dataset.state = "open"; });
     return () => { cancelAnimationFrame(id); lastTipClosed = performance.now(); };
   }, []);
-  const row = (k: string, v: string, tone?: string) => <div className="pv-tr" data-tone={tone} key={k}><span>{k}</span><b>{v}</b></div>;
+  const row = (k: string, v: string, tone?: string, num?: boolean) => <div className="pv-tr" data-tone={tone} key={k}><span>{k}</span><b className={num ? "num" : undefined}>{v}</b></div>;
   return (
     <div className="tip" ref={cardRef} data-state={instant ? "open" : "closed"} data-instant={instant} style={{ "--c": color } as React.CSSProperties}>
       <div className="pv-th">{facility.id}</div>
-      {row("STATE", vm.stateText || "FLOWING", vm.tone === "down" ? "down" : vm.tone === "inspect" ? "inspect" : undefined)}
-      {row("TANK", vm.tankText)}
-      {row("PUMP FLOW", vm.flowBpd == null ? "UNKNOWN" : bpd(vm.flowBpd))}
-      {row("RECEIVE", vm.receiveBpd == null ? "UNKNOWN" : bpd(vm.receiveBpd))}
-      {row("WELLS", String(facility.wells.length))}
-      {vm.q > 0 && row("QUALITY", vm.quality)}
-      {vm.reasonText && row("REASON", vm.reasonText)}
-      {vm.alarm && row("BOARD", vm.alarm.text, "alarm")}
-      {vm.etaText && <><div className="pv-tr"><span>SHUTDOWN</span><b>{vm.etaText}</b></div><div className="pv-band" aria-hidden="true" /><div className="pv-tn">ESTIMATE, P10 TO P90</div></>}
+      {row("State", vm.stateText || "Flowing", vm.tone === "down" ? "down" : vm.tone === "inspect" ? "inspect" : undefined)}
+      {row("Tank", vm.tankText, undefined, true)}
+      {row("Pump flow", vm.flowBpd == null ? "Unknown" : bpd(vm.flowBpd), undefined, true)}
+      {row("Receive", vm.receiveBpd == null ? "Unknown" : bpd(vm.receiveBpd), undefined, true)}
+      {row("Wells", String(facility.wells.length), undefined, true)}
+      {vm.q > 0 && row("Quality", sentenceCase(vm.quality))}
+      {vm.reasonText && row("Reason", vm.reasonText)}
+      {vm.alarm && row("Board", vm.alarm.text, "alarm")}
+      {vm.etaText && <><div className="pv-tr"><span>Shutdown range</span><b className="num">{vm.etaText}</b></div><div className="pv-band" aria-hidden="true" /><div className="pv-tn">Estimate, p10 to p90</div></>}
     </div>
   );
 }
 
+const sentenceCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+
 // ---- static cluster chrome ---------------------------------------------------------------------------------
 const ClusterChrome = memo(function ClusterChrome({ cluster, system }: { cluster: ClusterLayout; system: SystemState }) {
   const { x, y, r } = cluster.terminus;
-  const psi = Number.isFinite(system.disposal.pressurePsi) ? `${Math.round(system.disposal.pressurePsi)} PSI` : "";
+  const psi = Number.isFinite(system.disposal.pressurePsi) ? `${Math.round(system.disposal.pressurePsi)} psi` : "";
   return (
     <g className="pv-cluster" data-sys={cluster.systemId}>
       <g transform={`translate(${cluster.titleAt[0]} ${cluster.titleAt[1]})`}>
         <g className="cs">
-          <text className="lbl sys" x={0} y={0}>{system.id} SYSTEM</text>
-          <text className="lbl dim" x={0} y={13}>{system.facilities.length} FACILITIES, FLEET {system.fleetSize}</text>
+          <text className="lbl sys" x={0} y={0}>System {system.id}</text>
+          <text className="lbl dim" x={0} y={14}>{system.facilities.length} {system.facilities.length === 1 ? "facility" : "facilities"}, fleet {system.fleetSize}</text>
         </g>
       </g>
-      <circle className="pv-tring" cx={x} cy={y} r={r} vectorEffect="non-scaling-stroke" />
-      <circle className="pv-tring" cx={x} cy={y} r={Math.max(4, r - 6)} vectorEffect="non-scaling-stroke" />
-      <g transform={`translate(${x} ${y + r + 8})`}>
+      {/* Disposal: a soft double ring */}
+      <circle className="pv-tring outer" cx={x} cy={y} r={r} vectorEffect="non-scaling-stroke" />
+      <circle className="pv-tring inner" cx={x} cy={y} r={Math.max(4, r - 7)} vectorEffect="non-scaling-stroke" />
+      <g transform={`translate(${x} ${y + r + 8})`} className="pv-detail">
         <g className="cs">
-          <text className="lbl dim" x={0} y={8} textAnchor="middle">DISPOSAL {system.disposal.id}</text>
-          {psi && <text className="lbl num" x={0} y={20} textAnchor="middle">{psi}</text>}
+          <text className="lbl dim" x={0} y={8} textAnchor="middle">Disposal {system.disposal.id}</text>
+          {psi && <text className="lbl num" x={0} y={21} textAnchor="middle">{psi}</text>}
         </g>
       </g>
     </g>
   );
 });
 
+// Fallbacks are the soft palette from the soften spec (1b), used only if the CSS variables are not available.
+const N_FALLBACK = ["#7FD3E6", "#B5DC72", "#A79DEE", "#82A8F2", "#72D9B3", "#9FD0C8", "#C9A3E2", "#D9D38A"];
 function pxColor(root: HTMLElement, v: string): string {
   const name = /var\((--[\w-]+)\)/.exec(v)?.[1];
-  return name ? getComputedStyle(root).getPropertyValue(name).trim() || "#2CE5FF" : v;
+  if (!name) return v;
+  const n = /^--n([1-8])$/.exec(name);
+  return getComputedStyle(root).getPropertyValue(name).trim() || (n ? N_FALLBACK[Number(n[1]) - 1] : N_FALLBACK[0]);
 }
 
-const FOLLOWING_TEXT: Record<Following, string> = { approved: "APPROVED PLAN", do_nothing: "DO NOTHING", unknown: "NO CURVE, LEVEL HELD" };
+const FOLLOWING_TEXT: Record<Following, string> = { approved: "Following the approved plan", do_nothing: "Following do nothing", unknown: "No curve, level held" };
 
-/** Slim top-left overlay while the playhead is in the PROJECTED zone (hard rules 6 and 12). */
+/** One soft amber pill, top-left inside the card, while the playhead is in the PROJECTED zone (hard rules 6 and 12). */
 function ProjectionBadge({ snapshot }: { snapshot: Snapshot }) {
   const key = usePlayhead((s) => (isProjected(snapshot, s.t) ? projectionFollowing(snapshot, s.approved).map((f) => `${f.systemId}:${f.following}`).join(",") : null));
   if (key == null) return null;
@@ -100,8 +113,8 @@ function ProjectionBadge({ snapshot }: { snapshot: Snapshot }) {
   return (
     <div className="pv-proj" role="status" aria-label="Projection, not recorded">
       {rows.length <= 1
-        ? <div>PROJECTION, NOT RECORDED. FOLLOWING: {rows[0] ? FOLLOWING_TEXT[rows[0].f] : "NO FAILURE"}</div>
-        : rows.map((r) => <div key={r.id}>PROJECTION, NOT RECORDED. {r.id} FOLLOWING: {FOLLOWING_TEXT[r.f]}</div>)}
+        ? <div>Projection, not recorded. {rows[0] ? FOLLOWING_TEXT[rows[0].f] : "No failure to follow"}</div>
+        : rows.map((r) => <div key={r.id}>Projection, not recorded. {r.id}: {FOLLOWING_TEXT[r.f].toLowerCase()}</div>)}
     </div>
   );
 }
@@ -112,9 +125,9 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   const { setFocus } = usePlayheadActions();
   const focus = usePlayhead((s) => s.focus);
   const projected = usePlayhead((s) => isProjected(snapshot, s.t));
-  // Real pane aspect (width/height), quantized to 0.25 so a window drag does not relayout on every pixel.
-  const [aspect, setAspect] = useState<number | null>(null);
-  const { key: lkey, layout } = layoutFor(snapshot, aspect ?? undefined);
+  // Measured pane size, quantized to 16 px so a window drag does not relayout on every pixel.
+  const [pane, setPane] = useState<{ w: number; h: number } | null>(null);
+  const { key: lkey, layout } = layoutFor(snapshot, pane ?? undefined);
   const engine = useState(() => new PacketEngine())[0];
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -122,11 +135,15 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   const worldRef = useRef<SVGGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
+  const minPitch = layout.minRowPitch;
+  const ready = pane !== null;
   const camRef = useRef<Cam>({ x: 0, y: 0, z: 1 });
   const sizeRef = useRef({ w: 0, h: 0 });
   const camState = useRef<{ z: number; lod: string; grain: SVGPatternElement[]; dots: SVGPatternElement | null }>({ z: Number.NaN, lod: "", grain: [], dots: null });
   const tween = useRef(0);
   const introRef = useRef<boolean | null>(null);
+  const [legendOpen, setLegendOpen] = useState(false);
+  const [legendInstant, setLegendInstant] = useState(false);
   const [tip, setTip] = useState<{ fid: string; instant: boolean } | null>(null);
   const tipPos = useRef({ x: 0, y: 0 });
 
@@ -142,8 +159,8 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
     const measure = () => {
       const r = root.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) return;
-      const q = Math.min(6, Math.max(0.5, Math.round((r.width / r.height) * 4) / 4));
-      setAspect((a) => (a === q ? a : q));
+      const w = Math.max(16, Math.round(r.width / 16) * 16), h = Math.max(16, Math.round(r.height / 16) * 16);
+      setPane((p) => (p && p.w === w && p.h === h ? p : { w, h }));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -164,6 +181,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
       for (const p of st.grain) p.setAttribute("patternTransform", p.dataset.grain === "hatch" ? `rotate(45) scale(${1 / c.z})` : `scale(${1 / c.z})`);
       const lod = lodAt(c.z);
       if (lod !== st.lod) { st.lod = lod; svg.dataset.lod = lod; }
+      svg.dataset.pill = pillTier(minPitch * c.z);
     }
     if (st.dots) {
       const sp = dotSpacing(c.z) * c.z;
@@ -172,7 +190,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
       st.dots.setAttribute("patternTransform", `translate(${c.x - 1} ${c.y - 1})`);
     }
     engine.redraw();
-  }, [engine]);
+  }, [engine, minPitch]);
 
   const goTo = useCallback((target: Cam, ms: number) => {
     cancelAnimationFrame(tween.current);
@@ -205,7 +223,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   // ---- mount: size, first fit, intro, packets ---------------------------------------------------------------
   useEffect(() => {
     const root = rootRef.current, svg = svgRef.current, canvas = canvasRef.current;
-    if (!root || !svg || !canvas || aspect === null) return; // wait for the measured aspect: one layout, one intro
+    if (!root || !svg || !canvas || !ready) return; // wait for the measured size: one layout, one intro
     const off = trackInputModality();
     const st = camState.current;
     st.z = Number.NaN;
@@ -216,7 +234,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
     const onMq = () => engine.setReduced(mq.matches);
     mq.addEventListener("change", onMq);
     const lines: PacketLine[] = layout.clusters.flatMap((c) => c.lines.map((l) => ({
-      id: l.facilityId, color: pxColor(root, lineColor(l.index)), up: l.up, down: l.down, leakS: l.leakS,
+      id: l.facilityId, color: lighten(pxColor(root, lineColor(l.index)), 0.15), up: l.up, down: l.down, leakS: l.leakS,
     })));
     engine.setLines(lines);
 
@@ -267,7 +285,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
       anims.forEach((a) => a.cancel());
       engine.detach();
     };
-  }, [lkey, layout, aspect, engine, uid, goTo, apply]);
+  }, [lkey, layout, ready, engine, uid, goTo, apply]);
 
   // Keyboard-originated camera commands from elsewhere (B3's global shortcuts) via a window event. Never animated.
   useEffect(() => {
@@ -411,7 +429,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   return (
     <div className="pv" ref={rootRef} data-projected={projected ? "true" : undefined} tabIndex={0} role="group" aria-label="Pipe View, network map" onKeyDown={onKeyDown}>
       <svg
-        className="pv-svg" ref={svgRef} data-lod="near"
+        className="pv-svg" ref={svgRef} data-lod="near" data-pill="full"
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
       >
         <PvDefs uid={uid} />
@@ -437,22 +455,28 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
       <canvas className="pv-canvas" ref={canvasRef} aria-hidden="true" />
       <ProjectionBadge snapshot={snapshot} />
       <div className="pv-hud">
-        <div className="pv-hint">DRAG PAN, CTRL SCROLL ZOOM, 0 FIT, 1 TO 9 FRAME SYSTEM</div>
-        <div className="pv-legend" aria-label="State encoding">
-          <span className="pv-lg"><i className="pv-sw" />FLOWING</span>
-          <span className="pv-lg"><i className="pv-sw idle" />IDLE</span>
-          <span className="pv-lg"><i className="pv-sw red" />PUMP DOWN</span>
-          <span className="pv-lg"><i className="pv-sw hatch" />INSPECT</span>
-          <span className="pv-lg"><i className="pv-sw dith" />NO DATA</span>
-          <span className="pv-lg"><i className="pv-sw alarm" />BOARD ALARM</span>
+        <div className="pv-legendwrap" data-open={legendOpen ? "true" : "false"} data-instant={legendInstant ? "true" : undefined}>
+          <button
+            type="button" className="pv-pill-btn press" aria-expanded={legendOpen} aria-controls={`${uid}-legend`}
+            onClick={(e) => { setLegendInstant(e.detail === 0); setLegendOpen((o) => !o); }}
+          >Legend</button>
+          <div className="pv-legend" id={`${uid}-legend`} role="group" aria-label="State encoding" aria-hidden={!legendOpen} inert={!legendOpen}>
+            <span className="pv-lg"><i className="pv-sw" />Flowing</span>
+            <span className="pv-lg"><i className="pv-sw idle" />Idle</span>
+            <span className="pv-lg"><i className="pv-sw red" />Pump down</span>
+            <span className="pv-lg"><i className="pv-sw hatch" />Inspect</span>
+            <span className="pv-lg"><i className="pv-sw dith" />No data</span>
+            <span className="pv-lg"><i className="pv-sw alarm" />Board alarm</span>
+            <span className="pv-hint">Drag to pan, ctrl scroll to zoom, 0 to fit, 1 to 9 to frame a system</span>
+          </div>
         </div>
         <div className="pv-zoom">
-          <button type="button" className="tp-btn press" aria-label="Zoom out" onClick={(e) => zoomBy(0.8, e.detail === 0 ? 0 : 240)}>-</button>
-          <button type="button" className="tp-btn press" aria-label="Fit all" onClick={(e) => frame(0, e.detail === 0 ? 0 : 240)}>FIT</button>
-          <button type="button" className="tp-btn press" aria-label="Zoom in" onClick={(e) => zoomBy(1.25, e.detail === 0 ? 0 : 240)}>+</button>
+          <button type="button" className="pv-zbtn press" aria-label="Zoom out" onClick={(e) => zoomBy(0.8, e.detail === 0 ? 0 : 240)}>-</button>
+          <button type="button" className="pv-zbtn press" aria-label="Fit all" onClick={(e) => frame(0, e.detail === 0 ? 0 : 240)}>Fit</button>
+          <button type="button" className="pv-zbtn press" aria-label="Zoom in" onClick={(e) => zoomBy(1.25, e.detail === 0 ? 0 : 240)}>+</button>
         </div>
       </div>
-      {empty && <div className="pv-empty"><span className="label">NO SYSTEMS IN THIS RUN</span></div>}
+      {empty && <div className="pv-empty"><span className="label">No systems in this run</span></div>}
       {tip && tipInfo && (
         <div className="pv-tipwrap" ref={tipRef} key={tip.fid}>
           <TipCard snapshot={snapshot} facility={tipInfo.facility} color={tipColor} instant={tip.instant} />

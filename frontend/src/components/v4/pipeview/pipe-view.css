@@ -1,7 +1,7 @@
-/* Pipe View styles. Scoped under .v4 .pv. Tokens come from app/v4.css (brief sections 3 and 4). */
-.v4 .pv { position: absolute; inset: 0; overflow: hidden; background: var(--bg); outline: none; }
-.v4 .pv:focus-visible::after { content: ""; position: absolute; inset: 0; border: 2px solid var(--amber); pointer-events: none; }
-.v4 .pv-svg, .v4 .pv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* Pipe View styles (soften pass). Scoped under .v4 .pv. Tokens come from app/v4.css; fallbacks are the 1b values. */
+.v4 .pv { position: absolute; inset: 0; overflow: hidden; border-radius: var(--r-lg, 14px); background: var(--panel, #23201D); outline: none; isolation: isolate; }
+.v4 .pv:focus-visible::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 2px solid var(--amber, #FFB400); pointer-events: none; }
+.v4 .pv-svg, .v4 .pv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; border-radius: inherit; }
 .v4 .pv-svg { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .v4 .pv-svg[data-drag="1"] { cursor: grabbing; }
 .v4 .pv-canvas { pointer-events: none; }
@@ -10,38 +10,42 @@
 .v4 .pv .cs { transform: scale(var(--iz, 1)); }
 .v4 .pv .gs { transform: scale(var(--gz, 1)); }
 
-.v4 .pv .lbl { font: 400 9px var(--font-mono); fill: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; user-select: none; pointer-events: none; }
-.v4 .pv .lbl.id { fill: var(--text); font-weight: 500; }
-.v4 .pv .lbl.num { fill: var(--text); }
-.v4 .pv .lbl.well { fill: var(--faint); }
-.v4 .pv .lbl.dim { fill: var(--faint); }
-.v4 .pv .lbl.sys { font: 500 11px var(--font-mono); fill: var(--text); }
-.v4 .pv .lbl.slot { fill: var(--muted); font-weight: 500; }
-.v4 .pv .pv-line[data-tone="down"] .slot { fill: var(--red); }
-.v4 .pv .pv-line[data-tone="inspect"] .slot { fill: var(--magenta); }
-.v4 .pv .pv-line[data-tone="nodata"] .slot { fill: var(--text); }
-.v4 .pv .pv-line[data-k="flowing"][data-q="0"] .slot { fill: var(--text); }
+/* Type: sentence case, UI font; numbers in the number font. */
+.v4 .pv .lbl { font: 400 10.5px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); fill: var(--muted, #A39A8F); paint-order: stroke; stroke: var(--panel, #23201D); stroke-width: 3px; stroke-linejoin: round; user-select: none; pointer-events: none; }
+.v4 .pv .lbl.num, .v4 .pv .lbl.slot { font-family: var(--font-num, "Martian Mono", ui-monospace, monospace); font-variant-numeric: tabular-nums; }
+.v4 .pv .lbl.id { fill: var(--text, #E6E0D8); font-weight: 500; }
+.v4 .pv .lbl.num { fill: var(--text, #E6E0D8); }
+.v4 .pv .lbl.well { fill: var(--faint, #6F675F); }
+.v4 .pv .lbl.dim { fill: var(--faint, #6F675F); font-size: 10px; }
+.v4 .pv .lbl.sys { font-size: 13px; font-weight: 500; fill: var(--text, #E6E0D8); }
+.v4 .pv .lbl.slot { fill: var(--muted, #A39A8F); }
+.v4 .pv .pv-line[data-k="flowing"][data-q="0"] .slot { fill: var(--text, #E6E0D8); }
 
-/* Level of detail by zoom (set on the svg by the camera) */
+/* Less at once. Far: system titles, lines and pills only. Fit/mid: system titles, lines, and status pills for facilities with a problem;
+   flow numbers, well labels, tank % and ids appear on hover of that line or at near zoom. */
 .v4 .pv-svg[data-lod="far"] .lbl:not(.sys) { display: none; }
-/* mid: facility IDs only (state is carried by color and pattern); near: tank, flow or state and well IDs */
-.v4 .pv-svg[data-lod="mid"] :is(.lbl.num, .lbl.well, .lbl.slot) { display: none; }
+.v4 .pv .pv-detail { transition: opacity 150ms ease; }
+.v4 .pv-svg:not([data-lod="near"]) .pv-line:not([data-hl="on"]) .pv-detail { opacity: 0; }
+.v4 .pv-svg:not([data-lod="near"]) .pv-line[data-problem="1"]:not([data-hl="on"]) .pv-lbl-id { opacity: 1; }
+.v4 .pv-svg:not([data-lod="near"]) .pv-cluster > .pv-detail { opacity: 0; }
+/* Keyboard focus never animates */
+.v4 .pv:has(.pv-line:focus-visible) :is(.pv-line, .pv-detail) { transition: none; }
 
-/* Line states: color + pattern, switched by data attributes from the view model */
+/* Line states: color + pattern, switched by data attributes from the view model. Soft: round caps and joins, 85-90% tint, no glow. */
 .v4 .pv-line { cursor: pointer; outline: none; transition: opacity 150ms ease; }
-.v4 .pv-line polyline { fill: none; stroke-linejoin: round; stroke-linecap: butt; }
+.v4 .pv-line polyline { fill: none; stroke-linejoin: round; stroke-linecap: round; }
 .v4 .pv-line .vis { pointer-events: none; }
-.v4 .pv-line[data-hl="dim"] { opacity: 0.35; }
-.v4 .pv-wb, .v4 .pv-up, .v4 .pv-dn { stroke: var(--c); }
-.v4 .pv-wb { stroke-width: 2; } .v4 .pv-up { stroke-width: 3; } .v4 .pv-dn { stroke-width: 5; }
-.v4 .pv-wgrey { stroke: var(--faint); stroke-width: 2; stroke-dasharray: 3 3; }
-.v4 .pv-red { stroke: var(--red); stroke-width: 5; }
-.v4 .pv-hatch { stroke-width: 12; }
-.v4 .pv-dith { stroke-width: 5; }
-.v4 .pv-line[data-hl="on"] .pv-dn, .v4 .pv-line[data-hl="on"] .pv-red { stroke-width: 6.5; }
-.v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition: opacity 240ms var(--ease-out); }
+.v4 .pv-line[data-hl="dim"] { opacity: 0.3; }
+.v4 .pv-wb, .v4 .pv-up, .v4 .pv-dn { stroke: var(--c); stroke-opacity: 0.88; }
+.v4 .pv-wb { stroke-width: 1.8; } .v4 .pv-up { stroke-width: 2.6; } .v4 .pv-dn { stroke-width: 4; }
+.v4 .pv-wgrey { stroke: var(--faint, #6F675F); stroke-width: 1.8; stroke-dasharray: 3 4; }
+.v4 .pv-red { stroke: var(--red, #F0625A); stroke-opacity: 0.9; stroke-width: 4; }
+.v4 .pv-hatch { stroke-width: 11; stroke-linecap: round; }
+.v4 .pv-dith { stroke-width: 4; }
+.v4 .pv-line[data-hl="on"] .pv-dn, .v4 .pv-line[data-hl="on"] .pv-red { stroke-width: 5.2; }
+.v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-red, .v4 .pv-hatch, .v4 .pv-dith, .v4 .pv-wgrey { opacity: 0; }
-.v4 .pv-line[data-k="idle"] :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0.4; }
+.v4 .pv-line[data-k="idle"] :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0.35; }
 .v4 .pv-line[data-red="1"] .pv-dn { opacity: 0; }
 .v4 .pv-line[data-red="1"] .pv-red { opacity: 1; }
 .v4 .pv-line[data-k="shut"] .pv-wb { opacity: 0; }
@@ -50,63 +54,96 @@
 .v4 .pv-line[data-q="1"] .pv-d1, .v4 .pv-line[data-q="2"] .pv-d2, .v4 .pv-line[data-q="3"] .pv-d3 { opacity: 1; }
 .v4 .pv-line:not([data-q="0"]) :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0; }
 
-/* Stations */
-.v4 .pv-wt { fill: var(--bg); stroke: var(--c); stroke-width: 1.6; }
-.v4 .pv-line[data-k="shut"] .pv-wt { stroke: var(--faint); }
+/* Stations: rounded glyphs */
+.v4 .pv-wt { fill: var(--panel, #23201D); stroke: var(--c); stroke-width: 1.5; }
+.v4 .pv-line[data-k="shut"] .pv-wt { stroke: var(--faint, #6F675F); }
 .v4 .pv-line:not([data-q="0"]) .gs { opacity: 0.6; }
-.v4 .pv-tbody { fill: var(--bg); stroke: var(--c); stroke-width: 1.6; }
-.v4 .pv-tfill { fill: var(--c); transform-box: fill-box; transform-origin: 50% 100%; transition: transform 240ms var(--ease-out), opacity 240ms var(--ease-out); }
+.v4 .pv-tbody { fill: var(--panel, #23201D); stroke: var(--c); stroke-opacity: 0.9; stroke-width: 1.5; }
+.v4 .pv-tfill { fill: var(--c); fill-opacity: 0.8; transform-box: fill-box; transform-origin: 50% 100%; transition: transform 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)), opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-line[data-gauge="none"] .pv-tfill { opacity: 0; }
-.v4 .pv-tlimit { fill: var(--red); }
-.v4 .pv-ring, .v4 .pv-pulse { fill: none; stroke: var(--red); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
-.v4 .pv-ring { transition: opacity 240ms var(--ease-out); }
-.v4 .pv-line[data-red="1"] .pv-ring { opacity: 1; }
-.v4 .pv-badge { fill: var(--amber); opacity: 0; }
+.v4 .pv-tlimit { fill: var(--red, #F0625A); }
+.v4 .pv-ring, .v4 .pv-pulse { fill: none; stroke: var(--red, #F0625A); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.v4 .pv-ring { transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
+.v4 .pv-line[data-red="1"] .pv-ring { opacity: 0.9; }
+.v4 .pv-badge { fill: var(--amber, #FFB400); opacity: 0; }
 .v4 .pv-line[data-alarm="1"] .pv-badge { opacity: 1; }
-.v4 .pv-pring { fill: none; stroke-width: 3; opacity: 0; transition: opacity 240ms var(--ease-out); }
+.v4 .pv-pring { fill: none; stroke-width: 3; opacity: 0; transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-line[data-k="worn"][data-q="0"] .pv-pring { opacity: 1; }
-.v4 .pv-pbody { fill: var(--bg); stroke: var(--c); stroke-width: 1.6; }
-.v4 .pv-pglyph { fill: var(--c); }
-.v4 .pv-line[data-red="1"] .pv-pbody { stroke: var(--red); }
-.v4 .pv-line[data-red="1"] .pv-pglyph { fill: var(--red); }
-.v4 .pv-line:focus-visible .pv-tbody { stroke: var(--amber); stroke-width: 2.5; }
-.v4 .pv-line:focus-visible .pv-pbody { stroke: var(--amber); stroke-width: 2.5; }
-.v4 .pv-hit polyline { stroke: transparent; stroke-width: 18; pointer-events: stroke; }
-.v4 .pv-tring { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.v4 .pv-pbody { fill: var(--panel, #23201D); stroke: var(--c); stroke-opacity: 0.9; stroke-width: 1.5; }
+.v4 .pv-pglyph { fill: var(--c); stroke: var(--c); stroke-width: 1.6; stroke-linejoin: round; }
+.v4 .pv-line[data-red="1"] .pv-pbody { stroke: var(--red, #F0625A); }
+.v4 .pv-line[data-red="1"] .pv-pglyph { fill: var(--red, #F0625A); stroke: var(--red, #F0625A); }
+.v4 .pv-line:focus-visible .pv-tbody, .v4 .pv-line:focus-visible .pv-pbody { stroke: var(--amber, #FFB400); stroke-width: 2.4; }
+.v4 .pv-hit polyline { stroke: transparent; stroke-width: 18; stroke-linecap: round; pointer-events: stroke; }
+/* Disposal: soft double ring */
+.v4 .pv-tring { fill: none; stroke: var(--muted, #A39A8F); }
+.v4 .pv-tring.outer { stroke-width: 1.5; stroke-opacity: 0.45; }
+.v4 .pv-tring.inner { stroke-width: 1; stroke-opacity: 0.28; }
 
-/* HUD */
-.v4 .pv-hud { position: absolute; inset: 0; pointer-events: none; font: 400 9px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
-.v4 .pv-legend { position: absolute; left: 10px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-1); }
-.v4 .pv-lg { display: inline-flex; align-items: center; gap: 5px; }
-.v4 .pv-sw { display: inline-block; width: 16px; height: 5px; background: var(--n1); }
-.v4 .pv-sw.idle { opacity: 0.4; }
-.v4 .pv-sw.red { background: var(--red); }
-.v4 .pv-sw.hatch { height: 8px; background-color: transparent; background-image: repeating-linear-gradient(135deg, var(--magenta) 0 1.5px, transparent 1.5px 4px); }
-.v4 .pv-sw.dith { background: var(--n1); -webkit-mask-image: var(--dither-mask-50); mask-image: var(--dither-mask-50); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
-.v4 .pv-sw.alarm { width: 7px; height: 7px; background: var(--amber); }
-.v4 .pv-zoom { position: absolute; right: 10px; bottom: 8px; display: flex; gap: 4px; pointer-events: auto; }
-.v4 .pv-hint { position: absolute; left: 10px; top: 8px; color: var(--faint); }
+/* Status pills (in the map): tinted background + small shape + sentence-case text */
+.v4 .pv-pillwrap { pointer-events: none; }
+/* Label lanes (screen px around the row line; keep in sync with LANES in lib/v4/pipeview-labels.ts) */
+.v4 .pv-svg .pv-idtext { transform: translateY(-14px); }
+.v4 .pv-svg[data-pill="short"] .pv-idtext { transform: translateY(-10px); }
+.v4 .pv-svg[data-pill="mini"] .pv-lbl-id { display: none; }
+.v4 .pv-svg[data-pill="full"] .pv-pill-short, .v4 .pv-svg[data-pill="short"] .pv-pill-full, .v4 .pv-svg[data-pill="mini"] .pv-pill-full { display: none; }
+.v4 .pv-svg[data-pill="none"] .pv-pillwrap { display: none; }
+.v4 .pv-pbg { fill: var(--panel, #23201D); }
+.v4 .pv-ptint { fill: var(--tint-neutral, rgba(255, 240, 225, 0.06)); }
+.v4 .pv-ptext { font: 500 10.5px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); fill: var(--text, #E6E0D8); font-variant-numeric: tabular-nums; }
+.v4 .pv-pshape { fill: var(--muted, #A39A8F); }
+.v4 .pv-pshape .ring { fill: none; stroke: var(--text, #E6E0D8); stroke-width: 1.4; }
+.v4 .pv-line[data-tone="down"] .pv-ptint { fill: var(--tint-red, rgba(240, 98, 90, 0.16)); }
+.v4 .pv-line[data-tone="down"] :is(.pv-ptext, .pv-pshape) { fill: var(--red, #F0625A); }
+.v4 .pv-line[data-tone="inspect"] .pv-ptint { fill: var(--tint-magenta, rgba(229, 106, 158, 0.15)); }
+.v4 .pv-line[data-tone="inspect"] :is(.pv-ptext, .pv-pshape) { fill: var(--magenta, #E56A9E); }
+.v4 .pv-line[data-tone="nodata"] .pv-pshape .ring { fill: none; }
+
+/* HUD: legend pill (collapsed by default) and zoom controls */
+.v4 .pv-hud { position: absolute; inset: 0; pointer-events: none; font: 400 11px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); color: var(--muted, #A39A8F); }
+.v4 .pv-legendwrap { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.v4 .pv-pill-btn, .v4 .pv-zbtn { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 10px; border: 1px solid var(--line, rgba(255, 240, 225, 0.07)); border-radius: var(--r-pill, 999px); background: var(--panel-2, #2B2824); color: var(--muted, #A39A8F); font: 500 11px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); cursor: pointer; }
+.v4 .pv-zbtn { min-width: 24px; }
+@media (hover: hover) and (pointer: fine) {
+  .v4 .pv-pill-btn:hover, .v4 .pv-zbtn:hover { background: var(--panel-3, #33302B); color: var(--text, #E6E0D8); }
+}
+.v4 .pv-pill-btn:focus-visible, .v4 .pv-zbtn:focus-visible { outline: 2px solid var(--amber, #FFB400); outline-offset: 1px; }
+.v4 .pv-legend { order: -1; display: flex; flex-wrap: wrap; gap: 6px 14px; max-width: 360px; padding: 10px 12px; background: var(--panel-2, #2B2824); border: 1px solid var(--line-2, rgba(255, 240, 225, 0.12)); border-radius: var(--r-lg, 14px); box-shadow: var(--shadow-pop, 0 12px 32px -12px rgba(0, 0, 0, 0.6));
+  opacity: 0; visibility: hidden; transform: scale(0.98); transform-origin: left bottom; transition: opacity 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)), transform 180ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)), visibility 0s linear 180ms; }
+.v4 .pv-legendwrap[data-open="true"] .pv-legend { opacity: 1; visibility: visible; transform: none; pointer-events: auto; transition-delay: 0s; }
+.v4 .pv-legendwrap[data-instant="true"] .pv-legend { transition: none; }
+.v4 .pv-lg { display: inline-flex; align-items: center; gap: 6px; }
+.v4 .pv-sw { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--n1, #7FD3E6); }
+.v4 .pv-sw.idle { opacity: 0.35; }
+.v4 .pv-sw.red { background: var(--red, #F0625A); }
+.v4 .pv-sw.hatch { height: 8px; background-color: transparent; background-image: repeating-linear-gradient(135deg, var(--magenta, #E56A9E) 0 1.5px, transparent 1.5px 4px); }
+.v4 .pv-sw.dith { background: var(--n1, #7FD3E6); -webkit-mask-image: var(--dither-mask-50); mask-image: var(--dither-mask-50); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+.v4 .pv-sw.alarm { width: 8px; height: 8px; border-radius: 3px; background: var(--amber, #FFB400); }
+.v4 .pv-hint { flex-basis: 100%; color: var(--faint, #6F675F); }
+.v4 .pv-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px; pointer-events: none; }
 .v4 .pv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 
 /* Tooltip */
 .v4 .pv-tipwrap { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; will-change: transform; }
-.v4 .pv-tipwrap .tip { min-width: 190px; max-width: 320px; padding: 8px 10px; background: var(--raised); border: 1px solid var(--line-2); border-radius: var(--r-2); font: 400 10px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+.v4 .pv-tipwrap .tip { min-width: 190px; max-width: 320px; padding: 10px 12px; background: var(--panel-2, #2B2824); border: 1px solid var(--line-2, rgba(255, 240, 225, 0.12)); border-radius: var(--r-md, 10px); box-shadow: var(--shadow-pop, 0 12px 32px -12px rgba(0, 0, 0, 0.6)); font: 400 12px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); }
 .v4 .pv-tipwrap .tip[data-instant="true"] { transition: none; }
-.v4 .pv-th { font-weight: 600; font-size: 11px; padding-bottom: 5px; margin-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--c, var(--text)); }
-.v4 .pv-tr { display: flex; justify-content: space-between; gap: 14px; padding: 1px 0; color: var(--muted); }
-.v4 .pv-tr b { font-weight: 500; color: var(--text); text-align: right; }
-.v4 .pv-tr[data-tone="down"] b { color: var(--red); }
-.v4 .pv-tr[data-tone="inspect"] b { color: var(--magenta); }
-.v4 .pv-tr[data-tone="alarm"] b { color: var(--amber); }
-.v4 .pv-band { height: 6px; margin-top: 6px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
-.v4 .pv-tn { margin-top: 3px; color: var(--faint); }
+.v4 .pv-th { font-weight: 500; font-size: 13px; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line, rgba(255, 240, 225, 0.07)); color: var(--c, var(--text)); }
+.v4 .pv-tr { display: flex; justify-content: space-between; gap: 14px; padding: 1px 0; color: var(--muted, #A39A8F); }
+.v4 .pv-tr b { font-weight: 500; color: var(--text, #E6E0D8); text-align: right; }
+.v4 .pv-tr b.num { font-family: var(--font-num, "Martian Mono", ui-monospace, monospace); font-variant-numeric: tabular-nums; }
+.v4 .pv-tr[data-tone="down"] b { color: var(--red, #F0625A); }
+.v4 .pv-tr[data-tone="inspect"] b { color: var(--magenta, #E56A9E); }
+.v4 .pv-tr[data-tone="alarm"] b { color: var(--amber, #FFB400); }
+.v4 .pv-band { height: 6px; margin-top: 6px; border-radius: 3px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .pv-tn { margin-top: 3px; color: var(--faint, #6F675F); }
 
 @media (prefers-reduced-motion: reduce) {
   .v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition-duration: 150ms; }
   .v4 .pv-tfill { transition: none; }
+  .v4 .pv-legend { transition-duration: 0s; }
 }
 
-/* PROJECTED zone: unmistakable amber frame plus a slim top-left label (what-if, never recorded telemetry). */
-.v4 .pv[data-projected="true"]::after { content: ""; position: absolute; inset: 0; pointer-events: none; border: 2px dashed var(--amber); opacity: 0.7; }
-.v4 .pv-proj { position: absolute; left: 8px; top: 8px; z-index: 3; display: flex; flex-direction: column; gap: 1px; padding: 2px 6px; pointer-events: none; font: 600 10px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background-color: var(--bg); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; border: 1px solid var(--amber); border-radius: var(--r-1); }
-.v4 .pv-proj > div { background: var(--bg); padding: 0 3px; }
+/* PROJECTED zone: a subtle rounded amber inner outline plus one soft amber pill (what-if, never recorded telemetry). */
+.v4 .pv[data-projected="true"]::after { content: ""; position: absolute; inset: 6px; border-radius: calc(var(--r-lg, 14px) - 6px); pointer-events: none; border: 1.5px dashed var(--amber, #FFB400); opacity: 0.3; }
+.v4 .pv-proj { position: absolute; left: 12px; top: 12px; z-index: 3; display: flex; flex-direction: column; gap: 2px; max-width: calc(100% - 24px); padding: 4px 12px; pointer-events: none; font: 500 12px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); color: var(--amber, #FFB400); background-color: var(--panel-2, #2B2824); background-image: linear-gradient(var(--tint-amber, rgba(255, 180, 0, 0.12)), var(--tint-amber, rgba(255, 180, 0, 0.12))); border-radius: var(--r-pill, 999px); }
+.v4 .pv-proj:has(> div + div) { border-radius: var(--r-md, 10px); }

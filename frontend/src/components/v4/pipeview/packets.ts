@@ -5,6 +5,19 @@ import { along, cumulative, type Pt } from "@/lib/v4/pipeview-layout";
 import type { Cam } from "@/lib/v4/pipeview-camera";
 import type { Motion } from "@/lib/v4/pipeview-model";
 
+/** Line color lightened by `amt` toward white (packets are the line tint plus ~15%). Accepts #rgb, #rrggbb or rgb(). */
+export function lighten(css: string, amt = 0.15): string {
+  let r = 127, g = 211, b = 230; // soft cyan fallback
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(css.trim());
+  const rgb = /^rgba?\(\s*([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/i.exec(css.trim());
+  if (hex) {
+    const h = hex[1].length === 3 ? hex[1].split("").map((c) => c + c).join("") : hex[1];
+    r = parseInt(h.slice(0, 2), 16); g = parseInt(h.slice(2, 4), 16); b = parseInt(h.slice(4, 6), 16);
+  } else if (rgb) { r = +rgb[1]; g = +rgb[2]; b = +rgb[3]; }
+  const m = (v: number) => Math.round(v + (255 - v) * amt);
+  return `rgb(${m(r)}, ${m(g)}, ${m(b)})`;
+}
+
 export interface PacketLine {
   id: string;
   color: string;
@@ -133,12 +146,12 @@ export class PacketEngine {
       }
       const sx = cam.x + x * cam.z, sy = cam.y + y * cam.z;
       if (sx < -8 || sy < -8 || sx > this.w + 8 || sy > this.h + 8) continue;
-      ctx.globalAlpha = a * 0.6;
+      // Small soft dot in the (lightened) line tint: no streak, no white head, no glow.
+      ctx.globalAlpha = a * 0.85;
       ctx.fillStyle = color;
-      ctx.fillRect(sx - 2 - Math.cos(p.ang) * 5, sy - 2 - Math.sin(p.ang) * 5, 4, 4);
-      ctx.globalAlpha = a;
-      ctx.fillStyle = "#F3EEE7"; // warm white head so packets read on top of their own neon line
-      ctx.fillRect(sx - 1.5, sy - 1.5, 3, 3);
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2.4, 0, Math.PI * 2);
+      ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
@@ -147,14 +160,19 @@ export class PacketEngine {
     const total = cum[cum.length - 1];
     const sp = Math.max(14, spacing);
     ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 1.4;
+    ctx.globalAlpha = 0.85;
     for (let s = sp / 2; s < total; s += sp) {
       const p = along(pts, cum, s);
       const sx = cam.x + p.x * cam.z, sy = cam.y + p.y * cam.z;
       if (sx < -8 || sy < -8 || sx > this.w + 8 || sy > this.h + 8) continue;
       ctx.save();
       ctx.translate(sx, sy); ctx.rotate(p.ang);
-      ctx.beginPath(); ctx.moveTo(3, 0); ctx.lineTo(-2.5, -3); ctx.lineTo(-2.5, 3); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(2.6, 0); ctx.lineTo(-2, -2.6); ctx.lineTo(-2, 2.6); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
+    ctx.globalAlpha = 1;
   }
 }

@@ -3,8 +3,8 @@ import type { FacilityState, Incident, PlanOption, Snapshot } from "@/lib/engine
 import { clampView, gridTicks, panView, timeToX, xToTime, zoomView } from "./arrangement-scale";
 import { curvePath, seriesGaps, seriesPath } from "./arrangement-paths";
 import { facilityClips, mergeGaps } from "./arrangement-clips";
-import { ongoingFailures, orderedFacilities, orderTakes, timeDomain, unloadedRegions } from "./arrangement-takes";
-import { notesFromAnalysis, provenanceOf, stackNotes } from "./arrangement-notes";
+import { ongoingFailures, orderedFacilities, orderTakes, splitTakes, timeDomain, unloadedRegions } from "./arrangement-takes";
+import { notesFromAnalysis, provenanceOf, sentenceCase, stackNotes } from "./arrangement-notes";
 
 const NOW = 1_000_000;
 const STEP = 300;
@@ -168,5 +168,20 @@ describe("notes", () => {
     expect(placed.map((p) => p.row)).toEqual([0, 1, 0]);
     expect(hidden).toHaveLength(1);
     expect(placed.find((p) => p.item.unix === 500)?.row).toBe(0);
+  });
+});
+
+describe("softened disclosure helpers", () => {
+  test("splitTakes shows the recommended take and do nothing, the rest behind a toggle", () => {
+    const takes = [opt("trucks", 1), opt("shut_in", 2), opt("do_nothing", 3), opt("mixed", 4)];
+    const { shown, rest } = splitTakes(takes);
+    expect(shown.map((t) => [t.index, t.option.kind])).toEqual([[0, "trucks"], [2, "do_nothing"]]);
+    expect(rest.map((t) => t.option.kind)).toEqual(["shut_in", "mixed"]);
+    expect(splitTakes([opt("do_nothing", 1), opt("trucks", 2)]).rest).toHaveLength(1);
+    expect(splitTakes([]).shown).toEqual([]);
+  });
+  test("sentenceCase", () => {
+    expect(sentenceCase("PLANNER_AGENT")).toBe("Planner agent");
+    expect(sentenceCase("handoff")).toBe("Handoff");
   });
 });

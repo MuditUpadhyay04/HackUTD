@@ -356,7 +356,7 @@ export function FacilityBlock({ facility, index, expanded, failure, onToggle, an
         <div className="arr-hdr track">
           <button type="button" className="arr-chev" aria-expanded={expanded} aria-label={`${expanded ? "Hide" : "Show"} lanes for ${name}`} onClick={onToggle} />
           <i className="arr-chip" aria-hidden />
-          <span className="arr-name">{name}</span>
+          <span className="arr-name" title={facility.id}>{name}</span>
           <FacilityReadout facility={facility} />
         </div>
         <div className="arr-lane"><Clips clips={clips} /></div>

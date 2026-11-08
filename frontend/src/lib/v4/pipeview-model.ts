@@ -29,8 +29,12 @@ export interface LineVM {
   hatchPipe: boolean;
   hatchPump: boolean;
   tone: Tone;
-  /** The single on-canvas label slot of the row (flow, or the state), already clipped. */
-  slot: string;
+  /** True when this facility needs attention (pump down, inspect, no data, shut in, board alarm): only these show a status pill at fit zoom. */
+  problem: boolean;
+  /** Short sentence-case text of the status pill (empty when there is no pill). */
+  pillText: string;
+  /** Pump flow label ("1,230 bpd"), shown on hover or at near zoom; empty when not flowing. */
+  flowText: string;
   /** Full state text for the tooltip. */
   stateText: string;
   tankText: string;
@@ -40,9 +44,13 @@ export interface LineVM {
   key: string;
 }
 
-export const SLOT_MAX = 20;
-const clip = (s: string, n = SLOT_MAX) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
-const clean = (s: string) => s.replace(/[·•—–]/g, ",").replace(/\s+/g, " ").trim().toUpperCase();
+export const PILL_MAX = 24;
+const clip = (s: string, n = PILL_MAX) => (s.length > n ? `${s.slice(0, n - 3)}...` : s);
+/** Sentence case: first letter up, the rest as written. Never ALL CAPS. */
+const sentence = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const clean = (s: string) => sentence(s.replace(/[·•—–]/g, ",").replace(/\s+/g, " ").trim());
+/** Countdown as h:mm; "unknown" (never a number) when there is no estimate. */
+const cd = (h: number | null | undefined) => (h == null || !Number.isFinite(h) ? "unknown" : countdownText(h));
 const round = (n: number | null, step: number): number | null => (n == null ? null : Math.round(n / step) * step);
 const Q_LEVEL: Record<Quality, QLevel> = { VALID: 0, HELD: 1, INVALID: 2, DROPPED: 3 };
 const STEP = 300;
@@ -74,20 +82,30 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number, ap
   const failInc = a.activeIncidents.find((i) => i.category === "pump_failure");
 
   let stateText = "";
+  let pillText = "";
   let tone: Tone = "none";
   let etaText: string | null = null;
   if (down && failInc) {
     const c = countdownAt(failInc, snapshot, t, approved);
     tone = "down";
-    if (c.kind === "counting") { stateText = `SHUTDOWN ${countdownText(c.remainingHours?.p50)}`; etaText = `P10 ${countdownText(c.remainingHours?.p10)} TO P90 ${countdownText(c.remainingHours?.p90)}`; }
-    else if (c.kind === "shut") stateText = "SHUTDOWN AT LIMIT";
-    else if (c.kind === "not_filling") stateText = "PUMP DOWN, NOT FILLING";
-    else if (c.kind === "averted") stateText = "PUMP DOWN, SHUTDOWN AVERTED";
-    else stateText = "SHUTDOWN UNKNOWN";
-  } else if (shut) { stateText = "SHUT IN"; tone = redOn ? "down" : "none"; }
-  else if (a.status === "leak") { tone = "inspect"; stateText = leakInc?.estLeakBblPerDay != null ? `INSPECT ${Math.round(leakInc.estLeakBblPerDay)} BBL/D EST` : "INSPECT LEAK"; }
-  else if (a.status === "worn") { tone = "inspect"; stateText = wornInc?.capacityLossPct != null ? `INSPECT ${Math.round(wornInc.capacityLossPct)}% CAP LOSS` : "INSPECT WORN PUMP"; }
-  else if (a.status === "idle") stateText = "IDLE";
+    if (c.kind === "counting") {
+      stateText = `Pump down, shutdown in ${cd(c.remainingHours?.p50)}`;
+      pillText = `Pump down ${cd(c.remainingHours?.p50)}`;
+      etaText = `p10 ${cd(c.remainingHours?.p10)} to p90 ${cd(c.remainingHours?.p90)}`;
+    } else if (c.kind === "shut") { stateText = "Shutdown at limit"; pillText = "Shut down"; }
+    else if (c.kind === "not_filling") { stateText = "Pump down, not filling"; pillText = "Pump down"; }
+    else if (c.kind === "averted") { stateText = "Pump down, shutdown averted"; pillText = "Pump down"; }
+    else { stateText = "Pump down, shutdown time unknown"; pillText = "Pump down, unknown"; }
+  } else if (shut) { stateText = "Shut in"; pillText = "Shut in"; tone = redOn ? "down" : "none"; }
+  else if (a.status === "leak") {
+    tone = "inspect";
+    stateText = leakInc?.estLeakBblPerDay != null ? `Inspect, leak about ${Math.round(leakInc.estLeakBblPerDay)} bbl/d` : "Inspect leak";
+    pillText = leakInc?.estLeakBblPerDay != null ? `Inspect ${Math.round(leakInc.estLeakBblPerDay)} bbl/d` : "Inspect leak";
+  } else if (a.status === "worn") {
+    tone = "inspect";
+    stateText = wornInc?.capacityLossPct != null ? `Inspect, ${Math.round(wornInc.capacityLossPct)}% capacity loss` : "Inspect worn pump";
+    pillText = wornInc?.capacityLossPct != null ? `Inspect ${Math.round(wornInc.capacityLossPct)}% loss` : "Inspect pump";
+  } else if (a.status === "idle") stateText = "Idle";
 
   // Data quality overrides the plain look: the line is grain, never healthy.
   // Projected time holds the last reading: staleness is measured at nowUnix, not at the projected t.
@@ -97,19 +115,18 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number, ap
   let reasonText: string | null = null;
   if (bad) {
     if (nearNow && fac.dataQuality.reasons.length > 0) reasonText = clean(fac.dataQuality.reasons[0]);
-    else reasonText = stale > 0 ? `NO READINGS ${stale} MIN` : "NO READINGS";
+    else reasonText = stale > 0 ? `No readings for ${stale} min` : "No readings";
     if (a.status === "nodata" || stateText === "") {
-      if (q === 1) stateText = `HELD ${Math.max(stale, 5)} MIN`;
-      else if (q === 2) stateText = "INVALID";
-      else stateText = "NO DATA";
+      if (q === 1) stateText = `Held ${Math.max(stale, 5)} min`;
+      else if (q === 2) stateText = "Invalid";
+      else stateText = "No data";
+      pillText = stateText;
       tone = "nodata";
     }
   }
 
   const flowBpd = round(a.pumpFlowBpd, 10);
-  let slot = stateText;
-  if (!bad && a.status === "flowing") slot = flowBpd != null ? `${flowBpd.toLocaleString("en-US")} BPD` : "";
-  slot = clip(slot);
+  const flowText = !bad && a.status === "flowing" && flowBpd != null ? `${flowBpd.toLocaleString("en-US")} bpd` : "";
 
   const max = Math.max(1, fac.pump.maxFlowBpd);
   const ratio = (v: number | null) => (v == null ? 0 : Math.round(Math.max(0, Math.min(1, v / max)) * 20) / 20);
@@ -124,8 +141,8 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number, ap
   const bf = snapshot.board?.facilities.find((f) => f.facilityId === fac.id);
   if (bf && bf.alarm !== "none" && bf.alarmState === "raised" && (bf.alarmSinceUnix == null || t >= bf.alarmSinceUnix)) {
     alarm = bf.alarm === "e_stop"
-      ? { kind: "e_stop", text: "E-STOP (BOARD, DISPLAY ONLY)" }
-      : { kind: "night_shift", text: "NIGHT SHIFT (BOARD, DISPLAY ONLY)" };
+      ? { kind: "e_stop", text: "E-stop (board, display only)" }
+      : { kind: "night_shift", text: "Night shift (board, display only)" };
   }
 
   const levelPct = a.levelPct == null ? null : Math.round(a.levelPct);
@@ -134,8 +151,9 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number, ap
     inflowBpd: round(a.inflowBpd, 10), receiveBpd: round(a.receiveFlowBpd, 10),
     flowRatio: ratio(a.pumpFlowBpd), inflowRatio: ratio(a.inflowBpd),
     motion, redOn, wellsGrey: shut, hatchPipe: a.status === "leak" && !bad, hatchPump: a.status === "worn" && !bad,
-    tone, slot, stateText: stateText || (a.status === "flowing" ? "FLOWING" : ""),
-    tankText: levelPct == null ? "UNKNOWN" : `${levelPct}%`, reasonText, etaText, alarm,
+    tone, problem: tone !== "none" || shut || bad || alarm != null, pillText: clip(pillText), flowText,
+    stateText: stateText || (a.status === "flowing" ? "Flowing" : ""),
+    tankText: levelPct == null ? "Unknown" : `${levelPct}%`, reasonText, etaText, alarm,
   };
   return { ...vm, key: JSON.stringify(vm) };
 }

@@ -1,4 +1,4 @@
-// Shared SVG defs for the Pipe View: dot grid, dissolve masks, gauge mask, dither strokes, hatches.
+// Shared SVG defs for the Pipe View: dot grid, dissolve masks, tank capsule clip, dither strokes, hatches.
 // Patterns marked data-grain are counter-scaled by the camera (see pipe-view.tsx) so grain stays constant on screen.
 import { memo } from "react";
 import { bayerCells, GRAIN_BY_Q } from "@/lib/v4/pipeview-dither";
@@ -12,7 +12,7 @@ function Defs({ uid }: { uid: string }) {
   return (
     <defs>
       <pattern id={`${uid}-dots`} patternUnits="userSpaceOnUse" width={28} height={28}>
-        <circle cx={1} cy={1} r={1} fill="rgba(255,238,214,0.22)" />
+        <circle cx={1} cy={1} r={1} style={{ fill: "var(--grid-dot, rgba(255,240,225,0.07))" }} />
       </pattern>
       {[0.25, 0.5, 0.75].map((lit, i) => (
         <g key={lit}>
@@ -22,20 +22,17 @@ function Defs({ uid }: { uid: string }) {
           </mask>
         </g>
       ))}
-      <pattern id={`${uid}-gp`} patternUnits="userSpaceOnUse" width={4} height={4}>{cells(0.55, 1, "#fff")}</pattern>
-      <mask id={`${uid}-gauge`} maskUnits="userSpaceOnUse" x={-10} y={-12} width={20} height={24}>
-        <rect x={-10} y={-12} width={20} height={24} fill={`url(#${uid}-gp)`} />
-      </mask>
+      <clipPath id={`${uid}-cap`}><rect x={-6} y={-10} width={12} height={20} rx={6} /></clipPath>
       {Array.from({ length: 8 }, (_, c) => [1, 2, 3].map((s) => (
         <pattern key={`${c}-${s}`} id={`${uid}-d-${c + 1}-${s}`} data-grain="dither" patternUnits="userSpaceOnUse" width={8} height={8}>
-          {cells(1 - GRAIN_BY_Q[s as 1 | 2 | 3], 2, undefined, { fill: `var(--n${c + 1})` })}
+          {cells(1 - GRAIN_BY_Q[s as 1 | 2 | 3], 2, undefined, { fill: `var(--n${c + 1})`, fillOpacity: 0.75 })}
         </pattern>
       )))}
       <pattern id={`${uid}-hatchw`} data-grain="hatch" patternUnits="userSpaceOnUse" width={6} height={6} patternTransform="rotate(45)">
-        <rect width={1.6} height={6} style={{ fill: "var(--magenta)" }} />
+        <rect width={1.6} height={6} rx={0.8} style={{ fill: "var(--magenta)", fillOpacity: 0.85 }} />
       </pattern>
       <pattern id={`${uid}-hatchpx`} patternUnits="userSpaceOnUse" width={5} height={5} patternTransform="rotate(45)">
-        <rect width={1.5} height={5} style={{ fill: "var(--magenta)" }} />
+        <rect width={1.5} height={5} rx={0.75} style={{ fill: "var(--magenta)", fillOpacity: 0.85 }} />
       </pattern>
     </defs>
   );
