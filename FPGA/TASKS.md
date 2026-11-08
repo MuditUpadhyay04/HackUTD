@@ -23,8 +23,8 @@ file during a wave (agents report status in their final message) to avoid merge 
 | --- | --- | --- | --- | --- | --- | --- |
 | T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.mul.rtl` 3919c2e (lint/iverilog/yosys clean) |
 | T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
-| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.div.rtl` 0a5a100 (lint/iverilog/yosys clean, LAT = NW+1) |
-| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
+| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | DONE | 0a5a100, merged 1565f11; `reports/formal_div.txt`, `reports/sim_div.log` (PASS 19,123 divisions) |
+| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
@@ -36,9 +36,9 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | | TODO | |
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | | TODO | |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | | TODO | |
-| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) |
+| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | | TODO | |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | | TODO | |
 | T1.regs.rtl | `eog_regs` | RTL | T0.1 | | TODO | |
@@ -68,3 +68,12 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | --- | --- | --- | --- | --- | --- |
 | 1 | memory | VALID/HELD record with `FAC ≥ N_FAC` (validate never produces it) | Treat as a no-update record: no slot changes, `FEAT[12..30] = 0` | T1.memory.rtl | Accepted (clarification). Applies to every stateful stage (countdown, head, alarm): out-of-range `FAC` never touches state |
 | 2 | memory | M2 "inputs absorbed" for `net_ema` (feature 27) | `net_ema` starts at 0 after a reset and updates on every VALID/HELD record, so 0 counts as an absorbed input for feature 27; gated EMAs start at the first running input (0 not included) | T1.memory.rtl | Accepted (clarification) |
+| 3 | alarm | Order of ALERTs from one record; order of ACKED in a sweep | NS_RAISED, ES_RAISED, CLEARED(NS), CLEARED(ES); ACKED slot-major (lowest slot first), NS before ES | T1.alarm.rtl | Accepted |
+| 4 | alarm | ACKED fields not listed (RULES, CLASSES, SOURCE bit 2) | 0, 0, 0 (only SOURCE bit 4 = latch type) | T1.alarm.rtl | Accepted |
+| 5 | alarm | Does `al_valid` pulse when `al_full`? | No: `al_valid` and `al_drop` are exclusive; a dropped ALERT is not retried | T1.alarm.rtl | Accepted |
+| 6 | alarm | ALERT `FAC_ID` width/source | Zero-extended `FAC` (= `FAC_RAW` for every non-DROPPED record; DROPPED raise no ALERT) | T1.alarm.rtl | Accepted |
+| 7 | alarm | `GAP_THR` signedness | Signed i16, compared signed with `CH3` | T1.alarm.rtl | Accepted |
+| 8 | alarm | BTN0 polarity | Active high at `eog_alarm`; any inversion happens in `eog_top`/XDC (O4) | T1.alarm.rtl | Accepted; confirm with the board pinout in T2.bd1 |
+| 9 | alarm | LED details (PWM, fault window, blink phase, override) | 25 % PWM (64/256 cycles); fault window on a free-running ms tick (±1 ms); free-running 2 Hz blink; `ledovr` raw, no PWM | T1.alarm.rtl | Accepted |
+| 10 | alarm | Status codes 2, 5–7 (never produced) | No state change (as DROPPED); they do light the `ld0` fault indicator | T1.alarm.rtl | Accepted |
+| 11 | all | `II` parameter unused by a stage | Keep the parameter (uniform interface), waive UNUSEDPARAM inline | T1.alarm.rtl | Accepted. The `eog_defs.svh` UNUSEDPARAM waiver is now inside the generated header (b1ab919) |
