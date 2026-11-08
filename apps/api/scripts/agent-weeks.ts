@@ -4,7 +4,7 @@
  * propose next week's prompts, then score the champion on a held-out dataset that is never used for critique.
  *
  * bun apps/api/scripts/agent-weeks.ts --train <full_week dir> --heldout <mock_test dir> [--weeks 3] [--cases 2]
- *   [--heldout-cases 2] [--board full_week results.jsonl] [--heldout-board mock_test results.jsonl] [--store .data/agent-learning.json] [--fresh] [--out report.json]
+ *   [--heldout-cases 2] [--first-week 1] [--offset-hours 0] [--board full_week results.jsonl] [--heldout-board mock_test results.jsonl] [--store .data/agent-learning.json] [--fresh] [--out report.json]
  * Reads the provider from the root .env (never printed). Reads only network.json, ops.json and telemetry.csv.
  */
 import { existsSync, rmSync, writeFileSync } from "node:fs";
@@ -34,12 +34,15 @@ console.log(`Held-out: ${held.info.label}: ${heldCases.map((c) => `${c.id} [${c.
 const first = (await buildCases(train, { from: train.info.startUnix, to: train.info.nowUnix }, { strideHours: 2, limit: 1 }))[0];
 const origin = first ? first.at - 3600 : train.info.startUnix;
 const span = (train.info.nowUnix - origin) / weeks;
+// A later pass over the same week (continuing a store) uses other cutoffs and continues the week numbering.
+const firstWeek = Number(arg("first-week", "1")), offset = Number(arg("offset-hours", "0")) * 3600;
 const reports: CycleReport[] = [];
 for (let w = 0; w < weeks; w++) {
   const from = origin + w * span, to = from + span;
-  const cases = await buildCases(train, { from, to }, { strideHours: 4, limit: perWeek });
-  console.log(`\nWeek ${w + 1} (${new Date(from * 1000).toISOString().slice(0, 16)}Z to ${new Date(to * 1000).toISOString().slice(0, 16)}Z): ${cases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
-  reports.push(await runCycle({ store, model, cycle: `week${w + 1}`, train: { dataset: train, cases, board }, heldout: { dataset: held, cases: heldCases, board: heldBoard }, log: console.log }));
+  const cases = await buildCases(train, { from: from + offset, to }, { strideHours: 4, limit: perWeek });
+  const week = firstWeek + w;
+  console.log(`\nWeek ${week} (${new Date(from * 1000).toISOString().slice(0, 16)}Z to ${new Date(to * 1000).toISOString().slice(0, 16)}Z): ${cases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
+  reports.push(await runCycle({ store, model, cycle: `week${week}`, train: { dataset: train, cases, board }, heldout: { dataset: held, cases: heldCases, board: heldBoard }, log: console.log }));
 }
 
 const [prompts, strategies, evals, decisions] = await Promise.all([store.listPrompts(), store.listStrategies(), store.listEvals(), store.listDecisions()]);
