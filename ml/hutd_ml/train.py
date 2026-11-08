@@ -85,6 +85,9 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     ap.add_argument("--version", type=int, default=1)
     ap.add_argument("--mock", default=None, help="optional mock_test folder for a dry run (no labels)")
+    ap.add_argument("--augment", action="store_true",
+                    help="also train on augment.TRAIN copies (pressure offsets, sizes, noise); validation stays clean")
+    ap.add_argument("--c", default=None, help="fixed C per head, e.g. 1,1,0.03,0.03 (skips the C search)")
     a = ap.parse_args(argv)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -100,16 +103,42 @@ def main(argv=None):
     systems = sorted(set(system))
     Xf = X / 16384.0
     print(f"records {len(X)}, positives {dict(zip(wire.HEADS, Y.sum(0).tolist()))}, folds {systems}")
+    aug = []
+    if a.augment:
+        import pandas as pd
+        from . import augment
+        net0 = encode.load_network(a.data)
+        tel0 = pd.read_csv(Path(a.data) / "telemetry.csv")
+        for name, fn in augment.TRAIN.items():
+            e2 = encode.encode_frames(*fn(net0, tel0))
+            _, st2, _ = fi.run(e2.records, e2.global_config, e2.facility_config)
+            X2, ok2 = fi.feature_matrix(st2)
+            Y2, _, _ = labels.make_labels(e2.records, e2.facilities, a.answer_key)
+            sys2 = np.array([e2.facilities[f].system for f in e2.records["fac_id"].astype(np.int64)])
+            aug.append((X2[ok2], Y2[ok2], sys2[ok2]))
+            print(f"augmentation {name}: {int(ok2.sum())} records", flush=True)
+
+    def train_rows(exclude=None, cols=None):
+        """Clean rows (+ augmented copies) whose system is not `exclude`, as float features."""
+        parts = [(X, Y, system)] + aug
+        Xs = np.concatenate([p[0][p[2] != exclude] for p in parts]) / 16384.0
+        Ys = np.concatenate([p[1][p[2] != exclude] for p in parts])
+        return (Xs if cols is None else Xs[:, cols]), Ys
 
     # 1. C per head by pooled out-of-fold average precision (float)
     chosen_C, cv = [], {}
+    folds = {s: train_rows(s) for s in systems}
     for h in range(4):
+        if a.c:
+            chosen_C.append(float(a.c.split(",")[h]))
+            cv[wire.HEADS[h]] = {"fixed": chosen_C[-1]}
+            continue
         scores = {}
         for C in C_GRID:
             oof = np.zeros(len(X))
             for s in systems:
-                tr, te = system != s, system == s
-                w, b = fit_head(Xf[tr], Y[tr, h], C)
+                te = system == s
+                w, b = fit_head(folds[s][0], folds[s][1][:, h], C)
                 oof[te] = Xf[te] @ w + b
             scores[C] = average_precision_score(Y[:, h], oof)
         cv[wire.HEADS[h]] = {str(C): round(v, 4) for C, v in scores.items()}
@@ -121,7 +150,7 @@ def main(argv=None):
     oof_f = np.zeros((len(X), 4))
     for s in systems:
         tr, te = system != s, system == s
-        ws, bs = zip(*(fit_head(Xf[tr], Y[tr, h], chosen_C[h]) for h in range(4)))
+        ws, bs = zip(*(fit_head(folds[s][0], folds[s][1][:, h], chosen_C[h]) for h in range(4)))
         w_q, b_q, s_out, _ = model_int.quantize(np.array(ws), np.array(bs))
         oof_q[te] = model_int.logits_int(X[te], w_q, b_q, s_out)
         oof_f[te] = Xf[te] @ np.array(ws).T + np.array(bs)
@@ -168,14 +197,16 @@ def main(argv=None):
             oof = np.zeros(len(X))
             for s in systems:
                 tr, te = system != s, system == s
-                w, b = fit_head(Xf[tr][:, cols], Y[tr, h], chosen_C[h])
+                Xt, Yt = train_rows(s, cols)
+                w, b = fit_head(Xt, Yt[:, h], chosen_C[h])
                 oof[te] = Xf[te][:, cols] @ w + b
             m = metrics(oof > 0, Y[:, h], fac)
             row[wire.HEADS[h]] = f"{m['precision']:.2f} / {m['recall']:.2f}"
         ablation[name] = row
 
     # 7. final model on all systems
-    ws, bs = zip(*(fit_head(Xf, Y[:, h], chosen_C[h]) for h in range(4)))
+    Xall, Yall = train_rows(None)
+    ws, bs = zip(*(fit_head(Xall, Yall[:, h], chosen_C[h]) for h in range(4)))
     W_f, B_f = np.array(ws), np.array(bs)
     w_q, b_q, s_out, fw = model_int.quantize(W_f, B_f)
     lq = model_int.logits_int(X, w_q, b_q, s_out)
@@ -186,7 +217,7 @@ def main(argv=None):
     vec_rows = [int(np.argmax(Y[:, h])) for h in range(4)]
     vec_rows += [int(np.argmax(running & (Y.sum(1) == 0))), int(np.argmax(~running & (Y.sum(1) == 0)))]
     vectors = model_int.edge_vectors() + [X[i] for i in vec_rows]
-    meta = {"version": a.version, "feature_set_id": fi.FEATURE_SET_ID, "C": chosen_C,
+    meta = {"version": a.version, "feature_set_id": fi.FEATURE_SET_ID, "C": chosen_C, "augmented": bool(a.augment),
             "w": W_f.round(6).tolist(), "b": B_f.round(6).tolist()}
     mh = model_int.model_hash(meta)
     blob = model_int.pack_blob(w_q, b_q, s_out, vectors, mhash=mh)
@@ -251,6 +282,9 @@ def render_report(a, cv, chosen_C, per_class, single, k_single, estop, ablation,
          "after int16 export). Thresholds and K are chosen on those same out-of-fold scores, so the numbers "
          "below are **optimistic exploration on one practice week**, not a benchmark on the unseen network. "
          "Failure and shut-in are directly signalled by pump status 2 / all wells off.", "",
+         ("Training data: the clean practice week **plus augmented copies** (healthy pressure offsets x0.8 / x1.2, "
+          "sizes x0.7 / x1.5, extra sensor noise; see `augment.TRAIN`). Validation scores are always on the clean "
+          "held-out system." if wjson.get("augmented") else "Training data: the clean practice week."), "",
          f"Blob: {wjson['blob_bytes']} B, CRC32 {wjson['blob_crc32']}, model hash {wjson['model_hash']}, "
          f"S_out {wjson['S_out']}, Fw {wjson['Fw']}, logits in 1/256 units.", "",
          "## Regularization (pooled out-of-fold average precision by C)", ""]

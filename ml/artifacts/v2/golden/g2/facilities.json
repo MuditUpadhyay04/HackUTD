@@ -1,0 +1,272 @@
+[
+ {
+  "fac_id": 0,
+  "system": "S1",
+  "facility": "S1_FACILITY_A",
+  "tank": "S1_TANK_A",
+  "pump": "S1_PUMP_A",
+  "pipeline": "S1_PIPELINE_A",
+  "wells": [
+   "S1_WELL_A1",
+   "S1_WELL_A2",
+   "S1_WELL_A3"
+  ],
+  "B": 2400.0,
+  "Q": 3600.0,
+  "C": 1200.0,
+  "W": 3,
+  "P0": 1050.0
+ },
+ {
+  "fac_id": 1,
+  "system": "S1",
+  "facility": "S1_FACILITY_B",
+  "tank": "S1_TANK_B",
+  "pump": "S1_PUMP_B",
+  "pipeline": "S1_PIPELINE_B",
+  "wells": [
+   "S1_WELL_B1",
+   "S1_WELL_B2",
+   "S1_WELL_B3"
+  ],
+  "B": 2000.0,
+  "Q": 3000.0,
+  "C": 1200.0,
+  "W": 3,
+  "P0": 1050.0
+ },
+ {
+  "fac_id": 2,
+  "system": "S1",
+  "facility": "S1_FACILITY_C",
+  "tank": "S1_TANK_C",
+  "pump": "S1_PUMP_C",
+  "pipeline": "S1_PIPELINE_C",
+  "wells": [
+   "S1_WELL_C1",
+   "S1_WELL_C2",
+   "S1_WELL_C3"
+  ],
+  "B": 1800.0,
+  "Q": 2700.0,
+  "C": 800.0,
+  "W": 3,
+  "P0": 1050.0
+ },
+ {
+  "fac_id": 3,
+  "system": "S2",
+  "facility": "S2_FACILITY_A",
+  "tank": "S2_TANK_A",
+  "pump": "S2_PUMP_A",
+  "pipeline": "S2_PIPELINE_A",
+  "wells": [
+   "S2_WELL_A1",
+   "S2_WELL_A2",
+   "S2_WELL_A3"
+  ],
+  "B": 2200.0,
+  "Q": 3300.0,
+  "C": 1000.0,
+  "W": 3,
+  "P0": 1000.0
+ },
+ {
+  "fac_id": 4,
+  "system": "S2",
+  "facility": "S2_FACILITY_B",
+  "tank": "S2_TANK_B",
+  "pump": "S2_PUMP_B",
+  "pipeline": "S2_PIPELINE_B",
+  "wells": [
+   "S2_WELL_B1",
+   "S2_WELL_B2",
+   "S2_WELL_B3"
+  ],
+  "B": 1600.0,
+  "Q": 2400.0,
+  "C": 700.0,
+  "W": 3,
+  "P0": 1000.0
+ },
+ {
+  "fac_id": 5,
+  "system": "S2",
+  "facility": "S2_FACILITY_C",
+  "tank": "S2_TANK_C",
+  "pump": "S2_PUMP_C",
+  "pipeline": "S2_PIPELINE_C",
+  "wells": [
+   "S2_WELL_C1",
+   "S2_WELL_C2",
+   "S2_WELL_C3"
+  ],
+  "B": 1400.0,
+  "Q": 2100.0,
+  "C": 600.0,
+  "W": 3,
+  "P0": 1000.0
+ },
+ {
+  "fac_id": 6,
+  "system": "S3",
+  "facility": "S3_FACILITY_A",
+  "tank": "S3_TANK_A",
+  "pump": "S3_PUMP_A",
+  "pipeline": "S3_PIPELINE_A",
+  "wells": [
+   "S3_WELL_A1",
+   "S3_WELL_A2",
+   "S3_WELL_A3"
+  ],
+  "B": 2000.0,
+  "Q": 3000.0,
+  "C": 900.0,
+  "W": 3,
+  "P0": 950.0
+ },
+ {
+  "fac_id": 7,
+  "system": "S3",
+  "facility": "S3_FACILITY_B",
+  "tank": "S3_TANK_B",
+  "pump": "S3_PUMP_B",
+  "pipeline": "S3_PIPELINE_B",
+  "wells": [
+   "S3_WELL_B1",
+   "S3_WELL_B2",
+   "S3_WELL_B3"
+  ],
+  "B": 1500.0,
+  "Q": 2250.0,
+  "C": 700.0,
+  "W": 3,
+  "P0": 950.0
+ },
+ {
+  "fac_id": 8,
+  "system": "S4",
+  "facility": "S4_FACILITY_A",
+  "tank": "S4_TANK_A",
+  "pump": "S4_PUMP_A",
+  "pipeline": "S4_PIPELINE_A",
+  "wells": [
+   "S4_WELL_A1",
+   "S4_WELL_A2",
+   "S4_WELL_A3"
+  ],
+  "B": 1800.0,
+  "Q": 2700.0,
+  "C": 800.0,
+  "W": 3,
+  "P0": 1100.0
+ },
+ {
+  "fac_id": 9,
+  "system": "S4",
+  "facility": "S4_FACILITY_B",
+  "tank": "S4_TANK_B",
+  "pump": "S4_PUMP_B",
+  "pipeline": "S4_PIPELINE_B",
+  "wells": [
+   "S4_WELL_B1",
+   "S4_WELL_B2",
+   "S4_WELL_B3"
+  ],
+  "B": 1500.0,
+  "Q": 2250.0,
+  "C": 700.0,
+  "W": 3,
+  "P0": 1100.0
+ },
+ {
+  "fac_id": 10,
+  "system": "S4",
+  "facility": "S4_FACILITY_C",
+  "tank": "S4_TANK_C",
+  "pump": "S4_PUMP_C",
+  "pipeline": "S4_PIPELINE_C",
+  "wells": [
+   "S4_WELL_C1",
+   "S4_WELL_C2",
+   "S4_WELL_C3"
+  ],
+  "B": 2100.0,
+  "Q": 3150.0,
+  "C": 900.0,
+  "W": 3,
+  "P0": 1100.0
+ },
+ {
+  "fac_id": 11,
+  "system": "S4",
+  "facility": "S4_FACILITY_D",
+  "tank": "S4_TANK_D",
+  "pump": "S4_PUMP_D",
+  "pipeline": "S4_PIPELINE_D",
+  "wells": [
+   "S4_WELL_D1",
+   "S4_WELL_D2",
+   "S4_WELL_D3"
+  ],
+  "B": 1700.0,
+  "Q": 2550.0,
+  "C": 750.0,
+  "W": 3,
+  "P0": 1100.0
+ },
+ {
+  "fac_id": 12,
+  "system": "S5",
+  "facility": "S5_FACILITY_A",
+  "tank": "S5_TANK_A",
+  "pump": "S5_PUMP_A",
+  "pipeline": "S5_PIPELINE_A",
+  "wells": [
+   "S5_WELL_A1",
+   "S5_WELL_A2",
+   "S5_WELL_A3"
+  ],
+  "B": 1900.0,
+  "Q": 2850.0,
+  "C": 850.0,
+  "W": 3,
+  "P0": 1020.0
+ },
+ {
+  "fac_id": 13,
+  "system": "S5",
+  "facility": "S5_FACILITY_B",
+  "tank": "S5_TANK_B",
+  "pump": "S5_PUMP_B",
+  "pipeline": "S5_PIPELINE_B",
+  "wells": [
+   "S5_WELL_B1",
+   "S5_WELL_B2",
+   "S5_WELL_B3"
+  ],
+  "B": 1700.0,
+  "Q": 2550.0,
+  "C": 750.0,
+  "W": 3,
+  "P0": 1020.0
+ },
+ {
+  "fac_id": 14,
+  "system": "S5",
+  "facility": "S5_FACILITY_C",
+  "tank": "S5_TANK_C",
+  "pump": "S5_PUMP_C",
+  "pipeline": "S5_PIPELINE_C",
+  "wells": [
+   "S5_WELL_C1",
+   "S5_WELL_C2",
+   "S5_WELL_C3"
+  ],
+  "B": 1300.0,
+  "Q": 1950.0,
+  "C": 600.0,
+  "W": 3,
+  "P0": 1020.0
+ }
+]

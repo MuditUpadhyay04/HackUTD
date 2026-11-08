@@ -202,6 +202,7 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 00:45 | Weights **v2** (augmented training) become the default: robust to different healthy pressure offsets, where v1 produced up to 4.9 false alerts per facility-day. Proposed O2 values are now `persist_K` = 1, `logit_thr` = [0, 448, 0, 0] (1/256), `gap_thr` = 504. New review item R7 for Lucas: the hold/reset policy wipes memory too often when readings are missing. |
 | Sun Nov 8 00:20 | Ingest decided: CSV → binary on Lucas's PC (`ml/hutd_ml/replay.py`). Added `listen.py` (board output → JSON + heartbeat, optional HTTP bridge) and `ml/INTEGRATION.md` for the server and dashboard; they can develop now against `fakeboard.py`. |
 | Sat Nov 7 23:15 | ML pipeline in `ml/`: encoder, bit-exact engine reference, trained weights v1, golden sets, UDP board harness and software board stand-in. Proposed values for O2: `persist_K` = 1, `logit_thr` = [64, 384, 0, 0] (1/256), `gap_thr` = 504. Assumptions A1–A19 in `ml/README.md` need Lucas's confirmation. No contract changes. |
 | Sat Nov 7 22:45 | Linked Mudit's ML plan (PROPOSED). No contract changes yet; its proposals for Lucas (per-class K, weight blob layout, debug readback) need his sign-off before they land in §5. |

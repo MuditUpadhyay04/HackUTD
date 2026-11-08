@@ -26,10 +26,12 @@ Implements [`docs/plan/mudit/ml_plan.md`](../docs/plan/mudit/ml_plan.md) against
 ```sh
 DATA=/path/to/HackUTD-ZeroDay/history/full_week
 HUTD_DATA=$DATA python3 -m pytest -q tests                      # 10 tests, ~6 s
-python3 -m hutd_ml.train --data $DATA --answer-key $DATA/answer_key.json --out artifacts/v1 --version 1 \
+python3 -m hutd_ml.train --data $DATA --answer-key $DATA/answer_key.json --out artifacts/v2 --version 2 \
+    --augment --c 1,1,0.03,0.03 \
     --mock $DATA/../mock_test_2026-10-10T1530                     # ~3 min
-python3 -m hutd_ml.golden --data $DATA --out artifacts/v1/golden/g1 --set g1 \
-    --weights artifacts/v1/weights.bin --weights-version 1 --config artifacts/v1/global_config.json
+python3 -m hutd_ml.golden --data $DATA --out artifacts/v2/golden/g1 --set g1 \
+    --weights artifacts/v2/weights.bin --weights-version 2 --config artifacts/v2/global_config.json
+python3 -m hutd_ml.robustness --data $DATA --answer-key $DATA/answer_key.json --out artifacts/robustness  # ~25 min
 ```
 
 ## For Lucas: what to use
@@ -39,8 +41,10 @@ python3 -m hutd_ml.golden --data $DATA --out artifacts/v1/golden/g1 --set g1 \
 | Folder | Weights | Contents |
 | --- | --- | --- |
 | `artifacts/v0/golden/g0`, `g2` | Untrained pseudo-random int16 (`weights_ver` **240**): full range, both signs, saturating logits | Bring-up of the head/accumulator/saturation path |
-| `artifacts/v1/golden/g0`, `g1`, `g2` | **Trained v1** (`weights_ver` 1) + trained GLOBAL CONFIG (thresholds, K, `gap_thr`) | The real thing |
-| `artifacts/v1/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Model + validation report |
+| `artifacts/v2/golden/g0`, `g1`, `g2` | **Trained v2, current** (`weights_ver` 2) + its GLOBAL CONFIG (thresholds, K, `gap_thr`) | The real thing |
+| `artifacts/v2/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Current model + validation report |
+| `artifacts/v1/` (+ `golden/`) | Previous trained weights (`weights_ver` 1), kept for comparison | Superseded by v2 |
+| `artifacts/robustness/` | `report.md`, `results.json` | Robustness pass (section below) |
 
 **The golden sets:**
 
@@ -76,8 +80,8 @@ python3 -m hutd_ml.compare artifacts/v1/golden/g2/expected_results.bin my_result
 **On the board** (direct cable, PC 192.168.1.50 ↔ board 192.168.1.10):
 
 ```sh
-python3 -m hutd_ml.board --golden artifacts/v1/golden/g0                      # then g2, then g1
-python3 -m hutd_ml.board --golden artifacts/v1/golden/g0 --heartbeat-test 6   # AUTONOMOUS + replay
+python3 -m hutd_ml.board --golden artifacts/v2/golden/g0                      # then g2, then g1
+python3 -m hutd_ml.board --golden artifacts/v2/golden/g0 --heartbeat-test 6   # AUTONOMOUS + replay
 ```
 
 The harness binds local UDP ports 7001–7004. Stop anything else on the PC that uses them first.
@@ -86,7 +90,7 @@ The harness binds local UDP ports 7001–7004. Stop anything else on the PC that
 
 ```sh
 python3 -m hutd_ml.fakeboard &        # listens on 127.0.0.2
-python3 -m hutd_ml.board --golden artifacts/v1/golden/g1 --board 127.0.0.2 --local 127.0.0.1 --pps 200
+python3 -m hutd_ml.board --golden artifacts/v2/golden/g1 --board 127.0.0.2 --local 127.0.0.1 --pps 200
 ```
 
 Verified Sat 23:05 CST: G0, G2 and G1 (30,240/30,240 RESULTs) byte-identical over UDP, plus a 6 s heartbeat gap
@@ -119,19 +123,59 @@ decides differently, change the code here and regenerate the golden sets.
 | A18 | Weight blob layout: `docs/plan/mudit/ml_plan.md` §4.8 (also documented in `model_int.py`) |
 | A19 | ALERT: Night Shift raised / cleared on condition edges (not latched); E-STOP raised once (latched) |
 
-## Current model (v1)
+## Current model (v2)
 
-See `artifacts/v1/report.md`. Out-of-fold, holding out one system at a time, with integer logits and wire-v1
-settings (one K = 1):
+See `artifacts/v2/report.md`. Trained on the practice week **plus augmented copies**:
 
-| Head | Precision / recall | Events caught | Median delay after onset |
-| --- | --- | --- | --- |
-| Leak | 0.94 / 0.99 | 5/5 | 5 min |
-| Degradation | 0.95 / 0.83 | 5/5 | 190 min |
-| Failure | 1.00 / 1.00 | 13/13 | 0 |
-| Shut-in | 1.00 / 1.00 | — | — |
+- healthy pressure offsets ×0.8 / ×1.2;
+- sizes ×0.7 / ×1.5;
+- extra sensor noise.
+
+C = 1 for leak and degradation, 0.03 for failure and shut-in. Scored out-of-fold (holding out one system at a
+time) on clean data, with integer logits and wire-v1 settings: K = 1, `logit_thr` = [0, 448, 0, 0] in 1/256
+units, `gap_thr` = 504.
+
+| Head | Precision / recall | Events caught | Median delay after onset | False alerts per facility-day |
+| --- | --- | --- | --- | --- |
+| Leak | 0.94 / 0.99 | 5/5 | 5 min | 0.048 |
+| Degradation | 0.95 / 0.84 | 5/5 | 170 min | 0.029 |
+| Failure | 1.00 / 1.00 | 13/13 | 0 | 0 |
+| Shut-in | 1.00 / 1.00 | — | — | 0 |
 
 - E-STOP fires on 5/5 leaks and never outside a leak.
 - int16 vs float decisions agree 100%.
+- G0, G1 and G2 pass byte for byte through `board.py` ↔ `fakeboard.py`.
 - The thresholds were picked on the same out-of-fold scores, so these numbers are optimistic on one practice week.
 - Failure and shut-in are signalled directly by pump status 2 / all wells off.
+
+## Robustness pass (Sun 00:40 CST)
+
+`python -m hutd_ml.robustness` distorts the held-out system's data **before encoding**: it goes through the real
+encoder and engine. Thresholds come from clean data and are applied unchanged. Full tables are in
+`artifacts/robustness/report.md`. Leak / degradation false alerts per facility-day:
+
+| Test distortion | v1 (clean-trained, C 3) | **v2 (augmented, C 1)** |
+| --- | --- | --- |
+| None | 0.04 / 0.05 | 0.05 / 0.03 |
+| Healthy pressure offsets ×0.7 | 0.01 / **1.5** | 0.06 / 0.05 |
+| Healthy pressure offsets ×1.3 | **4.9** / 0.01 | 0.04 / 0.20 |
+| Disposal pressure +200 psi; all sizes ×0.5 or ×2 | identical to none | identical to none |
+| Extra sensor noise | 0.16 / 0.15 | 0.18 / 0.12 |
+| 2 % of readings missing | 0.18 / 0.21 (AP 0.85 / 0.77) | 0.35 / 0.20 (AP 0.83 / 0.73) |
+
+Both models caught 5/5 leaks and 5/5 degradations under every distortion.
+
+**What the table shows:**
+
+- **Normalization works:** resizing every facility or shifting disposal pressure changes nothing.
+- **v1's weak spot was pressure:** if the judging network's healthy pressure offsets differ from the practice
+  week's +150 / +50 psi (SPEC calls them placeholders), v1's thresholds produce up to 4.9 false alarms per
+  facility-day. Stronger regularization alone didn't fix this; augmentation did. Hence v2.
+- **Missing data is the remaining weakness, for every model.** With 2 % of readings missing:
+  - 22 % of records are HELD;
+  - the hold rule resets a facility's memory about 2.7 times a day;
+  - half of all results have less than 64 steps of memory.
+
+  The cause is the FPGA's hold/reset policy, not the weights: review R7 in `docs/plan/lucas/review_notes.md`. The
+  practice data has no gaps, and SPEC says every sensor reports every interval, so this matters only if the judging
+  data is dirty.

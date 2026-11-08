@@ -1,0 +1,27 @@
+{
+ "set": "g0",
+ "dataset": "full_week",
+ "records": 30,
+ "wire_version": 1,
+ "feature_set_id": 1,
+ "countdown": "plan_v1",
+ "weights": "v2",
+ "weights_version": 2,
+ "weights_crc32": "0x3FF07B63",
+ "assumptions": "A1-A19 (ml/README.md), 2026-11-07",
+ "status_counts": {
+  "0": 30
+ },
+ "sha256": {
+  "data.bin": "3dd56b43480e5127640a53015bfaaa7c3a4570aa32f69d232063d5e9d96cb856",
+  "data.mem": "efb189d1a3e93d9ea5e1664cb8295890314668fca8e1e507bd017d64ad306202",
+  "expected_alerts.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "expected_results.bin": "a0016000efc69b0c3f5045034bb8a8b97efb7a0322b41228ba61c5bdba0b5af9",
+  "expected_results.mem": "ff8c01b53bcb612ea9df1737e950dcfc9780189e411b6f59aeef74ed15c1e3c2",
+  "expected_stages.csv": "e6e01fcee5b1fadeb9261a638a605172f499d2af34f3791cad16184286b2f1d2",
+  "facilities.json": "759e37c97ca463417bb0490048118862b99cf1513ffe8705663d8e8d8e9eff75",
+  "facility_config.bin": "6ce518d866253dab98958bb566b531922f20e5a7157c2691d51eadfe648d5372",
+  "global_config.bin": "0f0981927b7735987b00963922a405d6b5f99d3cb0d36fe3015f313f9c2a7de4",
+  "weights.bin": "645c8c5fe103c5230a160f9a2e259c1fa619fe65361172748ed774ec654951bd"
+ }
+}

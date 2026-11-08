@@ -7,6 +7,21 @@ Builds on Lucas's [FPGA plan](../lucas/fpga_hardware_plan.md), the source of tru
 feature rules, and on [`global_plan.md`](../../../global_plan.md) (hard rules §2, contracts §5). Dataset:
 [nihaal419/HackUTD-ZeroDay](https://github.com/nihaal419/HackUTD-ZeroDay) at commit `135ba4c`.
 
+## Progress update (Sun 00:45 CST)
+
+- **Robustness pass done** (`ml/README.md` → Robustness pass; `ml/artifacts/robustness/report.md`):
+  - Sizes and disposal pressure: invariant.
+  - v1 breaks if the healthy pressure offsets differ (up to 4.9 false alerts per facility-day).
+  - **Weights v2** fix this. They are trained with augmented copies (pressure offsets, sizes, noise) at C = 1:
+    false alerts ≤ 0.2 per facility-day under every pressure distortion, with the same clean accuracy. Degradation
+    recall is 0.84 and its median delay 170 min.
+  - **v2 is now the default** (`ml/artifacts/v2/`, `weights_ver` 2, `logit_thr` = [0, 448, 0, 0], K = 1,
+    `gap_thr` = 504). G0, G1 and G2 pass byte for byte over UDP against the stand-in.
+- **Missing data is the remaining weakness:** the hold/reset policy wipes memory about 2.7 times per facility-day
+  when 2 % of readings are missing. Logged for Lucas as review R7.
+- **Ingest decided:** CSV → binary runs on Lucas's PC (`hutd_ml/replay.py`).
+- **Server / dashboard integration:** `hutd_ml/listen.py` + `ml/INTEGRATION.md`.
+
 ## Progress (Sat 23:15 CST)
 
 | # | Status | Where |

@@ -1,0 +1,24 @@
+{
+ "set": "g1",
+ "dataset": "full_week",
+ "records": 30240,
+ "wire_version": 1,
+ "feature_set_id": 1,
+ "countdown": "plan_v1",
+ "weights": "v2",
+ "weights_version": 2,
+ "weights_crc32": "0x3FF07B63",
+ "assumptions": "A1-A19 (ml/README.md), 2026-11-07",
+ "status_counts": {
+  "0": 30240
+ },
+ "sha256": {
+  "data.bin": "60fc0a7eb25b46a44904f59e4e2e6e891ee95d5e48f7d6b09c5b6e97e582e582",
+  "expected_alerts.json": "9e57ba0acb0e07eef6c98556b91d2c6b9cf54f8578dabc2dfd135400ba3f25c9",
+  "expected_results.bin": "a78cec6d1e8d48f0e67db490d44851b6312fed3e113c1f2caf2b42efd9ad3ba0",
+  "facilities.json": "759e37c97ca463417bb0490048118862b99cf1513ffe8705663d8e8d8e9eff75",
+  "facility_config.bin": "6ce518d866253dab98958bb566b531922f20e5a7157c2691d51eadfe648d5372",
+  "global_config.bin": "0f0981927b7735987b00963922a405d6b5f99d3cb0d36fe3015f313f9c2a7de4",
+  "weights.bin": "645c8c5fe103c5230a160f9a2e259c1fa619fe65361172748ed774ec654951bd"
+ }
+}
