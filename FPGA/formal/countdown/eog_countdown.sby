@@ -1,7 +1,7 @@
 # SymbiYosys job for eog_countdown (Verify role, task T1.countdown.fv). Harness: fv_eog_countdown.sv (labels and
 # reference semantics there): spec v4 + TASKS.md answers 1, 20, 21, 33, 34.
-#   bash scripts/formal.sh countdown                        # the default tasks below
-#   cd formal/countdown && sby -f eog_countdown.sby bmc_deep  # opt-in deep tasks (long; see below)
+#   bash scripts/formal.sh countdown                         # default tasks: prove, bmc, cover
+#   cd formal/countdown && sby -f eog_countdown.sby bmc_pass   # opt-in tasks, one at a time (long; see below)
 #
 # Instance: N_FAC = 2, CD_LOG2 = 2 (ring of 4), RW = 8 (REC_NO low bits), MAX_INFLIGHT 8 (the spec sets no bound;
 # the RTL holds <= 4). Port-level facts from the RTL author (not assumed, only used to size depths): latency 55 at
@@ -23,7 +23,7 @@
 #            f_trk. Uses the RTL's opt-in formal invariant -DEOG_FV_RECNO_SEQ=8 (FIFO entries hold consecutive
 #            REC_NOs; true whenever st_recno_in is assumed), which makes st_link_r inductive. Depth 12.
 #            II and latency bounds are not in this task (they need depth > 16 / > 128): bmc / bmc_deep.
-# bmc_pass   (default) bmc from reset, II = 16 (several records in flight), out_ready = 1 (READY1: handshake
+# bmc_pass   (opt-in) bmc from reset, II = 16 (several records in flight), out_ready = 1 (READY1: handshake
 #            stability under back-pressure is prove's ax_hold/ax_data; prove_one covers pass-through with
 #            back-pressure, one at a time), -DFV_PROVE: the
 #            record-local checks with pass-through: H_hdr/H_feat/H_rules (header, FEAT, RULES4 copied),
@@ -43,7 +43,7 @@
 #            INVALID, DROPPED, FAC >= N_FAC, either slot). A second record of the same slot (a push, a HIST_RESET
 #            re-fill) needs depth ~85 and a wrapped ring ~135: bmc_deep (opt-in; edit `bmc_deep: depth` to 85
 #            for the two-record horizon).
-# bmc_arith  (default) bmc from reset, real eog_mul + eog_div, -DFV_ARITH: + C6_p10/p50/p90 (m(q) exact), C5_ord,
+# bmc_arith  (opt-in) bmc from reset, real eog_mul + eog_div, -DFV_ARITH: + C6_p10/p50/p90 (m(q) exact), C5_ord,
 #            C3_eq. out_ready = 1 (READY1; the arithmetic does not depend on back-pressure), operands narrowed
 #            structurally to a few free bits per record: INFLOW 4 bits signed (q = 0..7), LEVEL 6 bits signed,
 #            K_CD < 2^8, SHUT_LVL < 2^7, so K·Δ < 2^16 and finite values, q = 0 -> 0xFFFF and tripped records
@@ -60,17 +60,27 @@
 # DUT's ring to the shadow through ~60 unrolled frames of a 4-deep pipeline with a 49-stage divider), so the
 # default bmc tasks stop at 70. The spec's "a ring that has wrapped" cover and the pushed / wrapped ring history
 # are opt-in (bmc_deep, cover_wrap); the bit-exact simulation (tb/countdown: every vector case incl. Mudit's golden
-# sets and the full practice week) covers pushed and wrapped rings.
+# sets and the full practice week) covers pushed and wrapped rings. Likewise the exact quotients (C6), their
+# order (C5_ord) and FEAT/header pass-through rest on that simulation in the default sign-off; bmc_arith,
+# bmc_pass and prove_one check them formally when there is time to run them.
 #
-# Run times against a throwaway stub (P = 4, gap 15, latency 55; never committed) on the shared WSL box are in the
-# T1.countdown.fv report.
+# Run times against a throwaway stub (P = 4, gap 15, latency 55, written from the spec; never committed) on the
+# shared WSL box (load ~10-15 on 20 cores), Sun Nov 8 ~02:00:
+#   prove      PASS  13.5 min (base case 12 steps, induction closes with the stub's REC_NO-sequence invariant)
+#   bmc        no counterexample through step 70: 24 min (stopped at 70; ~1-2 min per step past step 60)
+#   cover      PASS  12.2 min, all 9 goals (cv_drop/inv/trip/oob at step 4, cv_bp 19, cv_refill 73)
+#   bmc_pass   step 45 after 20 min (~70 s per step and rising): estimated 1 h+ to 70
+#   bmc_arith  stuck on the first compute output (step 58) for > 5 min with either operand narrowing
+#   prove_one  base case at step 24 after 10 min (an earlier variant without the u_stage asserts failed induction
+#              on f_trk, which is why they stay in)
+#   bmc_deep / cover_wrap  not run to completion (depth 135; minutes per step)
 
 [tasks]
 prove: default
 bmc: default
-bmc_pass: default
-bmc_arith: default
 cover: default
+bmc_pass
+bmc_arith
 prove_one
 bmc_deep
 cover_wrap
