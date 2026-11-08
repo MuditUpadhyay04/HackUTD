@@ -100,7 +100,7 @@ The diagram shows the server sending WEIGHTS. The FPGA plan doesn't say which PC
 | Area | Owner | Plan | Current focus |
 | --- | --- | --- | --- |
 | FPGA (Eclypse Z7) | Lucas | [`docs/plan/lucas/`](docs/plan/lucas/) | Engine v2 RTL + SymbiYosys proofs; v1 data path over AXI-Lite first |
-| Model, features, training | Mudit | — | The five "Asks for Mudit" in the FPGA plan |
+| Model, features, training | Mudit | [`docs/plan/mudit/`](docs/plan/mudit/ml_plan.md) (PROPOSED, under discussion) | The five "Asks for Mudit" in the FPGA plan: encoder + `features_int.py` + weights v0 and golden vectors first, then trained weights v1 |
 | Agents / server | Jason | — | Heartbeat, RESULT/ALERT consumption, events, truck planner |
 | Web app / full stack | Gurneal (Jimmy), with Jason | — | Dashboard on RESULT, ALERT and STATS |
 | Ingest (PC) | **OPEN, unassigned** (O9) | — | CSV → DATA, `network.json` → CONFIG |
@@ -202,4 +202,5 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 
 | When (CST) | Change |
 | --- | --- |
+| Sat Nov 7 22:45 | Linked Mudit's ML plan (PROPOSED). No contract changes yet; its proposals for Lucas (per-class K, weight blob layout, debug readback) need his sign-off before they land in §5. |
 | Sat Nov 7 21:45 | Created the global plan from Lucas's FPGA plan (snapshot through its Sat 21:20 row): architecture, owners, contracts C1–C10, the superseded CNN/window/transport items, the demo path, change control and open questions. Logged repo-side review findings R1–R6 as O3, O5–O8. |
