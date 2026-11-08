@@ -129,6 +129,87 @@ change the code here and regenerate the golden sets.
 | A21 | Every DROPPED RESULT carries `since_reset` 0, `weights_ver` 0, logits 0, rules 0, countdown `0xFFFF` (FPGA numerics.md 3.9) |
 | A22 | The first record a facility ever sends starts a new history (reason bit 2). Additive reason bits from FPGA numerics.md §6: 11 `FIELD_ABSENT` (present bit clear), 13 `NO_MODEL` (VALID/HELD with weights version 0), 14 `FIELD_LOST` (no value to hold → INVALID) |
 
+## RESULT semantics, exactly as `features_int.py` computes them
+
+Lucas asked for this list so the RTL matches the code rather than spec text (FPGA spec questions 20–25). It
+covers FPGA spec v4 plus those rulings. "Effective value" = the observed value if the field is OK, else its held
+`last_valid` value.
+
+### Order of checks for one DATA record
+
+1. Any reserved field (`reserved0/1/2`) ≠ 0 → **DROPPED**, reason `FRAMING` only. This is checked before the
+   facility lookup.
+2. `fac_id ≥ 32`, or the slot is not enabled in CONFIG → **DROPPED**, reason `UNKNOWN_FAC` only.
+3. Time step, with `d = ts − last_ts`:
+   - no `last_ts` (the facility's first record) → history reset;
+   - `d == 0` → **DROPPED** `DUPLICATE`;
+   - `d < 300` (negative or a partial step) → **DROPPED** `OUT_OF_ORDER`;
+   - `d` a multiple of 300 with 1–`hold` missing steps → `GAP_HELD`;
+   - more missing steps, or not a multiple of 300 → history reset.
+
+   After this step, `last_ts = ts` for every non-DROPPED record.
+4. Fields (the 7 facility fields, plus status and water of slots `< n_wells`):
+   - `present` bit clear → `FIELD_ABSENT`;
+   - pump status ∉ {0,1,2} or well status ∉ {0,1} → `ILLEGAL_ENUM`;
+   - outside `lo[j]..hi[j]` (j = present-bit index; j = 2 bounds the pump status) or `well_lo..well_hi` →
+     `OUT_OF_RANGE`.
+
+   A field that fails becomes **held** if it has a `last_valid`, otherwise **missing**.
+5. `hold_run` = consecutive non-DROPPED records with ≥ 1 held field. Records that end INVALID count too.
+   `hold_run > hold` (`hold = min(HOLD_MAX, 2)`) → history reset, and every held field becomes missing.
+6. Every OK field updates its `last_valid`, also on records that end INVALID.
+7. Any missing field → **INVALID**. Otherwise **HELD** if `FIELD_HELD` or `GAP_HELD` is set, else **VALID**.
+
+A **history reset** clears `last_valid`, `hold_run`, `since_reset`, `prev_level`, the memory features, the countdown
+ring, the persistence counters and the gap counter. It never clears the alarm conditions or latches.
+
+### Reason bits
+
+| Bit | Name | Set when | Statuses it can appear with |
+| --- | --- | --- | --- |
+| 0 | `FIELD_HELD` | ≥ 1 field was replaced by its `last_valid` value, and no hold-overflow reset happened on this record | VALID never; HELD; INVALID (another field missing) |
+| 1 | `GAP_HELD` | 1–`hold` 5-minute steps were skipped | HELD, INVALID |
+| 2 | `HIST_RESET` | history reset on this record: first record of the facility, a time gap above `hold` (or not a multiple of 300 s), or `hold_run > hold` | VALID, HELD, INVALID |
+| 3 | `OUT_OF_RANGE` | ≥ 1 present field outside its bounds | VALID never; HELD, INVALID |
+| 4 | `ILLEGAL_ENUM` | ≥ 1 present pump or well status with an illegal code | HELD, INVALID |
+| 5 | `FEAT_SAT` | any of the 10 multiplied channels (0–6, 9, 10, 11) saturated to int16 | VALID, HELD |
+| 6 | `PUMP_INCONS` | effective pump status ≠ 1 **and** effective pump flow > 0 (raw) | **VALID, HELD only** (0 on INVALID) |
+| 7 | `WELL_INCONS` | some configured slot with effective status 0 **and** effective water > 0 | **VALID, HELD only** (0 on INVALID) |
+| 8 | `DUPLICATE` | `d == 0` | DROPPED (only bit) |
+| 9 | `OUT_OF_ORDER` | `d < 300` | DROPPED (only bit) |
+| 10 | `UNKNOWN_FAC` | `fac_id ≥ 32` or the slot is disabled | DROPPED (only bit) |
+| 11 | `FIELD_ABSENT` | ≥ 1 required field had its `present` bit clear | HELD, INVALID |
+| 12 | `FRAMING` | a reserved field ≠ 0 | DROPPED (only bit) |
+| 13 | `NO_MODEL` | the active weights version is 0 | VALID, HELD |
+| 14 | `FIELD_LOST` | ≥ 1 required field had no value to use (failed with no `last_valid`, or held fields lost to a hold-overflow reset) | INVALID (always) |
+| 15–31 | — | never | — |
+
+Bits 0, 3, 4 and 11 are ORed over all required fields. Several of them, plus bits 1 and 2, can appear together.
+
+### RESULT fields per status
+
+| Field | VALID / HELD | INVALID | DROPPED |
+| --- | --- | --- | --- |
+| `fac_id`, `ts_unix` | echo | echo | echo (raw `fac_id`, even ≥ 32) |
+| `since_reset` | value **before** this record (0 on a reset record), then +1 (the RESULT field saturates at 255) | current value, not incremented (0 if this record reset) | 0 |
+| `logits` | the 4 heads; 0 if no model | 0 | 0 |
+| `rules` | bit 0 pump status = 2; bit 1 every configured slot status 0 **and** water 0; bit 2 level ≥ shutdown; bit 3 level ≥ warning; bit 4 not filling (below) | 0 | 0 |
+| `countdown` p10 / p50 / p90 | level ≥ shutdown → 0 / 0 / 0; else `m(max)`, `m(mean)`, `m(min)` with `m(q) = q ≤ 0 ? 0xFFFF : min((K_CD·Δ) // (q << 8), 0xFFFF)` | `0xFFFF` × 3 | `0xFFFF` × 3 |
+| `weights_ver` | active version | active version | 0 |
+| `result_no` | +1 for every record, DROPPED included, from 0 at engine start | same | same |
+
+**Countdown ring:** 16 entries of `max(effective inflow, 0)`. It is filled with the first VALID/HELD value after a
+reset and shifted on each later VALID/HELD record, with `mean = sum >> 4`. Not filling = `mean ≤ 0`, but forced to 0
+when level ≥ shutdown.
+
+**Alarms:** VALID/HELD only.
+
+- `hit[k] = logit[k] > logit_thr[k]` (strict); `cnt[k]` counts consecutive hits; `class_active[k] = cnt[k] ≥ K[k]`.
+- `gap_run` counts records with channel 3 > `gap_thr` **and** `logit[0] > logit_thr[0]`.
+- `ns_c` = rules bits 0–3 or any class active; `es_c = gap_run ≥ K[0]`.
+- INVALID clears `cnt` and `gap_run`, and leaves the conditions, latches and ALERTs alone.
+- ALERT rules: A19 above.
+
 ## Current model (v2)
 
 See `artifacts/v2/report.md`. Retrained Sun Nov 8 ~01:00 CST under the reviewed spec (`S_feat` = 17,

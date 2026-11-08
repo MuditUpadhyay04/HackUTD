@@ -74,7 +74,9 @@ def build(data, out, which="g1", weights="v0", weights_version=None, config=None
         cfg = json.loads(Path(config).read_text())
         gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat", "persist_k_per_class") if k in cfg}
         countdown = cfg.get("countdown", countdown)  # wire v1 has one persist_K; per-class K is only a proposal
-    enc = encode.encode_dataset(data, **gkw)
+    # golden sets use HB_TIMEOUT_MS = 0 so the board never goes AUTONOMOUS and ALERT SOURCE bit 2 is deterministic
+    # (FPGA numerics.md v4 section 9); deployment configs keep 5000
+    enc = encode.encode_dataset(data, **{**gkw, "hb_timeout_ms": 0})
     records = {"g0": g0_records, "g1": lambda e: e.records, "g2": g2_records}[which](enc)
 
     blob, wts = None, None

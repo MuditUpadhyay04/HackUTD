@@ -165,6 +165,9 @@ def main(argv=None):
     data = np.fromfile(g / "data.bin", dtype=wire.DATA_DTYPE)
     exp = np.fromfile(g / "expected_results.bin", dtype=wire.RESULT_DTYPE)
 
+    if a.heartbeat_test:  # golden GLOBAL has HB_TIMEOUT_MS = 0 (never AUTONOMOUS); the heartbeat test needs a timeout
+        glob = glob.copy()
+        glob["hb_timeout_ms"] = 5000
     b = Board(a.board, a.local)
     b.send_config(glob, fac)
     print(f"CONFIG: GLOBAL + {len(fac)} facilities ACKed")

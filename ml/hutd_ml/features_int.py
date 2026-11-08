@@ -81,8 +81,9 @@ class Engine:
     def __init__(self, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None):
         g = global_config[0] if getattr(global_config, "shape", ()) else global_config
         self.s = int(g["S"])
-        self.hold_max = int(g["hold_max"])
+        self.hold_max = min(int(g["hold_max"]), 2)  # the RTL clamps HOLD_MAX to 2 (FPGA numerics.md v4 section 3)
         self.cd_log2 = int(g["cd_log2"])
+        assert self.cd_log2 == 4, "GLOBAL CD_LOG2 must be 4 (fixed in the RTL)"
         if persist_k is not None:
             self.k = [max(int(x), 1) for x in persist_k]
         else:  # per-class K from GLOBAL bytes 20-23; 0 falls back to byte 3 (FPGA D10)
