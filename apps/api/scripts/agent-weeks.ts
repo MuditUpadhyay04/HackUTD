@@ -30,10 +30,13 @@ const board = readBoardJsonl(arg("board"));
 const heldBoard = readBoardJsonl(arg("heldout-board"));
 const heldCases = await buildCases(held, { from: held.info.startUnix, to: held.info.nowUnix + 1 }, { strideHours: 3, limit: Number(arg("heldout-cases", "2")) });
 console.log(`Held-out: ${held.info.label}: ${heldCases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
-const span = (train.info.nowUnix - train.info.startUnix) / weeks;
+// Weeks start at the first cutoff with an ongoing incident: a quiet stretch has nothing to deploy agents on.
+const first = (await buildCases(train, { from: train.info.startUnix, to: train.info.nowUnix }, { strideHours: 2, limit: 1 }))[0];
+const origin = first ? first.at - 3600 : train.info.startUnix;
+const span = (train.info.nowUnix - origin) / weeks;
 const reports: CycleReport[] = [];
 for (let w = 0; w < weeks; w++) {
-  const from = train.info.startUnix + w * span, to = from + span;
+  const from = origin + w * span, to = from + span;
   const cases = await buildCases(train, { from, to }, { strideHours: 4, limit: perWeek });
   console.log(`\nWeek ${w + 1} (${new Date(from * 1000).toISOString().slice(0, 16)}Z to ${new Date(to * 1000).toISOString().slice(0, 16)}Z): ${cases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
   reports.push(await runCycle({ store, model, cycle: `week${w + 1}`, train: { dataset: train, cases, board }, heldout: { dataset: held, cases: heldCases, board: heldBoard }, log: console.log }));

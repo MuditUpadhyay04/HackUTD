@@ -88,7 +88,8 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
     if (b >= a + margin) { await o.store.setPromptStatus(role, challenger.version, "champion"); report.promotions.push(`${role} v${challenger.version} promoted (${b.toFixed(3)} vs v${current.prompts[role]!.version} ${a.toFixed(3)})`); }
     else { await o.store.setPromptStatus(role, challenger.version, "retired"); report.promotions.push(`${role} v${challenger.version} retired (${b.toFixed(3)} vs v${current.prompts[role]!.version} ${a.toFixed(3)})`); }
   }
-  if (current.strategyChallenger) {
+  if (current.strategyChallenger && !challengerTraces.length) report.promotions.push(`strategy v${current.strategyChallenger.version} untested this week (no cases); stays a challenger`);
+  else if (current.strategyChallenger) {
     const a = mean(championTraces.map((t) => t.score)), b = mean(challengerTraces.map((t) => t.score));
     const promote = b >= a + margin;
     await o.store.setStrategyStatus(current.strategyChallenger.version, promote ? "champion" : "retired");
