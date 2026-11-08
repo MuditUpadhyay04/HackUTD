@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:25 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:30 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -135,7 +135,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state) | Countdown / head / regs review, then T2.top full-week sim on the golden sets, T2.bd1 block design, T2.board1 board bring-up (validate with R7 C, features, memory, alarm, pack, mul, div, unpack DONE; T2.ps1 ARM app DONE) |
 | Model, features, ingest, board tooling | Mudit | `docs/plan/mudit/ml_architecture.md` (frozen), `ml/README.md`, `ml/INTEGRATION.md` | Weights v4 deployed; board run with Lucas on the v4 golden sets; ingest via `listen.py` with Jason / Gurneal |
-| Operator API, agents, Nemotron | Jason | `docs/plan/jason/agent-backend-architecture.md`, `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Board ingest into runs (I-1), the PR #4 review findings (§9) |
+| Operator API, agents, Nemotron | Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Board ingest into runs (I-1), the PR #4 review findings (§9) |
 | Web console | Gurneal (Jimmy), with Jason | `frontend/`, `frontend/docs/live-api.md` | Board view from the operator API's snapshot (I-2) |
 
 ## 5. Interface contracts
@@ -249,6 +249,7 @@ Mudit's integration branch; `main` receives merges from them.
 | I-12 | Dead links: the console's `/api/events` download and Photon's `/api/brief` / `/api/events` calls; the operator API serves the export at `GET /runs/:id/export`. | Gurneal | PR #6 review finding 5 |
 | I-13 | Operator approvals live only in React state; persist them through `POST /runs/:id/actions`. | Gurneal (+ Jason) | PR #6 review finding 5 |
 | I-14 | `frontend/src/lib/engine/types.ts` forks `@hackutd/contracts`; use the shared contracts. | Gurneal + Jason | PR #6 review finding 5; C10 |
+| I-15 | **Nemotron live check.** The vLLM server runs with max model len 4096 while the coordinator asks for up to 1,024 output tokens plus facts and tool schemas; `Provider.contextWindow` exists but `loadConfig` never sets it, so libfx doesn't know the limit. Also verify the `qwen3_coder` tool-call parser end to end before the demo (runbook). | Jason | Found while writing `docs/plan/jason/START_HERE.md` |
 
 **Open questions:**
 
@@ -292,6 +293,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 03:30 | **Briefing for Jason** (`docs/plan/jason/START_HERE.md`): what the board side delivers (C11 JSON, weights v4, board timeline), the three-terminal software path re-verified with v4 (600 results, 9 alerts, 35 POST batches), his open items in a suggested order. New I-15 (Nemotron context limit and tool-call parser). |
 | Sun Nov 8 03:25 | **Plan statuses made honest** (PR #6 review): hard rules 11–13 and C9 / C10 / C12 are PROPOSED until their owners confirm (§8 approvers); O6, O7 (server side), O11, O12 reopened with their proposed resolutions; the final say is a tiebreaker after the §8 approvers are consulted; tracked review findings I-11 … I-14. I-11 (hard rule 9 in the console) fixed in PR #6 for Gurneal to review. |
 | Sun Nov 8 02:55 | **The FPGA is the fixed point** (Mudit): spec v4 and the RTL stay as they are; every other part adapts to them ("How this file works", §8). |
 | Sun Nov 8 02:55 | **Board-run plan decided** (Lucas's reply, `docs/plan/lucas/board_run_plan.md`): weights v4 for the board and the demo, v3 fallback; order T2.top → T2.bd1 → ARM build → T2.board1 (v4 G0, G2, G1, heartbeat test) → first live run → live swap, with estimates (§7). Lucas's PR #5 put the FPGA docs on `main`; FPGA code follows in his own FPGA → `main` PR after T2.top (his call), so this integration carries no FPGA code. FPGA spec question 73 done (GLOBAL table in the repo copy of Lucas's plan); question 77 → I-9 (Jason). |
