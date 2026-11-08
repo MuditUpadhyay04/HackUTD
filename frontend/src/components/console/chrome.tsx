@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useTransition, type ReactNode } from "react";
+import { useSyncExternalStore, useTransition, type ReactNode } from "react";
 import type { BoardStatus, DatasetInfo, SystemState } from "@/lib/engine/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { systemNum } from "@/lib/format";
@@ -14,18 +14,47 @@ import { NemotronMark } from "./nemotron";
 export type View = "overview" | "replay" | "simulation" | "handoff" | "agents";
 export type SystemStatus = "ok" | "warn" | "crit" | "nodata";
 
+// Sidebar shown or hidden with the toolbar's sidebar button; remembered in this browser.
+const SIDEBAR_KEY = "bts-sidebar";
+const sidebarListeners = new Set<() => void>();
+const sidebarOpen = () => { try { return localStorage.getItem(SIDEBAR_KEY) !== "closed"; } catch { return true; } };
+function useSidebarOpen() {
+  return useSyncExternalStore((cb) => { sidebarListeners.add(cb); return () => { sidebarListeners.delete(cb); }; }, sidebarOpen, () => true);
+}
+function setSidebarOpen(open: boolean) {
+  try { localStorage.setItem(SIDEBAR_KEY, open ? "open" : "closed"); } catch {}
+  sidebarListeners.forEach((cb) => cb());
+}
+
+/** The macOS sidebar button: hides the sidebar so the console gets the whole window, and brings it back. */
+export function SidebarToggle() {
+  const open = useSidebarOpen();
+  const label = open ? "Hide sidebar" : "Show sidebar";
+  return (
+    <button type="button" onClick={() => setSidebarOpen(!open)} aria-label={label} title={label} aria-expanded={open}
+      className="grid size-8 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-black/[0.04] hover:text-text">
+      <svg width="18" height="16" viewBox="0 0 18 16" aria-hidden>
+        <rect x="1.2" y="1.7" width="15.6" height="12.6" rx="3" fill="none" stroke="currentColor" strokeWidth="1.3" />
+        <path d="M6.5 2v12" stroke="currentColor" strokeWidth="1.3" />
+        {open && <path d="M3 5h2M3 7.5h2M3 10h2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />}
+      </svg>
+    </button>
+  );
+}
+
 /** The macOS-style window the whole console lives in (Mockup A). */
 export function Window({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+  const open = useSidebarOpen();
   return (
     <div className="mx-auto max-w-[1400px] p-0 sm:p-4 lg:p-7">
       <div
         className={cn(
-          "grid min-h-screen grid-cols-1 overflow-hidden sm:min-h-[calc(100vh-2rem)] sm:rounded-[18px] lg:min-h-[calc(100vh-3.5rem)] lg:grid-cols-[248px_1fr]",
+          "grid min-h-screen grid-cols-1 overflow-hidden sm:min-h-[calc(100vh-2rem)] sm:rounded-[18px] lg:min-h-[calc(100vh-3.5rem)]", open && "lg:grid-cols-[248px_1fr]",
           "bg-white/40 backdrop-blur-[40px] backdrop-saturate-[1.8]",
           "sm:shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_30px_80px_-30px_rgba(30,40,60,0.35),0_8px_24px_-12px_rgba(30,40,60,0.18)]",
         )}
       >
-        {sidebar}
+        {open && sidebar}
         <div className="relative min-w-0">{children}</div>
       </div>
     </div>
@@ -227,6 +256,7 @@ export function Toolbar({
   );
   return (
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b-[0.5px] border-line bg-white/55 px-4 py-3.5 backdrop-blur-[30px] backdrop-saturate-[1.8] sm:px-7">
+      <SidebarToggle />
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-[9px] bg-[rgba(118,118,128,0.12)] p-0.5">
         {(["Now", "Replay"] as const).map((label) => {
           const on = label === "Replay" ? replay : !replay;

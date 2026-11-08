@@ -142,7 +142,7 @@ export function alertText(i: Incident, s: Snapshot) {
 }
 
 export const HELP = [
-  "Beat the Shutdown. Text:",
+  "Backpressure. Text:",
   "status: one-line summary",
   "alerts: pumps down and what to inspect",
   "handoff: the agents' note for the next shift",

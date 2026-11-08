@@ -99,9 +99,19 @@ export function NetworkGraph({
                   const c = Math.cos(a), sn = Math.sin(a);
                   const anchor = c > 0.35 ? "start" : c < -0.35 ? "end" : "middle";
                   const lx = x + (anchor === "start" ? 14 : anchor === "end" ? -14 : 0);
-                  // Labels sit outside the node: beside it on the left/right, above/below at the top/bottom.
-                  const ly = anchor === "middle" ? (sn < 0 ? y - 16 - (fail ? 14 : 0) : y + 24) : y + 4 - (fail ? 7 : 0);
+                  // Labels sit outside the node: beside it on the left/right, above/below at the top/bottom,
+                  // and always inside the tile (any network: long names, one facility, day-prefixed times).
+                  const rawY = anchor === "middle" ? (sn < 0 ? y - 16 - (fail ? 14 : 0) : y + 24) : y + 4 - (fail ? 7 : 0);
+                  const ly = Math.min(Math.max(rawY, 13), TH - 4 - (fail ? 15 : 0));
                   const level = f.tank.levelPct;
+                  const pctText = level == null ? "?" : `${Math.round(level)}%`;
+                  const room = anchor === "start" ? TW - 3 - lx : anchor === "end" ? lx - 3 : 2 * Math.min(lx, TW - lx) - 6;
+                  const fitName = (name: string) => {
+                    const max = Math.floor((room - (pctText.length + 1) * 7.4) / (/^[A-Z0-9_]+$/.test(name) ? 9.2 : 7.6)); // ~px per character at 13px (capitals are wider)
+                    return name.length <= max ? name : `${name.slice(0, Math.max(1, max - 1))}…`;
+                  };
+                  const shortName = fitName(letterOf(f));
+                  const failText = fail && fail.length * 7.2 > room ? fail.replace(/^\S+ (?=\d)/, "") : fail;
                   return (
                     <g
                       key={f.id}
@@ -117,15 +127,16 @@ export function NetworkGraph({
                       }}
                       className="cursor-pointer outline-none [&:focus-visible>circle]:stroke-[var(--water)] [&:hover>circle]:fill-[#f2f2f7]"
                     >
+                      <title>{`${facilityName(f.id)}, tank ${pctText}${fail ? `, ${fail}` : ""}`}</title>
                       <circle cx={x} cy={y} r={9} fill="#fff" stroke={statusColor[st]} strokeWidth={3} />
                       {st === "down" && <path d={`M${x - 3.5} ${y - 3.5}l7 7M${x + 3.5} ${y - 3.5}l-7 7`} stroke={statusColor.down} strokeWidth={2} strokeLinecap="round" />}
                       <text x={lx} y={ly} textAnchor={anchor} className="fill-[var(--text)] text-[13px] font-semibold">
-                        {letterOf(f)}
-                        <tspan className="fill-[var(--muted)] font-normal"> {level == null ? "?" : `${Math.round(level)}%`}</tspan>
+                        {shortName}
+                        <tspan className="fill-[var(--muted)] font-normal"> {pctText}</tspan>
                       </text>
                       {fail && (
                         <text x={lx} y={ly + 15} textAnchor={anchor} className="fill-[var(--crit)] text-[12.5px] font-semibold">
-                          {fail}
+                          {failText}
                         </text>
                       )}
                     </g>

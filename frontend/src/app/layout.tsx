@@ -3,7 +3,7 @@ import "./globals.css";
 import { themeScript } from "@/components/console/theme-toggle";
 
 export const metadata: Metadata = {
-  title: { default: "Beat the Shutdown", template: "%s | Beat the Shutdown" },
+  title: { default: "Backpressure", template: "%s | Backpressure" },
   description:
     "Console for a produced-water network: what is failing, how long until it shuts in, and the cheapest way to keep it running.",
 };

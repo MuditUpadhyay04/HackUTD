@@ -1,4 +1,4 @@
-// Beat the Shutdown on your phone (Photon / iMessage). Replies come from the operator API through console.mts.
+// Backpressure on your phone (Photon / iMessage). Replies come from the operator API through console.mts.
 // Text "help" for the commands. "subscribe" turns on a text whenever a new pump failure or inspection appears,
 // including when a new dataset is uploaded. Advice only: nothing here approves or dispatches anything.
 import { mkdir, readFile, writeFile } from "node:fs/promises";

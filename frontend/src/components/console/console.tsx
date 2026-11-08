@@ -17,6 +17,7 @@ import { NemotronBrief } from "./nemotron";
 import { AgentsPanel, agentLines, useAgentRun } from "./agents";
 import { DemoBatchLog } from "./demo-mode";
 import { Timeline } from "./timeline";
+import { Rearrange } from "./rearrange";
 
 const longDay = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
 const words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
@@ -353,35 +354,39 @@ export function Console({
                 {actionError}
               </p>
             )}
-            <div className="mt-5">
-              <KpiStrip items={kpis} />
-            </div>
-            <div className="mt-4">
-              <NetworkGraph
-                systems={s.systems}
-                alerts={s.alerts}
-                nowUnix={s.nowUnix}
-                trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
-                onFacility={(f) => setFacilityId(f.id)}
-              />
-            </div>
-            <div className="mt-4">
-              <AlertsTable
-                failures={failures}
-                inspections={inspections}
-                noData={noData}
-                nowUnix={s.nowUnix}
-                approvedAt={approvedAt}
-                tickets={ticketsNow}
-                onIncident={setIncident}
-                onTicket={(a) => void saveAction(a, "inspection_ticket")}
-                onFacility={(f) => setFacilityId(f.id)}
-                agentNote={agentNote}
-              />
-            </div>
-            <div className="mt-4">
-              <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
-            </div>
+            <Rearrange
+              storageKey="bts-replay-order"
+              className="mt-5 grid gap-4"
+              widgets={[
+                { id: "summary", label: "the summary", node: <KpiStrip items={kpis} /> },
+                { id: "network", label: "the network", node: (
+                  <NetworkGraph
+                    systems={s.systems}
+                    alerts={s.alerts}
+                    nowUnix={s.nowUnix}
+                    trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
+                    onFacility={(f) => setFacilityId(f.id)}
+                  />
+                ) },
+                { id: "alerts", label: "alerts", node: (
+                  <AlertsTable
+                    failures={failures}
+                    inspections={inspections}
+                    noData={noData}
+                    nowUnix={s.nowUnix}
+                    approvedAt={approvedAt}
+                    tickets={ticketsNow}
+                    onIncident={setIncident}
+                    onTicket={(a) => void saveAction(a, "inspection_ticket")}
+                    onFacility={(f) => setFacilityId(f.id)}
+                    agentNote={agentNote}
+                  />
+                ) },
+                { id: "pipelines", label: "pipelines", node: (
+                  <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
+                ) },
+              ]}
+            />
           </>
         )}
       </main>
