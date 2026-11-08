@@ -97,7 +97,7 @@ there, as after a power-on. Without `--post`, `listen.py` just prints JSON lines
 
 The order is a suggestion; the server is your call.
 
-**Update, Sun 07:15:** the closed-loop agent POC (Nick, `agent-loop-plan.md`) is on `main`. Nemotron works live
+**Update, Sun 07:15:** the closed-loop agent POC (Mudit, `agent-loop-plan.md`) is on `main`. Nemotron works live
 (8/8 analyses accepted). I-10 and I-15 are done (the endpoint reports `max_model_len` 1,048,576; `NEMOTRON_*` env
 settings). I-8 is done except the `nowUnix ?? 0` default. A deterministic orchestrator now runs scoped sub-agents,
 with a weekly prompt-learning loop: C13, PROPOSED. Items 1–3 below are kept for history.

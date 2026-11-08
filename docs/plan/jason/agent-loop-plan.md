@@ -1,10 +1,10 @@
 # Closed-loop Nemotron agents: plan and proof of concept
 
-Status: **PROPOSED** (Nick, Sun Nov 8 2026, ~05:30 CST). **P0 and P1 done; checkpoint C1 passed Sun 05:39 CST**
+Status: **PROPOSED** (Mudit, Sun Nov 8 2026, ~05:30 CST). **P0 and P1 done; checkpoint C1 passed Sun 05:39 CST**
 (§7); P3 and P4 built (§9); P2 and P5 not started. **Promoted to [`global_plan.md`](../../../global_plan.md)
 as PROPOSED** (C12 update, C13, I-16 … I-19, O18; Sun 07:15); ADOPTED needs the team's agreement. Agents
-and Nemotron are Jason's domain (C12, final say), so this plan sits in his folder, the way
-[`START_HERE.md`](START_HERE.md) does; edit or move it.
+and Nemotron are owned by Mudit + Jason (`global_plan.md`, O18); this plan sits next to
+[`START_HERE.md`](START_HERE.md).
 
 The idea: many closed-loop Nemotron agents that (a) improve the explanation and comparison of truck / shut-in plans,
 (b) make the operator's shift easier, and (c) help improve the FPGA weights **offline**. A harness (the
@@ -115,7 +115,7 @@ Efforts are **estimates**. The critical path is P0 → P1 → P3 → P4 → P5, 
 | P5 Demo hardening, dry run | Must | 1.5 h | 10.75 h | C5: the whole demo twice from a cold start, no code edits |
 | P6+ Plan proposer, offline weights analyst, Ax GEPA, operator Q&A | Could | later | – | – |
 
-### P0 Setup (Must; Nick; 0.75 h est.)
+### P0 Setup (Must; Mudit; 0.75 h est.)
 
 1. `git fetch origin && git switch -c feat/agent-loop-poc origin/main`.
 2. `gh auth status`. Don't merge PR #9: its branch would revert `ml/` files; take only its doc if wanted.
@@ -240,7 +240,7 @@ Done when: the loop prints scores per version for 3+ weeks, and champions change
    - `rg -n "S[0-9]_FACILITY" apps/api/src -g '!*.test.ts'`;
    - check that no key appears in logs.
 3. Failure drills: no key, fakeboard stopped, a 1 s deadline.
-4. Docs, then push and open a PR (Nick runs those himself).
+4. Docs, then push and open a PR (Mudit runs those).
 
 ### P6+ Later (Could)
 
@@ -262,7 +262,7 @@ Done when: the loop prints scores per version for 3+ weeks, and champions change
 | Experiment-spec format and candidate weight numbering | Mudit |
 | Confirm no FPGA work is needed for this | Lucas |
 | Console wording for model-written handoffs | Gurneal |
-| Promote this plan into `global_plan.md` | Nick, then the whole team |
+| Promote this plan into `global_plan.md` | Mudit, then the whole team |
 
 ## 6. Where the Nemotron settings go
 
