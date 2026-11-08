@@ -1,8 +1,10 @@
 // tb_eog_validate.sv — bit-exact simulation of eog_validate against the model's golden vectors (Verify role,
 // task T1.validate.fv). `bash scripts/sim.sh validate` (run from FPGA/, file list tb/validate/files.f).
 //
-// Written from spec/modules/eog_validate.md, numerics.md §3 (spec v2) and tb/README.md; the expected outputs are
-// model/eog_ref.py's (FPGA/tb/vectors/validate_<case>.out.hex), so this testbench has no reference of its own.
+// Written from spec/modules/eog_validate.md, numerics.md §3 (spec v4) and tb/README.md; the expected outputs are
+// model/eog_ref.py's (FPGA/tb/vectors/validate_<case>.out.hex; from spec v4 on, model/check_mudit.py ties them
+// byte for byte to Mudit's features_int.py), so this testbench has no reference of its own and is
+// version-agnostic: it needs v4 vectors (task T0.2b) to check v4 RTL.
 //
 // Cases: every "case <name>" line of tb/vectors/INDEX.txt. A case runs when validate_<name>.in.hex, .out.hex and
 // <name>.cfg.hex exist; otherwise it is skipped with a note (the *_week files are git-ignored: generate them with
@@ -36,7 +38,7 @@ module tb_eog_validate;
 `include "eog_defs.svh"
     localparam integer N_FAC  = 32;
     localparam integer N_WELL = 8;
-    localparam integer MAXREC = 32768;
+    localparam integer MAXREC = 65536;
     localparam integer MAXEV  = 1024;
     localparam integer MAXCASE = 64;
 
