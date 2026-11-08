@@ -89,6 +89,7 @@ export interface PlanOption {
   tankTrips: boolean; // reaches shutdown under this plan
   tripAtMin: number | null; // minutes from plan start
   levelCurve: { min: number; pct: number }[]; // projected tank level
+  systemPlanId?: string; // operator API: the immutable system plan this option belongs to (needed to approve it)
 }
 
 export interface Incident {
@@ -132,10 +133,13 @@ export interface FleetState {
 
 export interface Snapshot {
   runId: string;
+  revision?: number; // operator API snapshot revision; actions must quote it
   dataset: DatasetInfo;
   limits: { warningPct: number; shutdownPct: number }; // from network.json defaults.tank_limits_pct
   board?: BoardStatus | null; // undefined = local mode (no board configured); null = configured but unreachable
   nowUnix: number; // may be < dataset.nowUnix when time-travelling
+  /** What ran the checks for this run (operator API). scoresAvailable=false: no model, so leak and wear checks are off. */
+  runtime?: { effective: "software" | "fpga"; state: "ready" | "degraded" | "rebuilding"; reasons: string[]; scoresAvailable: boolean; modelVersion: string | null };
   systems: SystemState[];
   alerts: Incident[]; // ongoing, sorted per SPEC alerts view
   history: Incident[]; // resolved, newest first

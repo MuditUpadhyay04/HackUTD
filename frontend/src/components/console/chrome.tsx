@@ -246,7 +246,7 @@ function BoardChip({ board }: { board: BoardStatus | null }) {
     state === "online" ? "Board online" : state === "own" ? "Board on its own" : state === "software" ? "Software runtime" : "Board offline";
   const detail =
     state === "offline"
-      ? "Showing the console's own detections"
+      ? "The server is running the checks in software"
       : state === "own"
         ? "The board lost the server and is watching on its own"
         : state === "software"
@@ -270,7 +270,7 @@ function BoardChip({ board }: { board: BoardStatus | null }) {
       <span className="min-w-0">
         {label}
         {simulated && <span className="font-medium text-warn"> (simulated)</span>}
-        {state === "offline" && <span className="sr-only text-faint lg:not-sr-only">, using the console&apos;s own detections</span>}
+        {state === "offline" && <span className="sr-only text-faint lg:not-sr-only">, server running the checks</span>}
         {detail && state !== "offline" && <span className="sr-only">. {detail}</span>}
       </span>
     </span>

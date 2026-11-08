@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { BoardStatus, DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { boardFacility, InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
+import { api, commandKey, unwrap } from "@/lib/api";
+import { boardFacility } from "./cards";
 import { NetworkCard } from "./network";
+import { AlertsTable, KpiStrip, NetworkGraph } from "./ops-board";
 import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
@@ -49,7 +51,38 @@ export function Console({
   const [facilityId, setFacilityId] = useState<string | null>(null);
   const [approved, setApproved] = useState<Record<string, number>>({});
   const [tickets, setTickets] = useState<Record<string, number>>({});
-  const [flash, setFlash] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Approvals and tickets are saved on the operator API against this run, so a reload keeps them.
+  useEffect(() => {
+    let live = true;
+    api.api.runs({ id: s.runId }).actions.get().then((r) => {
+      if (!live || r.error || !Array.isArray(r.data)) return;
+      const ack: Record<string, number> = {}, tix: Record<string, number> = {};
+      for (const a of r.data) (a.kind === "acknowledge_advice" ? ack : tix)[a.incidentId] = s.nowUnix;
+      setApproved((p) => ({ ...ack, ...p }));
+      setTickets((p) => ({ ...tix, ...p }));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [s.runId, s.nowUnix]);
+
+  const saveAction = async (a: Incident, kind: "acknowledge_advice" | "inspection_ticket") => {
+    const set = kind === "acknowledge_advice" ? setApproved : setTickets;
+    set((p) => ({ ...p, [a.id]: s.nowUnix }));
+    setActionError(null);
+    if (s.revision == null) return; // not from the operator API (no run to save against)
+    try {
+      unwrap(
+        await api.api.runs({ id: s.runId }).actions.post(
+          { incidentId: a.id, revision: s.revision, kind, ...(kind === "acknowledge_advice" && a.plan?.systemPlanId ? { planId: a.plan.systemPlanId } : {}) },
+          { headers: { "idempotency-key": commandKey() } },
+        ),
+      );
+    } catch (e) {
+      set((p) => { const n = { ...p }; delete n[a.id]; return n; });
+      setActionError(`${kind === "acknowledge_advice" ? "Couldn't save the approval" : "Couldn't create the ticket"}: ${e instanceof Error ? e.message : "server error"}`);
+    }
+  };
 
   // Approvals and tickets only count at or after the replay time they were made.
   const approvedAt = (id: string) => (approved[id] !== undefined && approved[id] <= s.nowUnix ? approved[id] : undefined);
@@ -71,14 +104,10 @@ export function Console({
   const goSystem = (id: string) => {
     if (view === "handoff") setView(live ? "overview" : "replay");
     requestAnimationFrame(() => {
-      document.getElementById(`system-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setFlash(id);
-      window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1400);
+      document.getElementById(`pipes-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   };
 
-  // Keep the approved 5-across tank grid for up to 5 systems of up to 5 tanks; larger networks get 3 wider columns.
-  const wideTanks = s.systems.length > 5 || s.systems.some((x) => x.facilities.length > 5);
 
   // Summary numbers
   const states = failures.map((a) => countdownState(a, s.nowUnix));
@@ -90,9 +119,13 @@ export function Console({
   const nothingCost = sumKnown(failures.map((a) => a.options?.find((o) => o.kind === "do_nothing")?.cost));
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
-  const noData = facilities.filter((f) => f.health === "no_data" || f.health === "unknown");
+  // "no_data" or bad readings = a sensor problem. "unknown" with good readings = the readings are fine but the
+  // leak and wear checks could not run (no model loaded). Both stay grey, never healthy (hard rule 9),
+  // but only the first one is a sensor problem.
+  const noData = facilities.filter((f) => f.health === "no_data" || (f.health === "unknown" && f.dataQuality.quality !== "VALID"));
+  const unchecked = facilities.filter((f) => f.health === "unknown" && f.dataQuality.quality === "VALID");
   let headline: string;
-  if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
+  if (failures.length === 0) headline = noData.length || unchecked.length ? "No pumps are reported down." : "Every pump is running.";
   else if (sysWithFailures.length === 1) {
     const fleet = s.systems.find((x) => x.id === sysWithFailures[0])?.fleetSize ?? 0;
     const fleetClause = fleet === 0 ? "have no emergency trucks" : `share ${fleet === 1 ? "one truck" : `${count(fleet).toLowerCase()} trucks`}`;
@@ -104,6 +137,11 @@ export function Console({
   if (noData.length)
     headline += ` ${count(noData.length)} ${noData.length === 1 ? "facility has" : "facilities have"} no recent readings.`;
   if (inspections.length) headline += ` ${count(inspections.length)} ${inspections.length === 1 ? "problem needs" : "problems need"} an inspector.`;
+  if (unchecked.length)
+    headline +=
+      s.runtime && !s.runtime.scoresAvailable
+        ? " Leak and wear checks are off because no model is loaded."
+        : ` ${count(unchecked.length)} ${unchecked.length === 1 ? "facility hasn't" : "facilities haven't"} been checked for leaks or wear.`;
 
   const onView = (v: View) => {
     setView(v);
@@ -162,7 +200,8 @@ export function Console({
           <div className="mt-6 grid max-w-[760px] gap-4">
             <NemotronBrief runId={s.runId} expanded />
             <a
-              href={`/api/events?dataset=${encodeURIComponent(s.dataset.id)}${at ? `&at=${at}` : ""}`}
+              href={`/api/backend/api/runs/${encodeURIComponent(s.runId)}/export`}
+              download="events.json"
               className="w-fit text-[14px] font-medium text-water hover:underline"
             >
               Download events.json
@@ -171,64 +210,45 @@ export function Console({
         ) : (
           <>
             {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
-            <div className="mt-[22px] grid grid-cols-2 gap-3.5 xl:grid-cols-4">
-              <StatCard label="Pumps down" value={String(failures.length)} tone={failures.length ? "crit" : undefined} />
-              <StatCard
-                label="First shutdown"
-                value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None"}
-                tone={next || allShut ? "crit" : undefined}
+            {actionError && (
+              <p role="alert" className="glass mt-4 px-5 py-3 text-[14px] text-crit">
+                {actionError}
+              </p>
+            )}
+            <div className="mt-5">
+              <KpiStrip
+                items={[
+                  { label: "Pumps down", value: String(failures.length), tone: failures.length ? "crit" : undefined },
+                  { label: "First shutdown", value: next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None", tone: next || allShut ? "crit" : undefined },
+                  { label: "Recommended plan", value: planCost == null ? "Unknown" : money(planCost) },
+                  { label: "If nobody acts", value: nothingCost == null ? "Unknown" : money(nothingCost) },
+                ]}
               />
-              <StatCard label="Recommended plan" value={planCost == null ? "Unknown" : money(planCost)} />
-              <StatCard label="If nobody acts" value={nothingCost == null ? "Unknown" : money(nothingCost)} />
             </div>
 
-            <SectionTitle title="Pumps down" note={failures.length > 1 ? "Soonest shutdown first" : undefined} />
-            {failures.length ? (
-              <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
-                {failures.map((a) => (
-                  <PumpCard key={a.id} incident={a} nowUnix={s.nowUnix} limits={s.limits} approvedAt={approvedAt(a.id)} onOpen={() => setIncident(a)} board={s.board} />
-                ))}
-              </div>
-            ) : (
-              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">{noData.length ? "No pumps are reported down. Some facilities have no recent readings; see Check sensors." : "No pumps are down. Every tank is cycling normally."}</div>
-            )}
+            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
+              <NetworkGraph
+                systems={s.systems}
+                alerts={s.alerts}
+                nowUnix={s.nowUnix}
+                trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
+                onFacility={(f) => setFacilityId(f.id)}
+              />
+              <AlertsTable
+                failures={failures}
+                inspections={inspections}
+                noData={noData}
+                nowUnix={s.nowUnix}
+                approvedAt={approvedAt}
+                tickets={ticketsNow}
+                onIncident={setIncident}
+                onTicket={(a) => void saveAction(a, "inspection_ticket")}
+                onFacility={(f) => setFacilityId(f.id)}
+              />
+            </div>
 
-            {noData.length > 0 && (
-              <>
-                <SectionTitle title="Check sensors" note="Missing readings are never shown as healthy" />
-                <SensorRows items={noData} onOpen={(f) => setFacilityId(f.id)} />
-              </>
-            )}
-
-            {inspections.length > 0 && (
-              <>
-                <SectionTitle title="Send an inspector" />
-                <InspectorRows
-                  items={inspections}
-                  tickets={ticketsNow}
-                  onOpen={setIncident}
-                  onTicket={(a) => setTickets((t) => ({ ...t, [a.id]: s.nowUnix }))}
-                  board={s.board}
-                  nowUnix={s.nowUnix}
-                />
-              </>
-            )}
-
-            <SectionTitle title="Network" note="Water from the wells, through each pump, to the disposal site. Flows in bpd (barrels per day)" />
-            <NetworkCard systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
-
-            <SectionTitle title="Tanks" note={`Red line is shutdown at ${s.limits.shutdownPct}%`} />
-            <div className={cn("grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3", wideTanks ? "xl:grid-cols-3" : "xl:grid-cols-5")}>
-              {s.systems.map((sys) => (
-                <SystemCard
-                  key={sys.id}
-                  system={sys}
-                  trucksFree={trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
-                  limits={s.limits}
-                  highlight={flash === sys.id}
-                  onTank={(f) => setFacilityId(f.id)}
-                />
-              ))}
+            <div className="mt-4">
+              <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
             </div>
           </>
         )}
@@ -245,7 +265,7 @@ export function Console({
         boardTestWeights={isTestWeights(s.board?.weightsVersion)}
         boardSoftware={s.board?.provenance === "software"}
         onApprove={(a) => {
-          setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
+          void saveAction(a, "acknowledge_advice");
           setIncident(null);
         }}
         onClose={() => setIncident(null)}
@@ -266,15 +286,6 @@ export function Console({
         }}
       />
     </Window>
-  );
-}
-
-function SectionTitle({ title, note }: { title: string; note?: string }) {
-  return (
-    <h2 className="mt-[34px] tracking-[-0.015em] mb-3 flex items-baseline gap-2.5 font-display text-[20px] font-bold">
-      {title}
-      {note && <small className="text-[13px] font-normal tracking-normal text-faint">{note}</small>}
-    </h2>
   );
 }
 

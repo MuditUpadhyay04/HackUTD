@@ -41,8 +41,8 @@ export function Workspace({
 
   useEffect(() => {
     const abort = new AbortController();
-    setSnapshot(null); setError("");
     async function start() {
+      setSnapshot(null); setError("");
       const list = await loadDatasets();
       if (abort.signal.aborted) return;
       // Props take precedence over URL params
@@ -103,7 +103,10 @@ export function Workspace({
     }
     start().catch((e: Error) => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
-  }, [datasetProp, atProp, runtime, loadDatasets]);
+    // Keyed on the dataset id: the page re-renders (LiveRefresh) pass a new object each time,
+    // which used to start a new backend run every 3 seconds.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [datasetProp?.id, atProp, runtime, loadDatasets]);
 
   const navigate = (patch: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());

@@ -3,7 +3,15 @@ import type { App } from "@hackutd/api";
 
 // Eden appends its typed /api routes to this prefix. No upstream credentials
 // or server implementation are included in the browser bundle.
-export const api = treaty<App>(`${typeof window === "undefined" ? "http://localhost" : window.location.origin}/api/backend`, { parseDate: false });
+// On the server (page render) there is no browser origin, and going through our own proxy would hit the
+// operator login. So server code talks to the operator API directly with the server-only token.
+export const api =
+  typeof window === "undefined"
+    ? treaty<App>(process.env.API_URL || "http://127.0.0.1:3001", {
+        parseDate: false,
+        headers: process.env.API_TOKEN ? { authorization: `Bearer ${process.env.API_TOKEN}` } : undefined,
+      })
+    : treaty<App>(`${window.location.origin}/api/backend`, { parseDate: false });
 
 export function unwrap<T>(result: { data: T | null; error: unknown }): Exclude<T, Response | { error: string; code: string }> {
   if (result.error) {
