@@ -109,8 +109,12 @@ their specs), write pack and regs to v4 from the start, leave mul, div and unpac
 
 **STATE ~08:15: every T1 module DONE on spec v4** (regs last, e921032). `FPGA/reports/RTL_DONE_HANDOFF.md` is written
 (proven / bounded / simulated per module, estimates, open items, board steps). T2.top REVIEW (top formal not closed).
-T2.ps1, T2.sd DONE (host). Final `check_all.sh` running on FPGA (≈2 h: countdown and head formal dominate); refresh
-`reports/SUMMARY.md` and push when it ends.
+T2.ps1, T2.sd DONE (host). **Final `check_all.sh` on FPGA @ 3560bda: ALL PASS** (lint/sim/formal every module, top
+sim; no UNKNOWN/FAIL in any formal_*.txt; 93 min). `reports/SUMMARY.md` + formal reports committed.
+**Answered Lucas (~11:40):** "loading new weights during operation" = UDP 7004 WEIGHTS → ARM checks (len 2 / CRC 1 /
+header+self-test 3) → write inactive bank words 0–70 → `CTRL.swap_req` → head swaps at record boundary (1 cycle
+in_ready=0, H1–H3 proven) → ACK 4 (or 0 if still pending). No warm-up; thresholds/K are GLOBAL (needs stop+drain, #69).
+Gap: no live mid-stream swap on the board yet; suggested adding `replay.py --swap-at-step` to board acceptance.
 **Board (laptop) findings:** `D:\LEAD_board_findings.md` (laptop) → lead response `FPGA/reports/LEAD_board_response.md`
 (B4 replay corruption is not the RTL: E0–E5 experiments; 100 MHz fails by 8 ns in validate, prototyped plan; 50 MHz
 demo; memory ram_style; trial merge of `eog/T2.bd1` passes on local branch `scratch/bd1-trial`, not pushed).

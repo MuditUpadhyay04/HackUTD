@@ -1,4 +1,4 @@
-# formal div  2026-11-08T07:31:03Z  sby rc=0  (formal/div/eog_div.sby)
-eog_div_bmc: PASS 0 25
+# formal div  2026-11-08T12:25:03Z  sby rc=0  (formal/div/eog_div.sby)
+eog_div_bmc: PASS 0 21
 eog_div_cover: PASS 0 1
 eog_div_prove: PASS 0 1
