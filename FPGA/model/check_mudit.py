@@ -3,8 +3,10 @@
     python FPGA/model/check_mudit.py [--ml PATH] [--no-week] [--show N]
 
 PATH is the `ml/` folder of a checkout of branch `ml` (the one holding `hutd_ml/` and `artifacts/`); default $EOG_ML,
-else `ml/ml` next to this repository (`git worktree add ../ml origin/ml`). Practice data: $EOG_DATA, as for
-gen_vectors.py. Needs numpy (Mudit's code); pandas is not needed (a stub stands in for his encoder's import).
+else `ml/ml` next to this repository (`git worktree add ../ml origin/ml`; cases.ml_dir). Practice data: $EOG_DATA, as
+for gen_vectors.py. Needs numpy (Mudit's code); pandas is not needed (a stub stands in for his encoder's import).
+Mudit's code is the normative integer reference (spec v4 + Lucas's rulings on spec questions 20-25): a
+disagreement is a spec question to raise, never something to "fix" by picking a side.
 
 A. Spec v4 numerics.md §11 (Mudit's task T0.0), each probed on his engine with a small directed scenario:
    1 S = 17 and M < 2^32 in his encoder; 2 `review_r1r2` is the default countdown; 3 latched Night Shift / E-STOP
@@ -34,22 +36,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import cases as C  # noqa: E402
 import ingest as I  # noqa: E402
-from eog_ref import Engine, decode_weights, encode_weights, window_from_blob  # noqa: E402
-from layouts import AL, BU, CFG, D, G, N_FAC, N_WELL, R, RES, N_FEAT, arr_unpack  # noqa: E402
+from eog_ref import Engine, decode_weights, encode_weights  # noqa: E402
+from layouts import AL, BU, CFG, G, N_FAC, N_FEAT, N_WELL, R, RES  # noqa: E402
 
 FAILS = {"spec11": [], "agree": []}
-
-
-def ml_dir(arg):
-    cands = [arg] if arg else []
-    if os.environ.get("EOG_ML"):
-        cands.append(os.environ["EOG_ML"])
-    for up in ("../../..", "../../../..", "../../../../..", "../../../../../.."):
-        cands += [os.path.join(HERE, up, "ml", "ml"), os.path.join(HERE, up, "ml")]
-    for c in cands:
-        if c and os.path.exists(os.path.join(c, "hutd_ml", "features_int.py")):
-            return os.path.normpath(c)
-    raise FileNotFoundError("Mudit's ml/ folder not found: pass --ml or set EOG_ML (git worktree add ../ml origin/ml)")
 
 
 def import_ml(path):
@@ -189,17 +179,10 @@ def golden_sets(mlp):
 
 
 def load_golden(d):
-    man = json.load(open(os.path.join(d, "manifest.json"), encoding="utf-8"))
-    glb = open(os.path.join(d, "global_config.bin"), "rb").read()
-    fc = open(os.path.join(d, "facility_config.bin"), "rb").read()
-    rows = {int.from_bytes(fc[64 * i:64 * i + 2], "little"): fc[64 * i:64 * i + 64] for i in range(len(fc) // 64)}
-    wp = os.path.join(d, "weights.bin")
-    img = window_from_blob(open(wp, "rb").read(), man.get("weights_version", 0)) if os.path.exists(wp) else [0] * 71
-    data = open(os.path.join(d, "data.bin"), "rb").read()
-    recs = [data[48 * i:48 * i + 48] for i in range(len(data) // 48)]
+    """cases.load_golden plus the expected RESULT bytes and ALERT dicts."""
     exp = open(os.path.join(d, "expected_results.bin"), "rb").read()
     alerts = json.load(open(os.path.join(d, "expected_alerts.json"), encoding="utf-8"))
-    return man, glb, rows, img, recs, exp, alerts
+    return C.load_golden(d) + (exp, alerts)
 
 
 # ------------------------------------------------------------------------------------------------ §11 probes
@@ -351,7 +334,7 @@ def main(argv):
     ap.add_argument("--no-week", action="store_true", help="skip the 30,240-record practice-week engine runs")
     ap.add_argument("--show", type=int, default=5, help="mismatches to print per comparison")
     a = ap.parse_args(argv)
-    mlp = ml_dir(a.ml)
+    mlp = C.ml_dir(a.ml)
     ml = import_ml(mlp)
     print("Mudit's code:", mlp)
     goldens = golden_sets(mlp)
