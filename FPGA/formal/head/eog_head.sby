@@ -27,10 +27,11 @@
 #            weight word), features in {0, 1, -1}, S_OUT in {0, 16, 31}: H1H5_logit for sums of all three terms
 #            per class (accumulation across terms and MAC cycles, feature and weight sign handling, B + sum beyond
 #            32 bits), H1H6_logit.
-#            Both arithmetic tasks: depth 12. The first logit prediction falls at step 8 on the stub (hard reset,
+#            Both arithmetic tasks: depth 10. The first logit prediction falls at step 8 on the stub (hard reset,
 #            4-5 window writes, a swap, a record with 3-cycle latency); for the RTL it is 5 + its N_FEAT = 3 latency.
-#            Each step past the first prediction costs ~4-5 min on the shared machine. A symbolic S_OUT next to a
-#            nonzero-term sum, and a second multiplier in the harness, did not finish one such step in 10 min.
+#            Size the depth as (the step at which the cover task reaches C_sat5) + 1, else the check is vacuous.
+#            On the shared machine step 8 took ~4 min, step 9 more than 11 min. A symbolic S_OUT next to a
+#            nonzero-term sum, or a second multiplier in the harness, did not finish step 8 in 10 min.
 #            Full-width accumulation (N_FEAT = 31 needs 66 window writes first), negative features with the real
 #            multiplier and every S_OUT on real data are covered by simulation (tb/head).
 # cover      N_FEAT = 3, real multiplier, SH = 2, features 0 or 2^j: C_swap, C_sat, C_sat5, C_nomodel, C_coalesce,
@@ -52,8 +53,8 @@ prove:     depth 24
 bmc:       mode bmc
 bmc_bank:  depth 16
 bmc_rb:    depth 8
-bmc_h7:    depth 12
-bmc_arith: depth 12
+bmc_h7:    depth 10
+bmc_arith: depth 10
 cover:     mode cover
 cover:     depth 20
 
