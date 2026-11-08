@@ -84,8 +84,8 @@ describe("plan outcomes", () => {
     const c = rows.find((r) => r.incidentId === C)!;
     expect(c).toMatchObject({ recommendedPlanId: "opt-C-1", agentPlanId: "opt-C-2", approvedPlanId: "opt-C-1", approvedBy: "operator" });
     expect(rows.find((r) => r.incidentId === A)!.approvedBy).toBeNull();
-    const withOutcome = rows.map((r, k) => ({ ...r, outcome: { windowHours: 6, observedAtUnix: 1, maxLevelPct: 95, tankLimitReached: k === 0, incidentStillOngoing: false, forecastTankTrip: false, forecastMatched: k !== 0 } }));
-    expect(planOutcomes(withOutcome)[0]).toMatchObject({ kind: "trucks", decisions: 2, measured: 2, forecastMatchRate: 0.5, agentAgreedRate: 0 });
+    const withOutcome = rows.map((r, k) => ({ ...r, outcome: { windowHours: 6, observedAtUnix: 1, maxLevelPct: 95, tankLimitReached: k === 0, incidentStillOngoing: false, forecastTankTrip: false, forecastMatched: k !== 0, recommendationJustified: k === 0 } }));
+    expect(planOutcomes(withOutcome)[0]).toMatchObject({ kind: "trucks", decisions: 2, measured: 2, forecastMatchRate: 0.5, justifiedRate: 0.5, agentAgreedRate: 0 });
   });
 });
 

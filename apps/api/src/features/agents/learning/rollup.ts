@@ -30,8 +30,10 @@ export function planOutcomes(decisions: DecisionRecord[]) {
   const kinds = [...new Set(decisions.map((d) => d.recommendedKind))];
   return kinds.map((kind) => {
     const mine = decisions.filter((d) => d.recommendedKind === kind);
-    const measured = mine.filter((d) => d.outcome?.forecastMatched !== null && d.outcome?.forecastMatched !== undefined);
-    return { kind, decisions: mine.length, measured: measured.length, forecastMatchRate: mean(measured.map((d) => (d.outcome!.forecastMatched ? 1 : 0))),
+    const measured = mine.filter((d) => d.outcome?.tankLimitReached !== null && d.outcome?.tankLimitReached !== undefined);
+    const forecasts = measured.filter((d) => d.outcome!.forecastMatched !== null && d.outcome!.forecastMatched !== undefined);
+    return { kind, decisions: mine.length, measured: measured.length, forecastMatchRate: mean(forecasts.map((d) => (d.outcome!.forecastMatched ? 1 : 0))),
+      justifiedRate: mean(measured.map((d) => (d.outcome!.recommendationJustified ? 1 : 0))),
       tankLimitReachedRate: mean(measured.map((d) => (d.outcome!.tankLimitReached ? 1 : 0))), meanCostUsd: mean(mine.map((d) => d.recommendedCostUsd)),
       agentAgreedRate: mean(mine.filter((d) => d.agentPlanId).map((d) => (d.agentPlanId === d.recommendedPlanId ? 1 : 0))) };
   });

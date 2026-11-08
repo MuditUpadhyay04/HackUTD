@@ -25,10 +25,12 @@ export function decisionsFor(trace: AgentRunTrace, snapshot: Snapshot, cycle: st
 
 /**
  * What the telemetry of the following window shows for the facility: highest tank level, whether it reached the
- * shutdown limit (or was observed shut in), and whether the incident is still ongoing. Compared with the
- * recommended plan's forecast (tankTrips). Uses only the dataset's runtime inputs.
+ * shutdown limit (or was observed shut in), and whether the incident is still ongoing. The later telemetry is the
+ * no-action path (nobody executed the advice), so it checks the do-nothing forecast, and whether acting was
+ * warranted: a plan other than do-nothing is justified when the tank did reach the limit without action, and
+ * do-nothing is justified when it did not. Uses only the dataset's runtime inputs.
  */
-export async function measureOutcome(dataset: ImportedDataset, cutoff: number, decision: Pick<DecisionRecord, "facilityId" | "recommendedPlanId">, forecastTankTrip: boolean,
+export async function measureOutcome(dataset: ImportedDataset, cutoff: number, decision: Pick<DecisionRecord, "facilityId" | "recommendedPlanId" | "recommendedKind">, forecastTankTrip: boolean | null,
   windowHours: number, cache = new Map<number, Snapshot>()): Promise<Outcome | null> {
   const step = 300, start = dataset.info.startUnix;
   const later = Math.min(start + Math.floor((cutoff + windowHours * 3600 - start) / step) * step, dataset.info.nowUnix);
@@ -41,5 +43,7 @@ export async function measureOutcome(dataset: ImportedDataset, cutoff: number, d
   const maxLevelPct = levels.length ? Math.max(...levels) : null;
   const tankLimitReached = maxLevelPct === null && facility.observedShutIn === null ? null : (maxLevelPct ?? 0) >= snap.limits.shutdownPct || facility.observedShutIn === true;
   const incidentStillOngoing = snap.alerts.some((a) => a.facilityId === decision.facilityId && a.category === "pump_failure" && a.status === "ongoing");
-  return { windowHours, observedAtUnix: later, maxLevelPct, tankLimitReached, incidentStillOngoing, forecastTankTrip, forecastMatched: tankLimitReached === null ? null : tankLimitReached === forecastTankTrip };
+  return { windowHours, observedAtUnix: later, maxLevelPct, tankLimitReached, incidentStillOngoing, forecastTankTrip,
+    forecastMatched: tankLimitReached === null || forecastTankTrip === null ? null : tankLimitReached === forecastTankTrip,
+    recommendationJustified: tankLimitReached === null ? null : (decision.recommendedKind !== "do_nothing") === tankLimitReached };
 }

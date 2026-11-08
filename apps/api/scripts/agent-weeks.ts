@@ -47,8 +47,8 @@ for (const r of versionTable(evals, prompts, strategies).filter((r) => r.trainN 
 }
 console.log("\nWeek-by-week run score (champion on held-out):");
 for (const t of cycleTrend(evals)) console.log(`  ${t.cycle}: train ${t.trainRunScore}, held-out ${t.heldoutRunScore}, tokens ${t.tokens}`);
-console.log("\nPlan outcomes (recommended plan kind vs the following window's telemetry):");
-for (const p of planOutcomes(decisions)) console.log(`  ${p.kind}: ${p.decisions} decisions, ${p.measured} measured, forecast matched ${p.forecastMatchRate}, tank limit reached ${p.tankLimitReachedRate}, mean cost $${p.meanCostUsd}, agent agreed ${p.agentAgreedRate}`);
+console.log("\nPlan outcomes (the following window's telemetry is the no-action path; nobody executed the advice):");
+for (const p of planOutcomes(decisions)) console.log(`  ${p.kind}: ${p.decisions} decisions, ${p.measured} measured, tank limit reached without action ${p.tankLimitReachedRate}, recommendation justified ${p.justifiedRate}, do-nothing forecast matched ${p.forecastMatchRate}, mean cost $${p.meanCostUsd}, agent agreed ${p.agentAgreedRate}`);
 const final = await champions(store);
 console.log(`\nChampions now: ${Object.entries(final.prompts).map(([r, p]) => `${r} v${p!.version}`).join(", ")}; strategy v${final.strategy.version}`);
 if (arg("out")) writeFileSync(arg("out")!, JSON.stringify({ reports, prompts, strategies, versions: versionTable(evals, prompts, strategies), trend: cycleTrend(evals), plans: planOutcomes(decisions) }, null, 2));

@@ -12,7 +12,7 @@ export interface EvalRecord {
   score: number; parts: unknown; accepted: boolean; inputTokens: number; outputTokens: number; latencyMs: number; createdAt: string;
 }
 /** Measured later from telemetry of the following window (a runtime input), never from the answer key. */
-export interface Outcome { windowHours: number; observedAtUnix: number; maxLevelPct: number | null; tankLimitReached: boolean | null; incidentStillOngoing: boolean | null; forecastTankTrip: boolean; forecastMatched: boolean | null }
+export interface Outcome { windowHours: number; observedAtUnix: number; maxLevelPct: number | null; tankLimitReached: boolean | null; incidentStillOngoing: boolean | null; /** Do-nothing option trips the tank within the window (forecast). */ forecastTankTrip: boolean | null; forecastMatched: boolean | null; recommendationJustified: boolean | null }
 export interface DecisionRecord {
   id: string; cycle: string; caseId: string; runId: string; agentRunId: string; incidentId: string; facilityId: string; recommendedPlanId: string; recommendedKind: string; recommendedCostUsd: number;
   agentPlanId: string | null; approvedPlanId: string | null; approvedBy: "operator" | "simulated" | null; outcome: Outcome | null; createdAt: string;

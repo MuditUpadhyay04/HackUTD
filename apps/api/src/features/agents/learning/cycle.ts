@@ -66,8 +66,8 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
       if (config === "champion") {
         const decisions = decisionsFor(trace, c.snapshot, o.cycle, c.id, "simulate");
         for (const d of decisions) {
-          const forecast = runFactsPlanTrips(c.snapshot, d.recommendedPlanId);
-          d.outcome = await measureOutcome(o.train.dataset, c.at, d, forecast, o.outcomeWindowHours ?? 6, outcomeCache);
+          const window = o.outcomeWindowHours ?? 6;
+          d.outcome = await measureOutcome(o.train.dataset, c.at, d, noActionTripWithin(c.snapshot, d.incidentId, window), window, outcomeCache);
         }
         await o.store.addDecisions(decisions);
       }
@@ -75,10 +75,16 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
   }
 
   // Promotion: compare each challenger with the champion on this cycle's cases (same cases, same week).
-  const roleMean = (traces: AgentRunTrace[], role: Role) => mean(traces.flatMap((t) => t.nodes.filter((n) => n.role === role && n.score).map((n) => n.score!.total)));
+  const roleScores = (traces: AgentRunTrace[], role: Role, version: number) => traces.flatMap((t) => t.nodes.filter((n) => n.role === role && n.score && n.promptVersion === version).map((n) => n.score!.total));
+  const history = await o.store.listEvals();
   for (const [role, challenger] of Object.entries(current.challengers) as [Role, PromptVersion][]) {
     if (role === "critic") continue;
-    const a = roleMean(championTraces, role), b = roleMean(challengerTraces, role);
+    const mine = roleScores(challengerTraces, role, challenger.version);
+    // Champion baseline: this week's runs, else its train history. No samples on either side means untested, not lost.
+    let base = roleScores(championTraces, role, current.prompts[role]!.version);
+    if (!base.length) base = history.filter((e) => e.split === "train" && e.role === role && e.version === current.prompts[role]!.version).map((e) => e.score);
+    if (!mine.length || !base.length) { report.promotions.push(`${role} v${challenger.version} untested this week (no ${role} runs); stays a challenger`); continue; }
+    const a = mean(base), b = mean(mine);
     if (b >= a + margin) { await o.store.setPromptStatus(role, challenger.version, "champion"); report.promotions.push(`${role} v${challenger.version} promoted (${b.toFixed(3)} vs v${current.prompts[role]!.version} ${a.toFixed(3)})`); }
     else { await o.store.setPromptStatus(role, challenger.version, "retired"); report.promotions.push(`${role} v${challenger.version} retired (${b.toFixed(3)} vs v${current.prompts[role]!.version} ${a.toFixed(3)})`); }
   }
@@ -126,9 +132,14 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
 }
 
 function versions(p: Partial<Record<Role, PromptChoice>>) { return Object.fromEntries(Object.entries(p).map(([r, c]) => [r, c!.version])) as Partial<Record<Role, number>>; }
-function runFactsPlanTrips(snapshot: Snapshot, planId: string): boolean {
-  for (const i of snapshot.alerts) for (const p of [i.plan, ...(i.options ?? [])]) if (p?.id === planId) return p.tankTrips;
-  return false;
+/**
+ * The historical telemetry after the cutoff is what happened with nobody following the advice, so the forecast it
+ * can check is the do-nothing option's: does it trip the tank within the window? Null when there is no such option.
+ */
+function noActionTripWithin(snapshot: Snapshot, incidentId: string, windowHours: number): boolean | null {
+  const option = snapshot.alerts.find((i) => i.id === incidentId)?.options?.find((p) => p.kind === "do_nothing");
+  if (!option) return null;
+  return option.tankTrips && option.tripAtMin !== null && option.tripAtMin <= windowHours * 60;
 }
 
 /** The critic sees failures, rejected inputs and lint for one role, and proposes a full replacement template. */
@@ -161,9 +172,11 @@ export async function tuneStrategy(store: LearningStore, traces: AgentRunTrace[]
   const version = Math.max(...(await store.listStrategies()).map((s) => s.version)) + 1;
   const now = new Date().toISOString();
   const tried = (await store.listStrategies()).filter((s) => s.status === "retired");
-  const seen = (explainers: string, cap: number) => tried.some((s) => s.explainers === explainers && s.maxExplainers === cap);
+  // A plan-explainer prompt waiting for evaluation needs runs that spawn explainers, so a lost strategy may be retried.
+  const explainerPending = !!(await champions(store)).challengers.plan_explainer;
+  const seen = (explainers: string, cap: number) => !explainerPending && tried.some((s) => s.explainers === explainers && s.maxExplainers === cap);
   if (strategy.explainers === "on_request" && coverage < 0.5 && !seen("per_incident", strategy.maxExplainers)) {
-    await store.addStrategy({ version, name: "fine: one plan explainer per pump-failure incident with validated plans, in parallel", explainers: "per_incident", maxExplainers: strategy.maxExplainers, allowRequests: true, parentVersion: strategy.version, rationale: `coverage ${coverage.toFixed(2)} under the coarse strategy`, status: "challenger", createdAt: now });
+    await store.addStrategy({ version, name: "fine: one plan explainer per pump-failure incident with validated plans, in parallel", explainers: "per_incident", maxExplainers: strategy.maxExplainers, allowRequests: true, parentVersion: strategy.version, rationale: `coverage ${coverage.toFixed(2)} under the coarse strategy${explainerPending ? "; a plan-explainer prompt is waiting for evaluation" : ""}`, status: "challenger", createdAt: now });
     return `strategy tuner: challenger v${version} (fine) because explainer coverage was ${coverage.toFixed(2)}`;
   }
   if (strategy.explainers === "per_incident" && Math.max(...pumps) > strategy.maxExplainers && strategy.maxExplainers < 6 && !seen("per_incident", Math.min(6, strategy.maxExplainers + 2))) {
