@@ -118,6 +118,9 @@ enum {
 #ifndef EOG_SWAP_TIMEOUT_MS
 #define EOG_SWAP_TIMEOUT_MS 100
 #endif
+#ifndef EOG_DRAIN_TIMEOUT_MS
+#define EOG_DRAIN_TIMEOUT_MS 50     /* GLOBAL CONFIG mid-run: wait this long for the pipeline to empty */
+#endif
 #ifndef EOG_STATS_PERIOD_MS
 #define EOG_STATS_PERIOD_MS 1000
 #endif
@@ -133,13 +136,14 @@ typedef struct {
     uint32_t alerts_dropped;
     uint32_t heartbeats, config_acks, weights_acks, stats_sent;
     uint32_t send_fail;
+    uint32_t drain_timeouts;   /* GLOBAL CONFIG mid-run: pipeline did not empty in time (written anyway) */
 } eog_counters_t;
 
 typedef struct {
     int       autonomous;      /* last STATUS.autonomous seen by eog_poll */
     int       have_global;     /* a GLOBAL CONFIG was received since init */
     uint32_t  ctrl;            /* CTRL shadow (RW bits only) */
-    uint32_t  peer_ip;         /* where RESULT/ALERT/STATS go */
+    uint32_t  peer_ip;         /* where RESULT/ALERT/STATS go (fixed, ruling #68) */
     uint32_t  res_pending, al_pending;
     uint32_t  n_fac;           /* slots from VERSION[15:8] (32 if 0) */
     uint32_t  blob_len;        /* WEIGHTS bytes assembled so far */

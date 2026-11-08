@@ -11,6 +11,10 @@
  *   7001 RESULT    <- up to 45 per packet; aux = results the ARM dropped (replay ring full) since the last one
  *   7001 STATS     <- every 1 s (shares the 7001 sequence number with RESULT, as fakeboard.py does)
  *   7002 ALERT     <- one per packet; SOURCE bit 3 set on alerts replayed after an outage
+ * Destinations (ruling #68): RESULT/STATS -> peer:7001, ALERT -> peer:7002 with peer fixed at eog_init (the PC,
+ * 192.168.1.50), so buffered output always has somewhere to go; CONFIG_ACK/WEIGHTS_ACK -> the sender's IP:port.
+ * Facility CONFIG on an enabled slot: disable (word 0 with FLAGS[0] = 0), rewrite, re-enable (ruling #69).
+ * WEIGHTS_ACK status 3 also covers a bad blob header (ruling #67).
  * AUTONOMOUS is the hardware's STATUS.autonomous (HB_TIMEOUT_MS from GLOBAL, 0 = never), so the ARM's buffering
  * and the ALERT SOURCE bit 2 set by eog_alarm always agree. While it is 1, RESULT/ALERT stay in the rings; the
  * first eog_poll() after it falls replays them in order, then new ones follow.
@@ -254,6 +258,22 @@ static void on_data(const uint8_t *buf, uint32_t len)
     }
 }
 
+/* Wait (bounded) until every record taken by the engine has left it: STATS records in == results out and the
+ * DATA window idle. Results/alerts are drained into the rings meanwhile so the RESULT FIFO never blocks it. */
+static int wait_pipeline_empty(void)
+{
+    uint32_t t = hal_ms();
+    for (uint32_t i = 0; i < 1000000u; i++) {
+        drain();
+        uint32_t st = hal_reg_read(EOG_R_STATUS);
+        if (!(st & EOG_ST_DATA_BUSY) && (st & 0x00FFFF00u) == 0
+            && hal_reg_read(EOG_R_STATS + 4 * EOG_HS_REC_IN) == hal_reg_read(EOG_R_STATS + 4 * EOG_HS_RES_OUT))
+            return 0;
+        if (hal_ms() - t > EOG_DRAIN_TIMEOUT_MS) break;
+    }
+    return -1;
+}
+
 /* ---------- 7003 CONFIG / HEARTBEAT ---------- */
 static void config_ack(uint32_t ip, uint16_t port, uint16_t fid, uint8_t status, uint32_t acked_seq)
 {
@@ -281,23 +301,26 @@ static void on_config(uint32_t ip, uint16_t port, const uint8_t *buf, uint32_t l
     uint16_t count = eog_le16(buf + 6);
     uint32_t seq = eog_le32(buf + 8), aux = eog_le32(buf + 12);
     if (type == EOG_T_HEARTBEAT) {
-        ctrl_pulse(EOG_CTRL_HB);
-        S.peer_ip = ip;
+        ctrl_pulse(EOG_CTRL_HB);                     /* any source address/port (ruling #68) */
         S.cnt.heartbeats++;
         return;
     }
     if (type != EOG_T_CONFIG) { S.cnt.bad_packets++; return; }
     if (aux == 0) {                                     /* GLOBAL CONFIG */
         if (len < EOG_HDR_LEN + EOG_GLOBAL_LEN) { S.cnt.bad_packets++; return; }
-        S.peer_ip = ip;
-        ctrl_set(S.ctrl & ~EOG_CTRL_STREAM_EN);          /* GLOBAL writes are ignored while streaming */
+        /* GLOBAL writes are ignored while streaming (ruling #69): stream off, drain, write, stream back on */
+        uint32_t was = hal_reg_read(EOG_R_CTRL) & EOG_CTRL_STREAM_EN;
+        if (was) {
+            ctrl_set(S.ctrl & ~EOG_CTRL_STREAM_EN);
+            if (wait_pipeline_empty()) S.cnt.drain_timeouts++;
+        }
         for (unsigned w = 0; w < 8; w++) hal_reg_write(EOG_R_GLOBAL + 4 * w, eog_le32(buf + EOG_HDR_LEN + 4 * w));
+        if (was) ctrl_set(S.ctrl | EOG_CTRL_STREAM_EN);
         S.have_global = 1;
         config_ack(ip, port, 0xFFFF, EOG_CFG_OK, seq);
         return;
     }
     if (len < EOG_HDR_LEN + (uint32_t)EOG_FACCFG_LEN * count) { S.cnt.bad_packets++; return; }
-    S.peer_ip = ip;
     for (uint16_t i = 0; i < count; i++) {
         const uint8_t *rec = buf + EOG_HDR_LEN + EOG_FACCFG_LEN * i;
         uint16_t fid = eog_le16(rec);
@@ -337,7 +360,6 @@ static void on_weights(uint32_t ip, uint16_t port, const uint8_t *buf, uint32_t 
     uint32_t off = eog_le32(buf + 16);
     uint16_t n = eog_le16(buf + 20), flags = eog_le16(buf + 22);
     uint8_t status = EOG_W_OK;
-    S.peer_ip = ip;
     if (flags & 1u) {                                   /* COMMIT: total length u32, CRC32 u32 */
         if (len < EOG_HDR_LEN + 16) { S.cnt.bad_packets++; return; }
         uint32_t total = eog_le32(buf + 24), crc = eog_le32(buf + 28);

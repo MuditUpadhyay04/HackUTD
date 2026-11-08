@@ -28,7 +28,7 @@ def check(cond, what):
         print(f"  FAIL {what}")
 
 
-def run_golden(ml, gdir, n_records=None, hb_timeout=None):
+def run_golden(ml, gdir, n_records=None, hb_timeout=None, midrun=False):
     import numpy as np
     wire, fi, mi = sb.import_ml(ml)
     b = sb.SimBoard(pc=PC, ml_dir=ml, udp=False)
@@ -81,13 +81,28 @@ def run_golden(ml, gdir, n_records=None, hb_timeout=None):
         check(s == want, f"WEIGHTS_ACK bytes: {s} vs {want}")
         b.take()
 
-        # HEARTBEAT: no reply, peer stays PC
-        b.inject(wire.PORT_CONFIG, PC, PC_PORT, wire.header(wire.T_HEARTBEAT, 0, 0))
+        # HEARTBEAT from another host/port: no reply; RESULT/ALERT/STATS still go to the PC (ruling #68)
+        b.inject(wire.PORT_CONFIG, "10.0.0.9", 999, wire.header(wire.T_HEARTBEAT, 0, 0))
 
         # DATA (30 per packet, wire.data_packets) -> RESULT packets to PC:7001
         t0 = time.monotonic()
-        for p in wire.data_packets(data):
+        pkts = wire.data_packets(data)
+        acks_mid = []
+        for i, p in enumerate(pkts):
+            if midrun and i == len(pkts) // 2:
+                # the same GLOBAL re-sent mid-run (ruling #69): stream off, drain, write, stream on, ACK OK;
+                # nothing about the results may change
+                b.wait_sent(0, 0.5)
+                b.inject(wire.PORT_CONFIG, PC, PC_PORT, wire.header(wire.T_CONFIG, 1, 99, 0) + glob.tobytes())
+                t_ack = time.monotonic() + 5
+                while time.monotonic() < t_ack and not acks_mid:
+                    time.sleep(0.01)
+                    with b.lock:
+                        acks_mid = [x for x in b.sent if x[3][5] == wire.T_CONFIG_ACK]
             b.inject(wire.PORT_DATA, PC, PC_PORT, p)
+        if midrun:
+            check(len(acks_mid) == 1 and acks_mid[0][3][16:] == wire.CONFIG_ACK.pack(0xFFFF, 0, 0, 99)
+                  and acks_mid[0][1:3] == (PC, PC_PORT), f"mid-run GLOBAL CONFIG_ACK {acks_mid}")
         res, alerts, stats = [], [], []
         seq_res = seq_al = 0
         hdr_ok = True
@@ -105,6 +120,8 @@ def run_golden(ml, gdir, n_records=None, hb_timeout=None):
                     hdr_ok &= seq == seq_res and len(pkt) == 80 and pkt[:16] == wire.header(wire.T_STATS, 1, seq_res)
                     seq_res += 1
                     stats.append(dict(zip(wire.STATS_FIELDS, wire.STATS.unpack_from(pkt, 16))))
+                elif ptype == wire.T_CONFIG_ACK and midrun:
+                    pass
                 elif ptype == wire.T_ALERT:
                     hdr_ok &= (sport, dport) == (7002, 7002) and count == 1 and seq == seq_al
                     hdr_ok &= pkt[:16] == wire.header(wire.T_ALERT, 1, seq_al) and len(pkt) == 32
@@ -159,14 +176,17 @@ def main(argv=None):
     ap.add_argument("--ml", default=None)
     ap.add_argument("--golden", default=None)
     ap.add_argument("--g1", type=int, default=1500, help="records of G1 to run (0 = skip, -1 = all 30,240)")
+    ap.add_argument("--artifacts", default="v3,v2", help="artifact versions (golden sets) to run")
     a = ap.parse_args(argv)
     ml = Path(a.ml) if a.ml else sb.default_ml_dir()
-    golden = Path(a.golden) if a.golden else ml / "artifacts" / "v2" / "golden"
-    for g, n in (("g0", None), ("g2", None), ("g1", a.g1)):
-        if n == 0:
-            continue
-        print(f"golden {g}" + (f" (first {n} records)" if n and n > 0 else ""))
-        run_golden(ml, golden / g, n_records=n if n and n > 0 else None)
+    for ver in a.artifacts.split(","):
+        golden = Path(a.golden) if a.golden else ml / "artifacts" / ver / "golden"
+        for g, n, mid in (("g0", None, False), ("g2", None, False), ("g2", None, True), ("g1", a.g1, False)):
+            if n == 0 or not (golden / g / "data.bin").exists():
+                continue
+            print(f"{ver} golden {g}" + (f" (first {n} records)" if n and n > 0 else "")
+                  + (" + GLOBAL re-sent mid-run" if mid else ""))
+            run_golden(ml, golden / g, n_records=n if n and n > 0 else None, midrun=mid)
     print(f"test_wire: {N_PASS} passed, {N_FAIL} failed")
     print("FAIL" if N_FAIL else "PASS")
     return 1 if N_FAIL else 0

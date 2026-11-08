@@ -146,7 +146,7 @@ static void t_global(void)
     FR.ctrl = EOG_CTRL_STREAM_EN;                    /* pretend streaming: proto must turn it off first */
     send_global(7, 5000);
     CHECK_EQ(FR.global_ignored, 0);
-    CHECK_EQ(FR.ctrl & EOG_CTRL_STREAM_EN, 0);
+    CHECK_EQ(FR.ctrl & EOG_CTRL_STREAM_EN, 1);        /* off for the write, then back on (#69) */
     CHECK_EQ(FR.global[1], 1000u | (5000u << 16));
     CHECK_EQ(FR.global[2] & 0xFFFF, 0x1234);
     CHECK_EQ(n_sent, 1);
@@ -254,6 +254,49 @@ static void t_data_results(void)
     CHECK_EQ(eog_state()->cnt.bad_packets, 1);
 }
 
+static void t_midrun_config(void)
+{
+    puts("CONFIG mid-run (#69)");
+    fresh();
+    send_global(0, 0);
+    send_data(0, 70, 1000);                           /* stream on, more results than the FIFO holds */
+    CHECK_EQ(FR.ctrl & EOG_CTRL_STREAM_EN, 1);
+    n_sent = 0;
+    send_global(1, 4321);                             /* GLOBAL while streaming */
+    CHECK_EQ(FR.global_ignored, 0);
+    CHECK_EQ(FR.global[1] >> 16, 4321);
+    CHECK_EQ(FR.ctrl & EOG_CTRL_STREAM_EN, 1);        /* stream back on */
+    CHECK_EQ(FR.res_n, 0);                            /* pipeline drained into the ring first */
+    CHECK_EQ(eog_state()->cnt.drain_timeouts, 0);
+    CHECK_EQ(count_type(EOG_T_CONFIG_ACK), 1);
+    CHECK_EQ(nth_type(EOG_T_CONFIG_ACK, 0)->b[18], EOG_CFG_OK);
+    send_hb(0);                                       /* HB_TIMEOUT_MS is now 4321 */
+    send_data(1, 5, 30000);
+    eog_poll();
+    int n = 0;
+    for (int k = 0; k < count_type(EOG_T_RESULT); k++) n += eog_le16(nth_type(EOG_T_RESULT, k)->b + 6);
+    CHECK_EQ(n, 75);
+    /* a pipeline that never empties: written anyway after the timeout, counted */
+    FR.stats[EOG_HS_REC_IN] += 1;
+    send_global(2, 100);
+    CHECK_EQ(eog_state()->cnt.drain_timeouts, 1);
+    CHECK_EQ(FR.global[1] >> 16, 100);
+    CHECK_EQ(FR.ctrl & EOG_CTRL_STREAM_EN, 1);
+    /* Facility CONFIG re-sent while streaming and enabled: disable, rewrite, re-enable; one touch each */
+    uint32_t len = hdr(EOG_T_CONFIG, 1, 3, 1);
+    uint8_t *r = buf + len;
+    memset(r, 0, 64);
+    eog_put16(r, 7); r[2] = 3; r[3] = 1; r[40] = 0x11;
+    eog_rx(EOG_PORT_CONFIG, PC_IP, 40003, buf, len + 64);
+    unsigned t0 = FR.touch[7];
+    r[40] = 0x22;
+    eog_rx(EOG_PORT_CONFIG, PC_IP, 40003, buf, len + 64);
+    CHECK_EQ(FR.cfg[7][10] & 0xFF, 0x22);
+    CHECK_EQ(FR.touch[7] - t0, 17);                   /* word 0 off, words 1-15, word 0 on */
+    CHECK_EQ(FR.cfg_ignored, 0);
+    CHECK_EQ(FR.ctrl & EOG_CTRL_STREAM_EN, 1);        /* facility rows do not stop the stream */
+}
+
 static void push_alert(uint16_t fac, uint8_t kind, uint8_t src, uint32_t rno)
 {
     uint8_t a[16] = {0};
@@ -270,12 +313,13 @@ static void t_autonomous_replay(void)
     send_global(0, 5000);
     send_hb(0);
     CHECK_EQ(FR.pulses_hb, 1);
-    CHECK_EQ(eog_state()->peer_ip, SRV_IP);          /* results follow the heartbeat source */
+    CHECK_EQ(eog_state()->peer_ip, PC_IP);           /* fixed destination, not the heartbeat source (#68) */
     send_data(0, 10, 1000);
     push_alert(4, 1, 0x01, 3);
     eog_poll();
     CHECK_EQ(count_type(EOG_T_RESULT), 1);
-    CHECK_EQ(nth_type(EOG_T_RESULT, 0)->ip, SRV_IP);
+    CHECK_EQ(nth_type(EOG_T_RESULT, 0)->ip, PC_IP);
+    CHECK_EQ(nth_type(EOG_T_RESULT, 0)->dport, 7001);
     CHECK_EQ(count_type(EOG_T_ALERT), 1);
     CHECK_EQ(nth_type(EOG_T_ALERT, 0)->b[16 + 3], 0x01);   /* live alert: no replay bit */
     CHECK_EQ(nth_type(EOG_T_ALERT, 0)->dport, 7002);
@@ -441,6 +485,18 @@ static void t_weights(const char *path, const char *crc_hex)
         }
     }
     if (!real) synth_blob();
+    /* #67: bad header fields -> status 3 */
+    {
+        static const int pos[] = {0, 2, 3, 6};
+        for (int i = 0; i < 4; i++) {
+            uint8_t save_b = blob[pos[i]];
+            blob[pos[i]] ^= 0x40;
+            CHECK_EQ(eog_blob_check(blob, blob_len), EOG_W_SELFTEST);
+            blob[pos[i]] = save_b;
+        }
+        CHECK_EQ(eog_blob_check(blob, blob_len), EOG_W_OK);
+        CHECK_EQ(eog_blob_check(blob, 279), EOG_W_LENGTH);
+    }
     uint32_t crc = eog_crc32(blob, blob_len);
     fresh();
     /* three chunks, out of order */
@@ -512,6 +568,7 @@ int main(int argc, char **argv)
     t_global();
     t_facility();
     t_data_results();
+    t_midrun_config();
     t_autonomous_replay();
     t_ring_overflow();
     t_send_fail();

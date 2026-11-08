@@ -7,7 +7,7 @@
  *        R <result_hex> [<alert_hex> ...]                  engine reply to an E request
  *        X                                                 exit
  *   out  S <src_port> <dst_ip_u32> <dst_port> <hex>        send a datagram
- *        C <global_hex> <slot0_hex> ... <slot31_hex>       the GLOBAL/CONFIG table changed (before the next E)
+ *        C <global_hex> <slot0_hex> ... <slot31_hex> <touched_mask>   GLOBAL/CONFIG changed (before the next E)
  *        W <version> <window_hex>                          a weight swap executed (280 B blob window)
  *        E <autonomous> <data_hex>                         run one DATA record; blocks until R
  *
@@ -98,7 +98,8 @@ static void pipe_engine(const uint8_t rec[48], int autonomous)
             putchar(' ');
             put_hex(b, 64);
         }
-        putchar('\n');
+        printf(" %u\n", FR.touched_mask);
+        FR.touched_mask = 0;
     }
     printf("E %d ", autonomous);
     put_hex(rec, 48);

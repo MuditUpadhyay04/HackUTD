@@ -202,6 +202,7 @@ void hal_reg_write(uint32_t off, uint32_t v)
         if (enabled && !(w == 0 && !((v >> 24) & 1))) { FR.cfg_ignored++; return; }
         FR.cfg[f][w] = v;
         FR.touch[f]++;
+        FR.touched_mask |= 1u << f;
         FR.cfg_dirty = 1;
         return;
     }

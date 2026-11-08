@@ -35,6 +35,7 @@ typedef struct {
     unsigned pulses_hb, pulses_swap, pulses_soft, pulses_stats_clr;
     unsigned global_ignored;       /* GLOBAL writes dropped because stream_en = 1 */
     unsigned cfg_ignored;          /* CONFIG writes dropped by the enabled-slot rule */
+    uint32_t touched_mask;         /* slots with an accepted CONFIG write since the last C message */
     int      cfg_dirty;            /* GLOBAL or CONFIG changed since fr_take_cfg_dirty() */
     int      swapped;              /* a swap executed since fr_take_swapped() */
     int      use_real_clock;       /* simboard: hal_ms from CLOCK_MONOTONIC */

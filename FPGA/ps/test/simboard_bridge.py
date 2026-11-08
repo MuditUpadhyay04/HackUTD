@@ -142,8 +142,23 @@ class SimBoard:
         elif tag == "C":
             import numpy as np
             g = np.frombuffer(bytes.fromhex(f[0]), dtype=w.GLOBAL_CONFIG_DTYPE).copy()
-            fac = np.frombuffer(b"".join(bytes.fromhex(x) for x in f[1:]), dtype=w.FAC_CONFIG_DTYPE).copy()
-            self.engine = self.fi.Engine(g, fac, self.weights) if int(g["cd_log2"][0]) == 4 else None
+            fac = np.frombuffer(b"".join(bytes.fromhex(x) for x in f[1:33]), dtype=w.FAC_CONFIG_DTYPE).copy()
+            touched = int(f[33])
+            fresh = self.fi.Engine(g, fac, self.weights)
+            if self.engine is None:
+                self.engine = fresh
+            else:
+                # as fakeboard.py @ 5e013eb (and the RTL): GLOBAL updates the run-wide settings; a touched slot starts
+                # a new history but keeps its alarm latches; result_no and the other slots carry on
+                for k in ("s", "hold_max", "cd_log2", "k", "logit_thr", "gap_thr", "cfg"):
+                    setattr(self.engine, k, getattr(fresh, k))
+                for fid in range(32):
+                    if touched >> fid & 1 and fid in fresh.fac:
+                        old = self.engine.fac.get(fid)
+                        self.engine.fac[fid] = fresh.fac[fid]
+                        if old is not None:
+                            for k in ("ns_cond", "es_cond", "ns_latch", "es_latch"):
+                                setattr(self.engine.fac[fid], k, getattr(old, k))
         elif tag == "W":
             ver, win = int(f[0]), bytearray(bytes.fromhex(f[1]))
             win[5] = 0  # the window holds no self-test vectors
