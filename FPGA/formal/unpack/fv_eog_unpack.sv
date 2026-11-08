@@ -1,57 +1,53 @@
-// fv_eog_unpack.sv â€” formal harness for eog_unpack (Verify role, task T1.unpack.fv).
+// fv_eog_unpack.sv — formal harness for eog_unpack (Verify role, task T1.unpack.fv).
 //
 // Written from spec/modules/eog_unpack.md and spec/conventions.md (spec v2, FROZEN) and the port list only; the RTL
 // internals are not read. Run with `bash scripts/formal.sh unpack` (formal/unpack/eog_unpack.sby).
 //
-// eog_unpack takes 64-bit beats, not records, so it has no conventions Â§7 observation ports and eog_fv_stage does
+// eog_unpack takes 64-bit beats, not records, so it has no conventions §7 observation ports and eog_fv_stage does
 // not apply. The harness keeps its own shadow of the beat stream, built from the ports only:
 //   f_beat      beats accepted into the record being filled (0..5)
-//   f_formed    records completed (last beat accepted) since reset = the number of the record being filled
 //   f_out_cnt   records transferred on bus U since reset
-//   f_cnt/f_e*  the records completed but not yet transferred, oldest first (at most 2, see B_hold), each with
-//               its beat count, s_last of its last beat and its P5 bookkeeping
-// A record that completes in the same cycle it is presented (combinational pass-through) is allowed: the "head"
+//   f_cnt/f_e*  the records completed (last beat accepted) but not yet transferred, oldest first (at most 2, see
+//               B_hold), each with its beat count, s_last of its last beat, P5 bookkeeping and the P3 tracking flag
+// A record may be presented in the same cycle its last beat is accepted (combinational pass-through): the "head"
 // below is the oldest pending record, or the one completing this cycle.
 //
 // Property map (labels in the sby log):
-//   P1   u_out.ax_reset / ax_hold / ax_data (eog_fv_axis on bus U) + P1_ghost (no output without a completed,
-//        not yet transferred record)
-//   P2   P2_recno: every presented record carries REC_NO == records already transferred (32 bits, wraps), so
-//        consecutive outputs differ by exactly 1 and the first after reset is 0
-//   P3   P3_byte: one arbitrary beat (anyconst record number f_trk_rec, beat position f_trk_j, value f_trk_val)
-//        lands at REC[64j+63:64j] of that record; if the record ended before beat j, that slot is 0
+//   P1   u_out.ax_reset / ax_hold / ax_data (eog_fv_axis on bus U: out_valid 0 after reset, valid and data held
+//        until the transfer) + P1_ghost (no out_valid without a completed, not yet transferred record)
+//   P2   P2_recno: every presented record carries REC_NO == records already transferred (32 bits, wraps at 2^32),
+//        so consecutive outputs differ by exactly 1 and the first output after reset has REC_NO = 0
+//   P3   P3_byte: one arbitrary beat lands at the right offset of the right record. Position: f_trk_j (anyconst,
+//        0..5). Record: the one whose first beat is accepted while the free input trk_go = 1 (first time after
+//        reset), which the solver may choose for any record, like an anyconst record number. Value: whatever
+//        s_data carries (free), captured in f_tval. At the output: REC[64j+63:64j] == that value if the record got
+//        beat j, else 0 ("bytes not received are 0"). (A trigger instead of a 32-bit anyconst record number keeps
+//        the record identity out of the arithmetic, which the engines handle far better.)
 //   P4   P4_fe, P4_last: FRAME_ERR = 1 iff the record ended (s_last) before its 6th beat; IN_LAST = s_last of its
 //        last beat. With P1_ghost, P2, P3 and P5 this pins the grouping: a record ends after exactly 6 beats or
 //        at an earlier s_last, never elsewhere.
 //   P5   P5_lat0 / P5_lat1: with out_ready = 1 in its last-beat cycle and the 2 cycles after, a record is out_valid
-//        by the 2nd cycle after its last beat. P5_rdy: with out_ready = 1 in two consecutive cycles, s_ready is
-//        not 0 in both.
-//   B_hold  (Behavior bullet 4) at most 2 records held: completed-not-transferred + a partial one <= 2
-//   B_rate  (Behavior bullet 4) "accept a beat every cycle while out_ready = 1": out_ready = 1 in the current
-//           and the two previous cycles (no reset) -> s_ready = 1. (Back-pressure recovery may cost one cycle; P5_rdy
-//           bounds it.)
-//   Stage contract: handshake = P1 (+ u_in assumptions); one-in-one-out-in-order = P1_ghost + P2 + P5_lat;
-//   II <= 16 and latency <= 128 are implied by P5 (II = 1 sustained, latency <= 2).
-//   H_*  harness-internal consistency (true by construction; they only keep k-induction away from impossible
-//        shadow states).
-//   Covers: C1_b2b (spec: two full records back to back, i.e. 12 beats on 12 consecutive cycles, both output),
-//   C2_fe_good (spec: a framing error followed by a good record), C3_full, C4_short (sanity).
+//        by the 2nd cycle after its last beat (and so transfers then). P5_rdy: with out_ready = 1 in two
+//        consecutive cycles (no reset in the first), s_ready is not 0 in both.
+//   B_hold  (Behavior bullet 4: "holds at most one record ... second buffer (optional)") completed-not-transferred
+//           records + a partial one <= 2
+//   B_rate  (Behavior bullet 4: "must accept a beat every cycle while out_ready = 1") out_ready = 1 in the current
+//           and the two previous cycles (no reset) -> s_ready = 1. Recovery from back-pressure may cost one cycle;
+//           P5_rdy bounds it.
+//   Stage contract: handshake = P1 (+ u_in assumptions on the beat input); one in, one out, in order = P1_ghost +
+//   P2 + P5_lat; II <= 16 and latency <= 128 are implied by P5 (one beat per cycle, latency <= 2).
+//   H_*  harness-internal consistency (true by construction; they keep the engines away from impossible shadow
+//        states).
+//   Covers: C1_b2b (spec: two full records back to back, i.e. 12 beats on 12 consecutive cycles, the second one
+//   transferred), C2_fe_good (spec: a framing error followed by a good record), C3_full, C4_short (sanity).
 //
-// Parameters: N_FAC, N_WELL and II are unused by eog_unpack (spec); they are set small anyway.
-//   FAIR = 1 (the `prove` task only) adds an environment fairness envelope: s_valid is never 0 for more than GS
-//   consecutive cycles and out_ready never 0 for more than GR consecutive cycles. Port-only k-induction needs it:
-//   the DUT's beat position, partial record and REC_NO counter are invisible until a record leaves, so with
-//   unbounded idle the induction step can start from a state where they disagree with the shadow. Under the
-//   envelope every window of `depth` cycles contains enough completed and transferred records to pin them. The
-//   `bmc` task has no envelope (any stall pattern, from reset) and covers what the envelope leaves out.
+// No environment constraints beyond conventions §2 on the input (u_in) and the first-cycle reset: s_valid gaps,
+// s_last, s_data, out_ready and rst_n are free in every cycle. Parameters N_FAC, N_WELL, II are unused by
+// eog_unpack (spec); they are set small anyway.
 
 `default_nettype none
 
-module fv_eog_unpack #(
-    parameter integer FAIR = 0,
-    parameter integer GS   = 1,
-    parameter integer GR   = 2
-) (
+module fv_eog_unpack (
     input  logic        clk,        // top-level inputs are free: the solver drives them
     input  logic        rst_n,
     input  logic        s_valid,
@@ -314,28 +310,6 @@ module fv_eog_unpack #(
                               && (f_e1[6:5] < f_e0[6:5] || f_e0[6:5] == 2'd3) && (!f_e0[7] || f_e1[7]));
         end
     end
-
-    // ---------------------------------------------------------------------------------------------------------
-    // Environment fairness envelope (prove only, see header)
-    generate
-        if (FAIR != 0) begin : g_fair
-            logic [3:0] sv_idle, or_idle;
-            initial begin
-                sv_idle = '0;
-                or_idle = '0;
-            end
-            always_ff @(posedge clk) begin
-                if (!rst_n || s_valid)       sv_idle <= '0;
-                else if (sv_idle != 4'd15)   sv_idle <= sv_idle + 4'd1;
-                if (!rst_n || out_ready)     or_idle <= '0;
-                else if (or_idle != 4'd15)   or_idle <= or_idle + 4'd1;
-            end
-            always_comb begin
-                if (sv_idle >= GS[3:0]) assume (s_valid);
-                if (or_idle >= GR[3:0]) assume (out_ready);
-            end
-        end
-    endgenerate
 
     // ---------------------------------------------------------------------------------------------------------
     // Cover goals
