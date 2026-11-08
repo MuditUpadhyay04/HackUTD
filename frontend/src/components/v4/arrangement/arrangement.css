@@ -1,0 +1,140 @@
+/* Arrangement (Ableton style tracks). Scoped under .arr; tokens come from .v4 (v4.css). Brief sections 2.3 and 4. */
+.arr { --arr-hdr-w: 208px; position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); user-select: none; overscroll-behavior: contain; }
+.arr button { cursor: pointer; }
+.arr-hdr { display: flex; align-items: center; gap: 6px; width: var(--arr-hdr-w); flex: none; padding: 0 8px; border-right: 1px solid var(--line-2); background: var(--surface); font: 400 10px var(--font-mono); letter-spacing: 0.04em; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+.arr-hdr b { font-weight: 500; color: var(--text); }
+.arr-hdr em { margin-left: auto; font-style: normal; color: var(--faint); }
+.arr-lane { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.arr-unk { background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; padding: 0 3px; color: var(--text); }
+
+/* Ruler */
+.arr-ruler { display: flex; flex: none; height: 24px; border-bottom: 1px solid var(--line-2); }
+.arr-ruler .arr-hdr b, .arr-time { color: var(--text); font-weight: 500; }
+.arr-zoom { display: inline-flex; gap: 3px; margin-left: auto; }
+.arr-zoom button { height: 16px; min-width: 18px; padding: 0 4px; border: 1px solid var(--line-2); border-radius: var(--r-1); font: 500 9px var(--font-mono); color: var(--muted); transition: transform 120ms var(--ease-out), color 150ms ease, border-color 150ms ease; }
+.arr-zoom button:active { transform: scale(0.97); }
+.arr-rulerlane { background: var(--surface); cursor: ew-resize; touch-action: none; }
+.arr-tk { position: absolute; top: 8px; padding-left: 3px; font: 400 9px var(--font-mono); letter-spacing: 0.04em; color: var(--faint); pointer-events: none; }
+.arr-tk::before { content: ""; position: absolute; left: 0; top: -8px; height: 24px; width: 1px; background: var(--line); }
+.arr-tk.six { color: var(--muted); }
+.arr-tk.six::before, .arr-tk.day::before { background: var(--line-2); }
+.arr-tk.day { color: var(--text); }
+
+/* Body */
+.arr-bodywrap { position: relative; flex: 1; min-height: 0; }
+.arr-scroll { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; outline: none; z-index: 1; }
+.arr-scroll::-webkit-scrollbar { display: none; }
+.arr-grid { position: absolute; left: var(--arr-hdr-w); right: 0; top: 0; bottom: 0; width: calc(100% - var(--arr-hdr-w)); height: 100%; pointer-events: none; z-index: 0; }
+.arr-grid line { stroke-width: 1; shape-rendering: crispEdges; }
+.arr-grid .hour { stroke: rgba(255, 238, 214, 0.05); }
+.arr-grid .six { stroke: rgba(255, 238, 214, 0.12); }
+.arr-grid .day { stroke: rgba(255, 238, 214, 0.2); }
+.arr-regions { position: absolute; left: var(--arr-hdr-w); right: 0; top: 0; bottom: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+.arr-region { position: absolute; top: 0; bottom: 0; background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; opacity: 0.2; }
+.arr-region.projected { background-image: var(--dither-25); opacity: 0.16; }
+.arr-region span { position: absolute; left: 6px; top: 3px; padding: 1px 4px; background: var(--bg); color: var(--muted); font: 500 9px var(--font-mono); letter-spacing: 0.04em; }
+
+.arr-row { position: relative; z-index: 1; display: flex; height: 22px; border-bottom: 1px solid var(--line); }
+.arr-row.group { background: var(--raised); }
+.arr-row.group .arr-hdr { background: var(--raised); }
+.arr-row.group .arr-hdr b { font-size: 11px; }
+.arr-row.track .arr-hdr { border-left: 3px solid var(--c); padding-left: 5px; }
+.arr-name { color: var(--text); font-size: 11px; }
+.arr-chip { width: 6px; height: 6px; flex: none; }
+.arr-readout { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 9px; }
+.arr-readout b { min-width: 28px; text-align: right; font-size: 11px; }
+.arr-glyph { flex: none; }
+.arr-chev { flex: none; position: relative; width: 14px; height: 14px; border: 0; background: none; color: var(--muted); }
+.arr-chev::before { content: ""; position: absolute; left: 4px; top: 3px; border: 4px solid transparent; border-left: 6px solid currentColor; border-right: 0; }
+.arr-chev[aria-expanded="true"]::before { transform: rotate(90deg) translate(1px, 0); }
+.arr-fac { position: relative; transition: background-color 150ms ease; }
+.arr-fac[data-focus="true"] { background: rgba(255, 180, 0, 0.07); }
+.arr-fac[data-focus="true"] > .arr-row.track .arr-hdr { box-shadow: inset 0 0 0 1px var(--amber); }
+@media (hover: hover) and (pointer: fine) { .arr-chev:hover, .arr-zoom button:hover { color: var(--text); } .arr-zoom button:hover { border-color: var(--faint); } }
+
+/* Clips */
+.arr-clip { position: absolute; top: 3px; bottom: 3px; display: flex; align-items: center; padding: 0 4px; overflow: hidden; white-space: nowrap; border-radius: 2px; font: 500 9px var(--font-mono); letter-spacing: 0.04em; color: var(--text); text-transform: uppercase; }
+.arr-clip.pump_failure { background: rgba(255, 59, 48, 0.3); border: 1px solid var(--red); }
+.arr-clip.shut_in { background: rgba(255, 59, 48, 0.18); border: 1px dashed var(--red); }
+.arr-clip.leak, .arr-clip.degradation { background-color: rgba(255, 46, 136, 0.08); background-image: repeating-linear-gradient(135deg, var(--magenta) 0 1.5px, transparent 1.5px 6px); border: 1px solid var(--magenta); }
+.arr-clip.nodata { background-image: var(--dither-75); background-size: 8px 8px; image-rendering: pixelated; border: 1px dashed var(--faint); color: var(--muted); }
+.arr-clip.nodata.q-HELD { background-image: var(--dither-25); }
+.arr-clip.nodata.q-INVALID { background-image: var(--dither-50); }
+.arr-clip span { overflow: hidden; text-overflow: ellipsis; background: rgba(13, 11, 9, 0.55); padding: 0 2px; }
+
+/* Nemotron track: the only place NVIDIA green appears */
+.arr-row.nem { z-index: 3; overflow: visible; }
+.arr-row.nem .arr-hdr { border-left: 3px solid var(--nv); }
+.arr-nv { color: var(--nv); font-weight: 600; }
+.arr-nvbar { flex: none; align-self: stretch; width: 4px; background: var(--nv); }
+.arr-note { position: absolute; display: flex; align-items: center; gap: 5px; height: 18px; padding: 0 6px 0 0; overflow: hidden; border: 1px solid var(--nv); border-radius: 2px; background: rgba(118, 185, 0, 0.1); text-align: left; white-space: nowrap; font: 400 11px var(--font-ui); color: var(--muted); transition: transform 120ms var(--ease-out), background-color 150ms ease; }
+.arr-note[data-draft="true"] { border-style: dashed; }
+.arr-note:active { transform: scale(0.97); }
+.arr-note b { flex: none; font: 600 9px var(--font-mono); letter-spacing: 0.04em; color: var(--nv); }
+.arr-note span { overflow: hidden; text-overflow: ellipsis; }
+.arr-more { position: absolute; right: 4px; bottom: 2px; height: 14px; padding: 0 5px; border: 1px solid var(--nv); border-radius: 2px; background: var(--bg); color: var(--nv); font: 600 9px var(--font-mono); letter-spacing: 0.04em; transition: transform 120ms var(--ease-out); }
+.arr-more:active { transform: scale(0.97); }
+.arr-more.less { right: 64px; }
+@media (hover: hover) and (pointer: fine) { .arr-note:hover { background-color: rgba(118, 185, 0, 0.22); } }
+
+.arr-pop { position: fixed; z-index: 50; width: 348px; overflow: auto; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r-2); background: var(--raised); user-select: text; transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out); }
+.arr-pop[data-state="closed"] { transform: scale(0.97); opacity: 0; }
+.arr-pop[data-instant="true"] { transition: none; }
+.arr-pop-h { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; font: 600 10px var(--font-mono); letter-spacing: 0.04em; color: var(--nv); }
+.arr-pop-h .arr-nvbar { height: 10px; align-self: auto; width: 3px; }
+.arr-pop-r { display: flex; justify-content: space-between; gap: 12px; font: 400 10px var(--font-mono); letter-spacing: 0.04em; color: var(--faint); }
+.arr-pop-r b { color: var(--text); font-weight: 500; text-align: right; }
+.arr-pop-t { margin: 8px 0 0; font-size: 12px; line-height: 1.45; color: var(--text); }
+.arr-pop-steps { margin: 8px 0 0; padding-left: 16px; font-size: 11px; line-height: 1.4; color: var(--muted); }
+.arr-pop-steps b { color: var(--text); font-weight: 500; }
+.arr-pop-f { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); font: 400 9px var(--font-mono); letter-spacing: 0.04em; color: var(--faint); }
+
+/* Automation lanes */
+.arr-row.sub { height: 24px; }
+.arr-hdr.sub { padding-left: 28px; }
+.arr-hdr.sub span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.arr-hdr.sub b { color: var(--c, var(--text)); font-size: 10px; }
+.arr-limit { font-style: normal; color: var(--red); margin-left: 4px; }
+.arr-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.arr-svg path, .arr-svg line { vector-effect: non-scaling-stroke; fill: none; }
+.arr-data { stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.arr-shut { stroke: var(--red); stroke-width: 1; opacity: 0.85; }
+.arr-gap { position: absolute; top: 3px; bottom: 3px; background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; opacity: 0.45; pointer-events: none; }
+
+/* Plan takes */
+.arr-takes { background: rgba(255, 238, 214, 0.02); }
+.arr-row.takehead .arr-lane { display: flex; align-items: center; padding-left: 8px; }
+.arr-takes .arr-hdr.sub em { color: var(--faint); }
+.arr-row.take { height: 54px; outline-offset: -1px; }
+.arr-row.take[data-rec="true"] { outline: 1px solid var(--amber); z-index: 2; }
+.arr-hdr.take { flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px; padding: 4px 8px 4px 28px; white-space: normal; }
+.arr-take-label { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 400 11px/1.25 var(--font-ui); letter-spacing: 0; text-transform: none; color: var(--text); }
+.arr-take-label i { display: inline-block; margin-right: 5px; padding: 0 3px; border: 1px solid var(--amber); border-radius: 2px; font: 500 8px/1.4 var(--font-mono); letter-spacing: 0.04em; font-style: normal; color: var(--amber); vertical-align: 1px; }
+.arr-take-meta { display: flex; flex-wrap: wrap; gap: 0 8px; font: 400 9px var(--font-mono); letter-spacing: 0.04em; color: var(--muted); }
+.arr-take-meta b { font-size: 10px; }
+.arr-trip { color: var(--red); }
+.arr-tripline { stroke: var(--red); stroke-width: 1; stroke-dasharray: 2 2; }
+.arr-arrive { stroke: var(--amber); stroke-width: 1; }
+.arr-hint { font: 400 9px var(--font-mono); letter-spacing: 0.04em; color: var(--faint); white-space: nowrap; }
+.arr-approve { position: absolute; left: 8px; top: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; z-index: 3; pointer-events: none; }
+.arr-approve > * { pointer-events: auto; }
+.arr-approve span { padding: 0 3px; background: var(--bg); font: 400 8px var(--font-mono); letter-spacing: 0.04em; color: var(--faint); }
+.arr-btn { padding: 3px 9px; border: 1px solid var(--amber); border-radius: var(--r-1); background: var(--bg); color: var(--amber); font: 500 9px var(--font-mono); letter-spacing: 0.04em; transition: transform 120ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease; }
+.arr-btn:active:not(:disabled) { transform: scale(0.97); }
+.arr-btn:disabled { color: var(--muted); border-color: var(--line-2); cursor: default; }
+@media (hover: hover) and (pointer: fine) { .arr-btn:hover:not(:disabled) { background-color: rgba(255, 180, 0, 0.12); } }
+
+/* Playhead: a transform-positioned element so the arrangement never re-renders per frame */
+.arr-phwrap { position: absolute; left: var(--arr-hdr-w); right: 0; top: 0; bottom: 0; overflow: hidden; pointer-events: none; z-index: 5; }
+.arr-ph { position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--amber); will-change: transform; }
+.arr-ph::before { content: ""; position: absolute; top: 0; left: -4px; border: 4px solid transparent; border-top: 6px solid var(--amber); border-bottom: 0; }
+
+/* Expand and collapse reveal: opacity + clip-path only, 200ms ease-out. Keyboard toggles skip it (no class). */
+.arr-reveal { animation: arr-reveal 200ms var(--ease-out) both; }
+@keyframes arr-reveal { from { clip-path: inset(0 0 100% 0); opacity: 0; } to { clip-path: inset(0); opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .arr-reveal { animation: none; }
+  .arr-pop, .arr-pop[data-state="closed"] { transition: opacity 150ms linear; transform: none; }
+  .arr-note:active, .arr-btn:active:not(:disabled), .arr-zoom button:active, .arr-more:active { transform: none; }
+}
