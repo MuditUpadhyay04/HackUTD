@@ -46,7 +46,8 @@ export function validateCitations(facts: Facts, input: unknown): Citations {
   return { evidenceIds, planIds };
 }
 
-const COMPLETED_ACTION = /\b(?:dispatched|deployed|sent|completed|repaired|fixed|resolved|activated|shut[\s-]+down|shut[\s-]+in)\b/i;
+// "Shut-in" is also a plan kind, so only a claim that something was or has been shut in or down is rejected.
+const COMPLETED_ACTION = /\b(?:dispatched|deployed|sent|completed|repaired|fixed|resolved|activated)\b|\b(?:was|were|been|is|are|got|has|have|had)\s+(?:\w+\s+)?shut[\s-]+(?:down|in)\b/i;
 /** Short all-caps words (FPGA, ID) are allowed mid-sentence; longer capitalized words must be snapshot names. */
 const ACRONYM = /^[A-Z]{2,5}s?$/;
 
@@ -84,7 +85,8 @@ export function validateFinalization(facts: Facts, input: unknown): Finalization
   const value = object(input, ["evidenceIds", "planIds", "handoff"]);
   const citations = validateCitations(facts, { evidenceIds: value.evidenceIds, planIds: value.planIds });
   if (typeof value.handoff !== "string" || !value.handoff.trim() || value.handoff.length > 1200 || /[\r\n<>`]/.test(value.handoff)) throw new Error("Invalid handoff prose: one paragraph, at most 1200 characters, no markdown or line breaks");
-  if (COMPLETED_ACTION.test(value.handoff)) throw new Error("Completed-action claim: plans are advice; never say anything was dispatched, deployed, sent, completed, repaired, fixed, resolved, activated or shut in");
+  const claim = COMPLETED_ACTION.exec(value.handoff);
+  if (claim) throw new Error(`Completed-action claim "${claim[0]}": remove that word; plans are advice and the model never reports actions as done (for an incident whose status is resolved, write "no longer active")`);
   const plans = facts.incidents.flatMap((i) => i.plans);
   const entities = new Set(facts.incidents.flatMap((i) => [i.id, i.systemId, i.facilityId, i.assetId, ...i.plans.map((p) => p.id)]).filter((e): e is string => !!e));
   const labels = new Set([...facts.incidents.flatMap((i) => [i.category, i.status, i.planningStatus]), ...plans.flatMap((p) => [p.kind, p.searchStatus, p.feasibility])]

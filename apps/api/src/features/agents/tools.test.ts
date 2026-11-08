@@ -36,7 +36,9 @@ describe("grounded finalization check", () => {
     bad("Watch the Riverside yard.");
   });
   test("rejects completed-action claims, ungrounded categories and uncited plans", () => {
-    for (const verb of ["dispatched", "deployed", "sent", "completed", "repaired", "fixed", "resolved", "activated", "shut in", "shut-in", "shut down"]) bad(`The truck was ${verb}.`);
+    for (const verb of ["dispatched", "deployed", "sent", "completed", "repaired", "fixed", "resolved", "activated", "shut in", "shut-in", "shut down", "already shut in"]) bad(`The well was ${verb}.`);
+    bad("The wells have been shut in at S2_FAC_3.");
+    expect(ok("Review the shut-in option for S2_FAC_3 against the trucks option.").handoff).toContain("shut-in option");
     bad("Water quality degradation at S2_FAC_3 needs review.");
     bad("Review the available plan for S2_FAC_3.");
     expect(ok("Review the available plan for S2_FAC_3.", ["plan-s2-1"]).planIds).toEqual(["plan-s2-1"]);

@@ -25,6 +25,11 @@ describe("Nemotron request shaping", () => {
     expect(calls[1]!.init.body).toBeUndefined();
     expect(calls[2]!.init.body).toBe("{}");
   });
+  test("also rewrites byte bodies, as libfx sends them", async () => {
+    const { calls, base } = recorder();
+    await providerFetch(provider, base)("https://llm.example/v1/chat/completions", { method: "POST", body: new TextEncoder().encode(JSON.stringify({ model: "m" })) });
+    expect(JSON.parse(calls[0]!.init.body as string)).toEqual({ model: "m", chat_template_kwargs: { enable_thinking: false } });
+  });
   test("thinking on sends the body unchanged", async () => {
     const { calls, base } = recorder();
     await providerFetch({ ...provider, thinking: { mode: "on" } }, base)("https://llm.example/v1/chat/completions", { method: "POST", body: "{\"a\":1}" });
