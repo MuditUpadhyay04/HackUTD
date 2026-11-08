@@ -35,13 +35,47 @@ module fv_eog_memory (
     localparam integer RW         = 8;              // REC_NO low bits compared by eog_fv_stage
 
     // ---------------------------------------------------------------------------------------------------------
-    // Free inputs (the solver drives them)
+    // Inputs
     logic                rst_n, in_valid, out_ready;
     logic [EOG_BF_W-1:0] in_data;
+    logic [RW-1:0]       f_in_cnt, f_out_cnt;   // from u_stage below
+`ifndef FV_DEEP
+    // all tasks except the deep ones: everything free (the solver drives it)
     assign rst_n     = $anyseq;
     assign in_valid  = $anyseq;
     assign out_ready = $anyseq;
     assign in_data   = $anyseq;
+`else
+    // FV_DEEP (bmc64, cover64): the 64-record nsr cap needs ~66 records of one slot (~210 cycles), too deep for
+    // free inputs. Here: one reset in cycle 0, then in_valid = out_ready = 1 from cycle 2 on (full rate), every
+    // feature/value field 0, REC_NO = the acceptance count; only the fields that steer nsr/has_run/SINCE_RESET
+    // stay free: STATUS, FAC, HIST_RESET, PUMP_RUN, SINCE_RESET. (Values and handshake variety are covered by
+    // the prove and bmc tasks.)
+    logic [1:0] d_t;
+    initial d_t = 2'd0;
+    always_ff @(posedge clk) if (d_t != 2'd3) d_t <= d_t + 2'd1;
+    assign rst_n     = (d_t != 2'd0);
+    assign in_valid  = (d_t >= 2'd2);
+    assign out_ready = 1'b1;
+    logic [2:0] d_st;
+    logic [4:0] d_fac;
+    logic       d_hr, d_run;
+    logic [7:0] d_since;
+    assign d_st    = $anyseq;
+    assign d_fac   = $anyseq;
+    assign d_hr    = $anyseq;
+    assign d_run   = $anyseq;
+    assign d_since = $anyseq;
+    always_comb begin
+        in_data                                  = '0;
+        in_data[EOG_BF_REC_NO +: RW]             = f_in_cnt;
+        in_data[EOG_BF_STATUS +: 3]              = d_st;
+        in_data[EOG_BF_FAC +: 5]                 = d_fac;
+        in_data[EOG_BF_HIST_RESET]               = d_hr;
+        in_data[EOG_BF_PUMP_RUN]                 = d_run;
+        in_data[EOG_BF_SINCE_RESET +: 8]         = d_since;
+    end
+`endif
 
     // anyconst slot and gated channel for the shadow models
     logic [4:0] f_slot;
@@ -76,7 +110,6 @@ module fv_eog_memory (
     eog_fv_axis #(.W(EOG_BM_W), .ASSUME(0)) u_out (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
         .valid(out_valid), .ready(out_ready), .data(out_data));
 
-    logic [RW-1:0] f_in_cnt, f_out_cnt;
     logic [7:0]    f_in_flight;
     eog_fv_stage #(.RW(RW), .MAX_INFLIGHT(FV_INFL), .II_MAX(EOG_II_MAX), .LAT_MAX(128), .SWEEP(FV_SWEEP)) u_stage (
         .clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
