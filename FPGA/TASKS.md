@@ -51,6 +51,26 @@ file during a wave (agents report status in their final message) to avoid merge 
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
 
+## Sign-off standard (Lucas, Sun Nov 8 ~03:50)
+
+A module is DONE when its integration branch passes `lint.sh`, `sim.sh` and every task in the default `.sby` of
+`formal.sh`, judged in three tiers:
+
+1. **Proven, unbounded** (k-induction or PDR): control and data routing — handshake, one-in-one-out in order, nothing
+   lost or duplicated, per-facility isolation, reset/soft-reset behaviour, weight-bank atomicity, every status /
+   reason / rule decision, which operands reach which `eog_mul`/`eog_div`, and the rounding/saturation step (with an
+   abstract or stand-in multiplier where needed).
+2. **Bounded** (bmc from reset, depth documented in the `.sby`): multi-record history properties and real-arithmetic
+   checks at reduced widths. A bmc task counts only if a cover shows it reaches at least one real output within its
+   depth (non-vacuous). Narrowings (e.g. N_FEAT = 3, operand widths) are documented.
+3. **Simulated bit-exact**: end-to-end numeric values (products, sums, quotients, logits) on every vector case
+   (practice week, synthetic edge cases, Mudit's golden sets) under random back-pressure, with the model byte-equal to
+   Mudit's engine (`check_mudit.py`). `eog_mul` and `eog_div` are proven correct in isolation, so arithmetic
+   correctness reduces to wiring (tier 1) plus these simulations.
+
+Rules: no property is weakened to pass; UNKNOWN is not PASS; deep opt-in tasks that don't finish are listed in
+`reports/RTL_DONE_HANDOFF.md` under "not closed" with the depth reached.
+
 ## Wave 2 — integration
 
 | ID | Task | Needs | Owner | Status | Output |
