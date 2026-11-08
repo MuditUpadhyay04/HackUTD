@@ -37,7 +37,7 @@ Shift / E-STOP latches change; plus **stats**. A real line from the run below:
  "status": "VALID", "reason": ["history_reset"], "since_reset": 0,
  "logits": {"pipeline_leak": -14.21, "pump_degradation": -15.67, "pump_failure": -4.43, "facility_shut_in": -7.65},
  "probability": {"pipeline_leak": 0.0, "pump_degradation": 0.0, "pump_failure": 0.0001, "facility_shut_in": 0.0},
- "above_threshold": [], "rules": [], "countdown_min": {"p10": 167, "p50": 167, "p90": 167},
+ "above_threshold": [], "active": [], "rules": [], "countdown_min": {"p10": 167, "p50": 167, "p90": 167},
  "weights_ver": 4, "result_no": 0}
 {"type": "alert", "fac_id": 3, "facility": "S2_FACILITY_A", "kind": "night_shift_raised", "source": ["rule", "model"],
  "latch": "night_shift", "rules": ["pump_fault"], "classes": ["pump_failure"], "countdown_p10_min": 194}
@@ -46,8 +46,11 @@ Shift / E-STOP latches change; plus **stats**. A real line from the run below:
 Field meanings, statuses and reason names: [`ml/INTEGRATION.md`](../../../ml/INTEGRATION.md) §3. The things that
 matter for the server and the agent:
 
-- `above_threshold` **is** the detection: the board applied the tuned thresholds and persistence. `probability` is
-  the calibrated confidence to show.
+- **`active` is the detection:** the problems over the tuned threshold for K records in a row (v4: leak 2,
+  degradation 4, failure 1, shut-in 1), the same rule as the board's own alarms. The thresholds were tuned together
+  with K, so the measured false-alert rates assume it. `above_threshold` is the same test on one record alone: fine
+  for charts, too twitchy for events. Both are empty with no model loaded. `probability` is the calibrated confidence
+  to show.
 - `status` is VALID / HELD / INVALID / DROPPED, with reasons. Missing readings: a field may be held for up to 2
   steps; after that the record is INVALID (`field_lost`) and **no scores are given** for it (hard rule 9: show it as
   unknown, never healthy).

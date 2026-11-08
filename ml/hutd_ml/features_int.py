@@ -357,7 +357,7 @@ class Engine:
 
         res = self._result(r, status, reason, st, logits, rules, cd)
         stages = {"values": v, "features": feats, "ns_cond": st.ns_cond, "es_cond": st.es_cond,
-                  "ns_latch": st.ns_latch, "es_latch": st.es_latch}
+                  "ns_latch": st.ns_latch, "es_latch": st.es_latch, "classes": classes}
         st.since_reset += 1
         return res, stages, alerts
 

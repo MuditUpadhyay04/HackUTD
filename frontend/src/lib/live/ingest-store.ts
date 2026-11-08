@@ -110,7 +110,8 @@ export function ingest(batch: unknown): number {
               facility_shut_in: num(p.facility_shut_in) ?? undefined,
             }
           : null;
-      f.aboveThreshold = strs(o.above_threshold);
+      // `active` (K hits in a row, as the board alarms) is the detection; older listen.py only sends above_threshold.
+      f.aboveThreshold = strs(o.active ?? o.above_threshold);
       f.rules = strs(o.rules);
       const deg = f.probability?.pump_degradation;
       if (deg != null) {
