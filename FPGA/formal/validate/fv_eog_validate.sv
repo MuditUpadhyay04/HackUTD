@@ -21,6 +21,10 @@
 //   #40 (proposed; [Q6]) PREV_LEVEL / PREV_OK on INVALID records are not checked.
 //   #13 (PREV_LEVEL = 0 when PREV_OK = 0) and #14 (n_wells = min(CFG.N_WELLS, N_WELL)) still hold.
 //   features_int.py also clamps HOLD_MAX to 2.
+//   #70  R7 option C replaces numerics §3 step 5: hold_run = (any field held) ? min(hold_run + 1, 3) : 0; if
+//        hold_run > hold every held field becomes missing (INVALID, FIELD_LOST, no FIELD_HELD), with NO history
+//        reset: no HIST_RESET, last_valid kept, hold_run not cleared, SINCE_RESET not incremented, PREV kept.
+//        History resets come only from time gaps (missing > hold), the first record and fac_touch.
 //
 // Sizes: N_FAC = 2, N_WELL = 2 (so 7 + 2*2 = 11 fields per slot). CONFIG rows are per-slot anyconst
 // (conventions §5: an enabled row never changes; formal keeps every row constant, row rewrites are covered by
@@ -53,7 +57,7 @@
 //   V3  DUP / OOO    V3_rsn, V3_only (record); V3_dup, V3_ooo, V3_acc (time)                prove; bmc
 //   V4  DROPPED      V4 (no HIST_RESET, SINCE_RESET 0 #25, payload 0 #39)                   prove
 //   V5  gap          V5_gap, V5_300, V5_new, V5_first (first record = new history, #24)     bmc
-//   V6  hold bound   V6_ovf, V6_held, V6_run                                                bmc
+//   V6  hold bound   V6_ovf (#70: INVALID, no reset), V6_held, V6_run                        bmc
 //   V7  INVALID      V7_rec, V7_fok (record); V7 (missing = neither OK nor held)            prove; bmc
 //   V8  SINCE_RESET  V8                                                                    bmc
 //   V9  PREV         V9_new, V9_prev (+ PRV0 per record, TASKS #13)                         bmc; prove
@@ -196,7 +200,8 @@ module fv_validate_ref #(
         end
     endgenerate
 
-    // 5: hold run; overflow -> history reset, every held field becomes missing
+    // 5 (#70, R7 option C): hold run saturating at 3; overflow -> every held field becomes missing (INVALID),
+    // no history reset (last_valid and the run are kept)
     logic [2:0]       hr_next;
     logic             ovf, hist, invalid, held_any, absent_any, enum_any, range_any, pinc, winc;
     logic [NFLD-1:0]  f_held, f_miss;
@@ -210,8 +215,9 @@ module fv_validate_ref #(
     integer           i;
     always_comb begin
         hr_next  = (|f_cand) ? ((clr1 ? 3'd0 : {1'b0, s_hold_run}) + 3'd1) : 3'd0;
+        if (hr_next > 3'd3) hr_next = 3'd3;
         ovf      = (hr_next > {1'b0, d_hold});
-        hist     = clr1 | ovf;
+        hist     = clr1;
         f_held   = ovf ? '0 : f_cand;
         f_miss   = d_req & ~d_obs & ~f_held;
         invalid  = |f_miss;                                       // 7
@@ -291,7 +297,7 @@ module fv_validate_ref #(
     assign n_pend       = 1'b0;
     assign n_last_ts    = ts;
     assign n_since      = invalid ? since_o : (since_o == 8'd255) ? 8'd255 : since_o + 8'd1;
-    assign n_hold_run   = ovf ? 2'd0 : hr_next[1:0];
+    assign n_hold_run   = hr_next[1:0];
     assign n_prev_level = invalid ? s_prev_level : f_out[16*1 +: 16];
     assign n_prev_ok    = invalid ? prev_ok_o : 1'b1;
     assign n_fhas       = (hist ? '0 : s_fhas) | (d_req & d_obs);
@@ -590,13 +596,12 @@ module fv_eog_validate #(
             V10:   assert (&p_v10);
         end
         if (nd) begin
-            // HR: the HIST_RESET bit equals reason bit 2; a reset record has SINCE_RESET 0 and PREV_OK 0 and
-            // holds nothing (the cleared history has no last_valid; an overflow turns held fields into missing),
-            // so it is INVALID iff some required field is not OK, and GAP_HELD only comes with INVALID (gap +
-            // hold overflow)
+            // HR: the HIST_RESET bit equals reason bit 2; a reset record (time gap, first record, touch; #70: never
+            // a hold overflow) has SINCE_RESET 0, PREV_OK 0, no GAP_HELD, and holds nothing (the cleared history
+            // has no last_valid), so it is INVALID iff some required field is not OK
             HR:       assert (o_hr == o_rsn[EOG_R_HIST_RESET]);
             if (o_hr) HR_new: assert (o_since == 8'd0 && !o_pok && !o_rsn[EOG_R_FIELD_HELD] &&
-                                      inv == req_nobs && (inv || !o_rsn[EOG_R_GAP_HELD]));
+                                      inv == req_nobs && !o_rsn[EOG_R_GAP_HELD]);
             // STS: status from the reason bits (steps 7-8): not INVALID -> HELD iff FIELD_HELD or GAP_HELD
             if (!inv) STS: assert ((o_st == EOG_ST_HELD) == (o_rsn[EOG_R_FIELD_HELD] || o_rsn[EOG_R_GAP_HELD]));
             // V7 (record part): INVALID needs a required field that is not OK
@@ -642,7 +647,7 @@ module fv_eog_validate #(
     logic               sh_has_ts, sh_pok;
     logic [31:0]        sh_last_ts;
     logic [7:0]         sh_since;
-    logic [1:0]         sh_hrun;
+    logic [1:0]         sh_hrun;           // the spec's hold_run (0..3)
     logic [15:0]        sh_plev, sh_val;
     logic [NFLD-1:0]    sh_has;            // field has a last_valid value
     logic               p_has_ts, p_tchk, mine, known;
@@ -665,12 +670,14 @@ module fv_eog_validate #(
     assign e_clr  = e_trst || !p_has_ts;                      // history cleared before the fields (#24)
     assign e_has  = e_clr ? '0 : sh_has;
     assign e_cand = d_req & ~d_obs & e_has;
-    assign e_hrun = (|e_cand) ? ((e_clr ? 3'd0 : {1'b0, sh_hrun}) + 3'd1) : 3'd0;
+    assign e_hrun = !(|e_cand) ? 3'd0 : (!e_clr && sh_hrun == 2'd3) ? 3'd3 :
+                    ((e_clr ? 3'd0 : {1'b0, sh_hrun}) + 3'd1);         // #70: saturates at 3
     assign e_ovf  = e_hrun > {1'b0, d_hold};
     assign e_miss = d_req & ~d_obs & ~(e_ovf ? '0 : e_cand);
-    // the DUT's own hold run after this record: records in a row with FIELD_HELD since its last HIST_RESET
+    // the DUT's own run of records in a row with FIELD_HELD (reset by a record without it or a HIST_RESET)
     logic [2:0]      o_run;
-    assign o_run  = (o_hr || !o_rsn[EOG_R_FIELD_HELD]) ? 3'd0 : ((e_clr ? 3'd0 : {1'b0, sh_hrun}) + 3'd1);
+    logic [1:0]      sh_orun;
+    assign o_run  = (o_hr || !o_rsn[EOG_R_FIELD_HELD]) ? 3'd0 : ({1'b0, sh_orun} + 3'd1);
 
     // V6 / HV shadow for field f_fld: its last OK value
     logic        t_obs, t_req;
@@ -687,6 +694,7 @@ module fv_eog_validate #(
             sh_pok    <= 1'b0;
             sh_since  <= 8'd0;
             sh_hrun   <= 2'd0;
+            sh_orun   <= 2'd0;
             sh_has    <= '0;
         end else if (out_fire) begin
             if (c_tch) sh_has_ts <= 1'b0;    // touch ordered before this record
@@ -694,7 +702,8 @@ module fv_eog_validate #(
                 sh_has_ts  <= 1'b1;
                 sh_last_ts <= o_ts;
                 sh_since   <= inv ? o_since : (o_since == 8'd255) ? 8'd255 : o_since + 8'd1;
-                sh_hrun    <= o_run[1:0];
+                sh_hrun    <= e_hrun[1:0];
+                sh_orun    <= o_run[1:0];
                 if (!inv) begin
                     sh_pok  <= 1'b1;
                     sh_plev <= out_data[EOG_BV_LEVEL +: 16];
@@ -721,16 +730,17 @@ module fv_eog_validate #(
         end
         if (chk && known && !drop) begin
             // V5: d == 300 -> no time reset; d in {600, 900} within the hold limit -> GAP_HELD, no time reset;
-            // any other d > 300 -> HIST_RESET. (A hold-run overflow may still reset: o_hr == e_ovf.)
-            if (e_300)       V5_300:   assert (!o_rsn[EOG_R_GAP_HELD] && o_hr == e_ovf);
-            else if (e_gap)  V5_gap:   assert (o_rsn[EOG_R_GAP_HELD] && o_hr == e_ovf && o_st != EOG_ST_VALID);
+            // any other d > 300 -> HIST_RESET (#70: a hold overflow never resets)
+            if (e_300)       V5_300:   assert (!o_rsn[EOG_R_GAP_HELD] && !o_hr);
+            else if (e_gap)  V5_gap:   assert (o_rsn[EOG_R_GAP_HELD] && !o_hr && o_st != EOG_ST_VALID);
             else if (e_trst) V5_new:   assert (o_hr && !o_rsn[EOG_R_GAP_HELD]);
             // a slot's first record (no last_ts: after reset or a CONFIG touch) is a new history (#24)
             else             V5_first: assert (o_hr && !o_rsn[EOG_R_GAP_HELD]);
-            // V6: a record whose held-field run would exceed hold has HIST_RESET = 1, INVALID, nothing held;
-            // otherwise a field is held exactly when some required field is not OK but has a last_valid value;
-            // and the DUT's run of records with FIELD_HELD (since the last reset) never exceeds hold
-            if (e_ovf) V6_ovf: assert (o_hr && inv && !o_rsn[EOG_R_FIELD_HELD]);
+            // V6 (#70): a record whose hold run (records in a row with a held candidate, saturating at 3) exceeds
+            // hold is INVALID with FIELD_LOST, holds nothing and is NOT a history reset; otherwise a field is held
+            // exactly when some required field is not OK but has a last_valid value; and the DUT's run of
+            // records with FIELD_HELD never exceeds hold
+            if (e_ovf) V6_ovf: assert (!o_hr && inv && o_rsn[R_FIELD_LOST] && !o_rsn[EOG_R_FIELD_HELD]);
             else       V6_held: assert (o_rsn[EOG_R_FIELD_HELD] == (|e_cand));
             V6_run: assert (o_run <= {1'b0, d_hold});
             // V7: INVALID iff some required field is neither OK nor held (after step 5)
@@ -802,7 +812,10 @@ module fv_eog_validate #(
             C_winc:     cover (!drop && o_rsn[EOG_R_WELL_INCONS]);
             C_pinc:     cover (!drop && o_rsn[EOG_R_PUMP_INCONS]);
 `ifndef FV_NO_HIST
-            C_ovf:      cover (known && !drop && e_ovf);                       // a hold-overflow reset
+            C_ovf:      cover (known && !drop && e_ovf);                       // a hold overflow (#70)
+            C_ovf2:     cover (known && !drop && e_ovf && {1'b0, sh_hrun} > {1'b0, d_hold});   // two in a row
+            C_ovf_sat:  cover (known && !drop && e_ovf && sh_hrun == 2'd3);    // run saturated at 3
+            C_ovf_val:  cover (known && vh && {1'b0, sh_hrun} > {1'b0, d_hold});   // VALID/HELD right after one
             C_ovf_gap:  cover (known && !drop && e_ovf && e_gap);
             C_held2:    cover (known && !drop && o_rsn[EOG_R_FIELD_HELD] && e_hrun == 3'd2);
             C_inv_hold: cover (known && inv && o_rsn[EOG_R_FIELD_HELD]);       // held and missing fields together
