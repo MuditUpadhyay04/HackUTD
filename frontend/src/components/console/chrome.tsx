@@ -1,0 +1,204 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useTransition, type ReactNode } from "react";
+import type { DatasetInfo, SystemState } from "@/lib/engine/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { systemNum } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { NemotronMark } from "./nemotron";
+
+export type View = "overview" | "replay" | "handoff";
+export type SystemStatus = "ok" | "warn" | "crit" | "nodata";
+
+/** The macOS-style window the whole console lives in (Mockup A). */
+export function Window({ sidebar, children }: { sidebar: ReactNode; children: ReactNode }) {
+  return (
+    <div className="mx-auto max-w-[1400px] p-0 sm:p-4 lg:p-7">
+      <div
+        className={cn(
+          "grid min-h-screen grid-cols-1 overflow-hidden sm:min-h-[calc(100vh-2rem)] sm:rounded-[18px] lg:min-h-[calc(100vh-3.5rem)] lg:grid-cols-[248px_1fr]",
+          "bg-white/40 backdrop-blur-[40px] backdrop-saturate-[1.8]",
+          "sm:shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_30px_80px_-30px_rgba(30,40,60,0.35),0_8px_24px_-12px_rgba(30,40,60,0.18)]",
+        )}
+      >
+        {sidebar}
+        <div className="relative min-w-0">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+const navIcon = {
+  overview: (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <rect x="2" y="1.5" width="12" height="13" rx="3.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M3 9h10v2.5A2 2 0 0 1 11 13.5H5A2 2 0 0 1 3 11.5z" fill="var(--water)" />
+    </svg>
+  ),
+  replay: (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <path d="M8 4.5V8l2.5 1.5" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+  handoff: (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  ),
+};
+
+export function Sidebar({
+  view,
+  onView,
+  systems,
+  statusOf,
+  alertCount,
+  onSystem,
+}: {
+  view: View;
+  onView: (v: View) => void;
+  systems: SystemState[];
+  statusOf: (s: SystemState) => SystemStatus;
+  alertCount: number;
+  onSystem: (id: string) => void;
+}) {
+  const items: { id: View; label: string; count?: number }[] = [
+    { id: "overview", label: "Overview", count: alertCount || undefined },
+    { id: "replay", label: "Replay week" },
+    { id: "handoff", label: "Shift handoff" },
+  ];
+  return (
+    <aside className="border-b border-line bg-[rgba(236,238,242,0.72)] px-3 pt-4 pb-3 backdrop-blur-[50px] backdrop-saturate-[1.8] lg:border-r lg:border-b-0 lg:pb-4">
+      <div className="hidden gap-2 px-2 pb-5 lg:flex" aria-hidden>
+        <i className="block size-3 rounded-full bg-[#ff5f57] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.15)]" />
+        <i className="block size-3 rounded-full bg-[#febc2e] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.15)]" />
+        <i className="block size-3 rounded-full bg-[#28c840] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.15)]" />
+      </div>
+
+      <nav aria-label="Views" className="flex flex-wrap gap-1 lg:flex-col lg:flex-nowrap lg:gap-0">
+        {items.map((it) => (
+          <button
+            key={it.id}
+            type="button"
+            onClick={() => onView(it.id)}
+            aria-current={view === it.id ? "page" : undefined}
+            className={cn(
+              "flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] whitespace-nowrap text-text transition-colors",
+              view === it.id ? "bg-black/[0.07] font-semibold" : "hover:bg-black/[0.04]",
+            )}
+          >
+            {navIcon[it.id]}
+            {it.label}
+            {it.count != null && <span className="ml-auto pl-3 text-[12.5px] font-normal text-faint">{it.count}</span>}
+          </button>
+        ))}
+      </nav>
+
+      <p className="hidden px-2.5 pt-4 pb-1.5 text-[11px] font-semibold text-faint lg:block">Systems</p>
+      <nav aria-label="Systems" className="mt-2 flex flex-wrap gap-1 lg:mt-0 lg:flex-col lg:flex-nowrap lg:gap-0">
+        {systems.map((s) => {
+          const st = statusOf(s);
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onSystem(s.id)}
+              className="flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] whitespace-nowrap text-text transition-colors hover:bg-black/[0.04]"
+            >
+              <span
+                className={cn(
+                  "size-2 shrink-0 rounded-full",
+                  st === "crit" ? "bg-crit" : st === "warn" ? "bg-warn-fill" : st === "nodata" ? "bg-[#8e8e93]" : "bg-[#34c759]",
+                )}
+                aria-hidden
+              />
+              System {systemNum(s.id)}
+              <span className="sr-only">
+                {st === "crit" ? ", pump down" : st === "warn" ? ", needs an inspector" : st === "nodata" ? ", no data" : ", normal"}
+              </span>
+              <span className="ml-auto pl-3 text-[12.5px] text-faint">{s.facilities.length}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </aside>
+  );
+}
+
+export function Toolbar({
+  datasets,
+  current,
+  replay,
+  onReplay,
+}: {
+  datasets: DatasetInfo[];
+  current: DatasetInfo;
+  replay: boolean;
+  onReplay: (on: boolean) => void;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  return (
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-line bg-white/55 px-4 py-3.5 backdrop-blur-[30px] backdrop-saturate-[1.8] sm:px-7">
+      <div role="radiogroup" aria-label="Time" className="inline-flex rounded-[9px] bg-[rgba(118,118,128,0.12)] p-0.5">
+        {(["Now", "Replay"] as const).map((label) => {
+          const on = label === "Replay" ? replay : !replay;
+          return (
+            <button
+              key={label}
+              type="button"
+              role="radio"
+              aria-checked={on}
+              tabIndex={on ? 0 : -1}
+              onClick={() => onReplay(label === "Replay")}
+              onKeyDown={(e) => {
+                if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+                e.preventDefault();
+                const toReplay = label === "Now";
+                onReplay(toReplay);
+                e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>("[role=radio]")[toReplay ? 1 : 0]?.focus();
+              }}
+              className={cn(
+                "rounded-[7px] px-3.5 py-1 text-[13px] text-text transition-[background-color,box-shadow] duration-150",
+                on && "bg-white font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.12),0_0_0_0.5px_rgba(0,0,0,0.04)]",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      <Select value={current.id} onValueChange={(v) => start(() => router.push(`/?dataset=${encodeURIComponent(String(v))}`))}>
+        <SelectTrigger
+          aria-label="Dataset"
+          className="h-auto rounded-lg border-0 bg-white py-[5px] pr-2.5 pl-3 text-[13px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
+        >
+          <SelectValue>{current.label}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {datasets.map((d) => (
+            <SelectItem key={d.id} value={d.id}>
+              {d.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {pending && <span className="text-[13px] text-faint">Loading…</span>}
+
+      <Link
+        href="/how-it-works"
+        className="ml-auto flex items-center gap-2 rounded-lg px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-black/[0.04]"
+      >
+        <NemotronMark className="size-[18px]" />
+        <span>
+          <span className="hidden sm:inline">Agents run on </span>
+          <b className="font-semibold text-text">NVIDIA Nemotron</b>
+        </span>
+      </Link>
+    </div>
+  );
+}

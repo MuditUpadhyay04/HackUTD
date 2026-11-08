@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup A · macOS / visionOS</title>
+<style>
+  :root {
+    --label: #1d1d1f;
+    --label-2: rgba(60, 60, 67, 0.72);
+    --label-3: rgba(60, 60, 67, 0.48);
+    --sep: rgba(60, 60, 67, 0.14);
+    --blue: #0a84ff;
+    --red: #ff3b30;
+    --orange: #ff9500;
+    --green: #34c759;
+    --glass: rgba(255, 255, 255, 0.62);
+    --glass-strong: rgba(255, 255, 255, 0.78);
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: var(--label);
+    -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(1200px 700px at 12% -10%, #dfe9f7 0%, transparent 60%),
+      radial-gradient(900px 700px at 100% 10%, #e8eef0 0%, transparent 55%),
+      radial-gradient(1000px 800px at 60% 110%, #eef0f4 0%, transparent 60%),
+      #f3f4f7;
+    font-feature-settings: "tnum" 1;
+  }
+  .display { font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; }
+
+  /* Window */
+  .window {
+    margin: 28px auto; max-width: 1360px; min-height: calc(100vh - 56px);
+    display: grid; grid-template-columns: 248px 1fr;
+    border-radius: 18px; overflow: hidden;
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: 0 0 0 0.5px rgba(0,0,0,0.12), 0 30px 80px -30px rgba(30, 40, 60, 0.35), 0 8px 24px -12px rgba(30,40,60,.18);
+    backdrop-filter: blur(40px) saturate(180%);
+  }
+
+  /* Sidebar: heavier material */
+  .sidebar {
+    background: rgba(236, 238, 242, 0.72);
+    backdrop-filter: blur(50px) saturate(180%);
+    border-right: 0.5px solid var(--sep);
+    padding: 16px 12px;
+  }
+  .lights { display: flex; gap: 8px; padding: 2px 8px 22px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.15); }
+  .lights i:nth-child(1) { background: #ff5f57; } .lights i:nth-child(2) { background: #febc2e; } .lights i:nth-child(3) { background: #28c840; }
+  .side-h { font-size: 11px; font-weight: 600; color: var(--label-3); padding: 14px 10px 6px; letter-spacing: .01em; }
+  .item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; font-size: 13.5px; color: var(--label); }
+  .item.active { background: rgba(0, 0, 0, 0.07); font-weight: 600; }
+  .item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: none; }
+  .item .dot.red { background: var(--red); } .item .dot.orange { background: var(--orange); }
+  .item .count { margin-left: auto; font-size: 12.5px; color: var(--label-3); }
+  .item svg { flex: none; }
+
+  /* Main */
+  .main { position: relative; overflow: auto; }
+  .toolbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 12px; padding: 14px 28px;
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(30px) saturate(180%);
+    border-bottom: 0.5px solid var(--sep);
+  }
+  .segmented { display: inline-flex; padding: 2px; border-radius: 9px; background: rgba(118, 118, 128, 0.12); }
+  .segmented span { padding: 4px 14px; font-size: 13px; border-radius: 7px; color: var(--label); }
+  .segmented span.on { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 0 0 .5px rgba(0,0,0,.04); font-weight: 600; }
+  .popup { display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px 5px 12px; border-radius: 8px; background: #fff; font-size: 13px; box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.06); }
+  .nv { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--label-2); }
+  .nv b { color: var(--label); font-weight: 600; }
+  .nv .mark { width: 18px; height: 18px; border-radius: 5px; background: #76b900; display: grid; place-items: center; }
+
+  .content { padding: 28px 28px 40px; }
+  .hello h1 { font-size: 34px; line-height: 1.1; font-weight: 700; letter-spacing: -0.022em; }
+  .hello p { margin-top: 6px; font-size: 15px; color: var(--label-2); }
+
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(30px) saturate(180%);
+    border-radius: 18px;
+    box-shadow: inset 0 0.5px 0 rgba(255,255,255,0.9), 0 0 0 0.5px rgba(0,0,0,0.06), 0 10px 30px -18px rgba(30, 40, 60, 0.35);
+  }
+
+  .summary { margin-top: 22px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .stat { padding: 16px 18px; }
+  .stat .k { font-size: 13px; color: var(--label-2); }
+  .stat .v { margin-top: 6px; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  .stat .v.red { color: var(--red); }
+
+  h2 { margin: 34px 0 12px; font-size: 20px; font-weight: 700; letter-spacing: -0.015em; display: flex; align-items: baseline; gap: 10px; }
+  h2 small { font-size: 13px; font-weight: 400; color: var(--label-3); letter-spacing: 0; }
+
+  .fails { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .fail { padding: 18px 20px 18px; display: flex; flex-direction: column; }
+  .fail .top { display: flex; align-items: center; gap: 12px; }
+  .ring { width: 44px; height: 44px; flex: none; }
+  .fail .name { font-size: 17px; font-weight: 600; }
+  .fail .since { font-size: 13px; color: var(--label-3); }
+  .count { margin-top: 18px; font-size: 56px; line-height: 1; font-weight: 600; letter-spacing: -0.035em; }
+  .count small { font-size: 22px; font-weight: 500; letter-spacing: 0; color: var(--label-2); margin: 0 6px 0 2px; }
+  .count.red { color: var(--red); }
+  .fail .until { margin-top: 6px; font-size: 13px; color: var(--label-2); }
+  .action { margin-top: 18px; padding-top: 14px; border-top: 0.5px solid var(--sep); display: flex; align-items: center; gap: 12px; }
+  .action .what { font-size: 14px; font-weight: 500; line-height: 1.3; }
+  .action .what span { display: block; font-size: 12.5px; font-weight: 400; color: var(--label-3); margin-bottom: 2px; }
+  .action .cost { margin-left: auto; text-align: right; font-size: 17px; font-weight: 600; }
+  .action .cost span { display: block; font-size: 12.5px; font-weight: 500; color: #248a3d; }
+  .btn { margin-top: 14px; align-self: stretch; text-align: center; padding: 9px 14px; border-radius: 10px; background: var(--blue); color: #fff; font-size: 14px; font-weight: 600; box-shadow: inset 0 0.5px 0 rgba(255,255,255,.35), 0 1px 2px rgba(10,132,255,.35); }
+
+  .insp { overflow: hidden; }
+  .row { display: grid; grid-template-columns: 26px 1.2fr 1fr 1fr auto; align-items: center; gap: 12px; padding: 13px 18px; font-size: 14px; }
+  .row + .row { border-top: 0.5px solid var(--sep); }
+  .row .muted { color: var(--label-2); }
+  .row .go { color: var(--blue); font-weight: 500; }
+
+  .systems { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
+  .sys { padding: 16px 16px 14px; }
+  .sys .hd { display: flex; align-items: baseline; justify-content: space-between; }
+  .sys .hd b { font-size: 15px; font-weight: 600; }
+  .sys .hd span { font-size: 12px; color: var(--label-3); }
+  .tanks { margin-top: 14px; display: flex; gap: 10px; align-items: flex-end; }
+  .tank { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .vessel { position: relative; width: 100%; max-width: 40px; height: 92px; border-radius: 12px; background: rgba(118,118,128,.12); overflow: hidden; box-shadow: inset 0 0 0 .5px rgba(0,0,0,.06); }
+  .water { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, #5ac8fa, #0a84ff); }
+  .water.red { background: linear-gradient(180deg, #ff9f0a, #ff3b30); }
+  .water.orange { background: linear-gradient(180deg, #ffcc00, #ff9500); }
+  .limit { position: absolute; left: 0; right: 0; height: 1.5px; background: rgba(255,59,48,.9); }
+  .tank .pct { font-size: 15px; font-weight: 600; }
+  .tank .lbl { font-size: 11.5px; color: var(--label-3); margin-top: -4px; }
+
+  .label-note { position: fixed; right: 16px; bottom: 14px; font-size: 12px; color: var(--label-3); }
+</style>
+</head>
+<body>
+<div class="window">
+  <aside class="sidebar">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="item active">
+      <svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="1.5" width="12" height="13" rx="3.5" fill="none" stroke="#1d1d1f" stroke-width="1.3"/><path d="M3 9h10v2.5A2 2 0 0 1 11 13.5H5A2 2 0 0 1 3 11.5z" fill="#0a84ff"/></svg>
+      Overview <span class="count">4</span>
+    </div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6" fill="none" stroke="#1d1d1f" stroke-width="1.3"/><path d="M8 4.5V8l2.5 1.5" fill="none" stroke="#1d1d1f" stroke-width="1.3" stroke-linecap="round"/></svg>Replay week</div>
+    <div class="item"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 4h10M3 8h10M3 12h6" stroke="#1d1d1f" stroke-width="1.3" stroke-linecap="round"/></svg>Shift handoff</div>
+    <div class="side-h">Systems</div>
+    <div class="item"><span class="dot"></span>System 1<span class="count">3</span></div>
+    <div class="item"><span class="dot orange"></span>System 2<span class="count">3</span></div>
+    <div class="item"><span class="dot"></span>System 3<span class="count">2</span></div>
+    <div class="item"><span class="dot red"></span>System 4<span class="count">4</span></div>
+    <div class="item"><span class="dot"></span>System 5<span class="count">3</span></div>
+  </aside>
+
+  <main class="main">
+    <div class="toolbar">
+      <div class="segmented"><span class="on">Now</span><span>Replay</span></div>
+      <div class="popup">Snapshot, Sat Oct 10, 09:00 <svg width="9" height="12" viewBox="0 0 9 12"><path d="M1.5 4.5 4.5 1.5l3 3M1.5 7.5l3 3 3-3" fill="none" stroke="#3c3c43" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="nv"><span class="mark"><svg width="12" height="12" viewBox="0 0 20 20"><path d="M3 10c1.8-3 4.3-4.6 7-4.6S15.2 7 17 10c-1.8 3-4.3 4.6-7 4.6S4.8 13 3 10z" fill="none" stroke="#fff" stroke-width="2"/><circle cx="10" cy="10" r="2.2" fill="#fff"/></svg></span>Agents run on <b>NVIDIA Nemotron</b></div>
+    </div>
+
+    <div class="content">
+      <div class="hello">
+        <h1 class="display">Avon water network</h1>
+        <p>Saturday, October 10, 09:00 UTC. Three pumps in System 4 are down and share two trucks.</p>
+      </div>
+
+      <div class="summary">
+        <div class="glass stat"><div class="k">Pumps down</div><div class="v red display">3</div></div>
+        <div class="glass stat"><div class="k">First shutdown</div><div class="v red display">11:57</div></div>
+        <div class="glass stat"><div class="k">Recommended plan</div><div class="v display">$3,088</div></div>
+        <div class="glass stat"><div class="k">If nobody acts</div><div class="v display">$12,022</div></div>
+      </div>
+
+      <h2 class="display">Pumps down <small>Soonest shutdown first</small></h2>
+      <div class="fails">
+        <div class="glass fail">
+          <div class="top">
+            <svg class="ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,59,48,.15)" stroke-width="6"/><circle cx="22" cy="22" r="18" fill="none" stroke="#ff3b30" stroke-width="6" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="34" transform="rotate(-90 22 22)"/></svg>
+            <div><div class="name">S4, Facility A</div><div class="since">Pump down since 08:00</div></div>
+          </div>
+          <div class="count display">2<small>h</small>57<small>m</small></div>
+          <div class="until">until the tank reaches shutdown at 11:57</div>
+          <div class="action"><div class="what"><span>Recommended</span>Send 1 truck now, shut in well A2 at 13:51</div><div class="cost">$975<span>saves $5,342</span></div></div>
+          <div class="btn">Dispatch truck</div>
+        </div>
+        <div class="glass fail">
+          <div class="top">
+            <svg class="ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,149,0,.18)" stroke-width="6"/><circle cx="22" cy="22" r="18" fill="none" stroke="#ff9500" stroke-width="6" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="42" transform="rotate(-90 22 22)"/></svg>
+            <div><div class="name">S4, Facility C</div><div class="since">Pump down since 07:00</div></div>
+          </div>
+          <div class="count display">3<small>h</small>15<small>m</small></div>
+          <div class="until">until the tank reaches shutdown at 12:15</div>
+          <div class="action"><div class="what"><span>Recommended</span>Send 1 truck now</div><div class="cost">$905<span>saves $1,687</span></div></div>
+          <div class="btn">Dispatch truck</div>
+        </div>
+        <div class="glass fail">
+          <div class="top">
+            <svg class="ring" viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="rgba(255,149,0,.18)" stroke-width="6"/><circle cx="22" cy="22" r="18" fill="none" stroke="#ff9500" stroke-width="6" stroke-linecap="round" stroke-dasharray="113" stroke-dashoffset="45" transform="rotate(-90 22 22)"/></svg>
+            <div><div class="name">S4, Facility D</div><div class="since">Pump down since 07:30</div></div>
+          </div>
+          <div class="count display">3<small>h</small>29<small>m</small></div>
+          <div class="until">until the tank reaches shutdown at 12:28</div>
+          <div class="action"><div class="what"><span>Recommended</span>Shut in well D2 at 10:49</div><div class="cost">$1,208<span>saves $1,906</span></div></div>
+          <div class="btn">Schedule shut-in</div>
+        </div>
+      </div>
+
+      <h2 class="display">Send an inspector</h2>
+      <div class="glass insp">
+        <div class="row"><svg width="18" height="18" viewBox="0 0 18 18"><path d="M9 2.5c2.6 3.3 4.2 5.7 4.2 7.6a4.2 4.2 0 1 1-8.4 0C4.8 8.2 6.4 5.8 9 2.5z" fill="#ff9500"/></svg><b>Pipeline leak</b><span class="muted">System 2, pipeline C</span><span class="muted">241 bbl a day lost</span><span class="go">Create ticket</span></div>
+      </div>
+
+      <h2 class="display">Tanks <small>Red line is shutdown at 92%</small></h2>
+      <div class="systems">
+        <div class="glass sys"><div class="hd"><b>System 1</b><span>2 of 2 trucks free</span></div><div class="tanks">
+          <div class="tank"><div class="vessel"><div class="water" style="height:62%"></div><div class="limit" style="top:8%"></div></div><div class="pct">62%</div><div class="lbl">A</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:67%"></div><div class="limit" style="top:8%"></div></div><div class="pct">67%</div><div class="lbl">B</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:37%"></div><div class="limit" style="top:8%"></div></div><div class="pct">37%</div><div class="lbl">C</div></div>
+        </div></div>
+        <div class="glass sys"><div class="hd"><b>System 2</b><span>2 of 2 free</span></div><div class="tanks">
+          <div class="tank"><div class="vessel"><div class="water" style="height:38%"></div><div class="limit" style="top:8%"></div></div><div class="pct">38%</div><div class="lbl">A</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:62%"></div><div class="limit" style="top:8%"></div></div><div class="pct">62%</div><div class="lbl">B</div></div>
+          <div class="tank"><div class="vessel"><div class="water orange" style="height:65%"></div><div class="limit" style="top:8%"></div></div><div class="pct">65%</div><div class="lbl">C leak</div></div>
+        </div></div>
+        <div class="glass sys"><div class="hd"><b>System 3</b><span>3 of 3 free</span></div><div class="tanks">
+          <div class="tank"><div class="vessel"><div class="water" style="height:69%"></div><div class="limit" style="top:8%"></div></div><div class="pct">69%</div><div class="lbl">A</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:68%"></div><div class="limit" style="top:8%"></div></div><div class="pct">68%</div><div class="lbl">B</div></div>
+        </div></div>
+        <div class="glass sys"><div class="hd"><b>System 4</b><span>0 of 2 free</span></div><div class="tanks">
+          <div class="tank"><div class="vessel"><div class="water red" style="height:64%"></div><div class="limit" style="top:8%"></div></div><div class="pct" style="color:#ff3b30">64%</div><div class="lbl">A</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:52%"></div><div class="limit" style="top:8%"></div></div><div class="pct">52%</div><div class="lbl">B</div></div>
+          <div class="tank"><div class="vessel"><div class="water red" style="height:60%"></div><div class="limit" style="top:8%"></div></div><div class="pct" style="color:#ff3b30">60%</div><div class="lbl">C</div></div>
+          <div class="tank"><div class="vessel"><div class="water red" style="height:59%"></div><div class="limit" style="top:8%"></div></div><div class="pct" style="color:#ff3b30">59%</div><div class="lbl">D</div></div>
+        </div></div>
+        <div class="glass sys"><div class="hd"><b>System 5</b><span>2 of 2 free</span></div><div class="tanks">
+          <div class="tank"><div class="vessel"><div class="water" style="height:40%"></div><div class="limit" style="top:8%"></div></div><div class="pct">40%</div><div class="lbl">A</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:60%"></div><div class="limit" style="top:8%"></div></div><div class="pct">60%</div><div class="lbl">B</div></div>
+          <div class="tank"><div class="vessel"><div class="water" style="height:46%"></div><div class="limit" style="top:8%"></div></div><div class="pct">46%</div><div class="lbl">C</div></div>
+        </div></div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="label-note">Mockup A, macOS / visionOS. Static, real Oct 10 data.</div>
+</body>
+</html>

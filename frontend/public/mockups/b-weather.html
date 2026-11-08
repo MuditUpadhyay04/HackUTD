@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mockup B · Weather / Fitness</title>
+<style>
+  :root {
+    --ink: #0b1220;
+    --ink-2: rgba(11, 18, 32, 0.62);
+    --ink-3: rgba(11, 18, 32, 0.42);
+    --red: #ff3b30; --orange: #ff9500; --green: #30d158; --blue: #0a84ff; --cyan: #64d2ff;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 15px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "tnum" 1;
+    min-height: 100vh;
+    background: linear-gradient(180deg, #cfe4fb 0%, #e6f0fb 38%, #f4f6f9 70%, #f5f5f7 100%);
+  }
+  .display { font-family: -apple-system, "SF Pro Display", system-ui, sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 22px 28px 48px; }
+
+  header { display: flex; align-items: center; gap: 14px; }
+  header h1 { font-size: 17px; font-weight: 600; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.6); backdrop-filter: blur(20px); font-size: 13px; box-shadow: 0 0 0 .5px rgba(0,0,0,.06); }
+  .nv { margin-left: auto; }
+  .nv .mark { width: 16px; height: 16px; border-radius: 4px; background: #76b900; display: grid; place-items: center; }
+
+  /* Hero: the one thing that matters, Weather-style */
+  .hero {
+    margin-top: 20px; border-radius: 28px; padding: 30px 34px 28px; color: #fff; position: relative; overflow: hidden;
+    background: linear-gradient(160deg, #ff6b4a 0%, #ff3b30 45%, #d92d6b 100%);
+    box-shadow: 0 30px 60px -30px rgba(217, 45, 60, .55);
+  }
+  .hero .where { font-size: 17px; font-weight: 600; opacity: .95; }
+  .hero .big { font-size: 112px; line-height: .95; font-weight: 200; letter-spacing: -0.04em; margin-top: 10px; }
+  .hero .big small { font-size: 40px; font-weight: 300; letter-spacing: 0; opacity: .85; margin: 0 10px 0 4px; }
+  .hero .sub { font-size: 19px; font-weight: 500; margin-top: 4px; }
+  .hero .sub span { opacity: .8; font-weight: 400; }
+  .hero .plan { margin-top: 26px; display: flex; align-items: center; gap: 16px; padding: 14px 16px; border-radius: 18px; background: rgba(255,255,255,.18); backdrop-filter: blur(20px); max-width: 640px; box-shadow: inset 0 .5px 0 rgba(255,255,255,.4); }
+  .hero .plan .t { font-size: 13px; opacity: .85; }
+  .hero .plan .a { font-size: 17px; font-weight: 600; }
+  .hero .plan .c { margin-left: auto; text-align: right; font-size: 22px; font-weight: 600; }
+  .hero .plan .c span { display: block; font-size: 13px; font-weight: 500; opacity: .9; }
+  .hero .btn { padding: 10px 18px; border-radius: 999px; background: #fff; color: #d92d3a; font-weight: 600; font-size: 15px; }
+  .hero .wave { position: absolute; right: -40px; bottom: -30px; width: 420px; height: 260px; opacity: .22; }
+
+  .grid { margin-top: 18px; display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 16px; }
+  .card { border-radius: 24px; padding: 18px 20px; background: rgba(255,255,255,.72); backdrop-filter: blur(30px) saturate(170%); box-shadow: 0 0 0 .5px rgba(0,0,0,.05), 0 12px 30px -20px rgba(20,40,80,.25); }
+  .card .h { font-size: 13px; font-weight: 600; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+
+  /* Fitness-style rings: each ring is a tank filling toward shutdown */
+  .rings { display: flex; align-items: center; gap: 22px; margin-top: 10px; }
+  .legend { display: flex; flex-direction: column; gap: 12px; }
+  .legend div { font-size: 13px; color: var(--ink-2); }
+  .legend b { display: block; font-size: 22px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
+  .legend .r b { color: var(--red); } .legend .o b { color: var(--orange); } .legend .y b { color: #d9a400; }
+
+  .mini { display: flex; flex-direction: column; gap: 6px; }
+  .mini .n { font-size: 44px; font-weight: 300; letter-spacing: -.03em; line-height: 1; margin-top: 8px; }
+  .mini .n small { font-size: 18px; font-weight: 400; color: var(--ink-2); margin-left: 3px; }
+  .mini .s { font-size: 13.5px; color: var(--ink-2); }
+  .mini .row { display: flex; justify-content: space-between; font-size: 14px; padding: 8px 0; border-top: .5px solid rgba(0,0,0,.08); }
+  .mini .row:first-of-type { border-top: 0; }
+  .mini .row b { font-weight: 600; }
+
+  .nexts { margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .next { display: flex; align-items: center; gap: 16px; }
+  .next .cd { font-size: 46px; font-weight: 300; letter-spacing: -.035em; line-height: 1; }
+  .next .cd small { font-size: 18px; font-weight: 400; color: var(--ink-2); margin: 0 4px 0 2px; }
+  .next .who { font-size: 15px; font-weight: 600; }
+  .next .act { font-size: 13.5px; color: var(--ink-2); }
+  .next .cost { margin-left: auto; text-align: right; font-weight: 600; font-size: 17px; }
+  .next .cost span { display: block; font-size: 12.5px; color: #1f9d55; font-weight: 500; }
+
+  h2 { margin: 30px 4px 12px; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+
+  .tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; }
+  .sys { padding: 16px; }
+  .sys .t { display: flex; justify-content: space-between; align-items: baseline; }
+  .sys .t b { font-size: 15px; } .sys .t span { font-size: 12px; color: var(--ink-3); }
+  .bars { margin-top: 12px; display: flex; flex-direction: column; gap: 9px; }
+  .bar { display: grid; grid-template-columns: 16px 1fr 38px; align-items: center; gap: 8px; font-size: 13px; }
+  .bar i { font-style: normal; color: var(--ink-3); font-weight: 600; }
+  .track { position: relative; height: 8px; border-radius: 999px; background: rgba(10, 30, 60, .08); }
+  .fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; background: linear-gradient(90deg, #64d2ff, #0a84ff); }
+  .fill.r { background: linear-gradient(90deg, #ff9f0a, #ff3b30); }
+  .fill.o { background: linear-gradient(90deg, #ffd60a, #ff9500); }
+  .stop { position: absolute; top: -3px; bottom: -3px; left: 92%; width: 2px; border-radius: 2px; background: var(--red); }
+  .bar b { text-align: right; font-weight: 600; }
+  .note { position: fixed; right: 16px; bottom: 14px; font-size: 12px; color: var(--ink-3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg width="22" height="26" viewBox="0 0 18 22"><rect x="1" y="1" width="16" height="20" rx="4.5" fill="none" stroke="#0b1220" stroke-width="1.5"/><path d="M2.5 12.5h13v4.75a2.75 2.75 0 0 1-2.75 2.75h-7.5a2.75 2.75 0 0 1-2.75-2.75z" fill="#0a84ff"/><line x1="3" x2="15" y1="6" y2="6" stroke="#ff3b30" stroke-width="1.5"/></svg>
+    <h1>Beat the Shutdown</h1>
+    <span class="pill">Snapshot, Sat Oct 10, 09:00 <svg width="9" height="6" viewBox="0 0 9 6"><path d="m1 1 3.5 3.5L8 1" fill="none" stroke="#0b1220" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+    <span class="pill nv"><span class="mark"><svg width="10" height="10" viewBox="0 0 20 20"><path d="M3 10c1.8-3 4.3-4.6 7-4.6S15.2 7 17 10c-1.8 3-4.3 4.6-7 4.6S4.8 13 3 10z" fill="none" stroke="#fff" stroke-width="2.4"/></svg></span>Agents run on <b>NVIDIA Nemotron</b></span>
+  </header>
+
+  <section class="hero">
+    <svg class="wave" viewBox="0 0 420 260"><path d="M0 120 C70 90 140 150 210 120 S350 90 420 120 V260 H0z" fill="#fff"/><path d="M0 170 C70 140 140 200 210 170 S350 140 420 170 V260 H0z" fill="#fff" opacity=".6"/></svg>
+    <div class="where">System 4, Facility A. Pump down since 08:00</div>
+    <div class="big display">2<small>h</small>57<small>m</small></div>
+    <div class="sub">until the tank shuts in at 11:57 <span>(range 2h 56m to 2h 58m)</span></div>
+    <div class="plan">
+      <div><div class="t">Recommended by the plan solver</div><div class="a">Send 1 truck now, shut in well A2 at 13:51</div></div>
+      <div class="c">$975<span>saves $5,342</span></div>
+      <div class="btn">Dispatch</div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <div class="card">
+      <div class="h">Tanks filling toward shutdown</div>
+      <div class="rings">
+        <svg width="170" height="170" viewBox="0 0 170 170">
+          <g transform="rotate(-90 85 85)" fill="none" stroke-linecap="round" stroke-width="16">
+            <circle cx="85" cy="85" r="72" stroke="rgba(255,59,48,.15)"/><circle cx="85" cy="85" r="72" stroke="#ff3b30" stroke-dasharray="452" stroke-dashoffset="138"/>
+            <circle cx="85" cy="85" r="53" stroke="rgba(255,149,0,.16)"/><circle cx="85" cy="85" r="53" stroke="#ff9500" stroke-dasharray="333" stroke-dashoffset="116"/>
+            <circle cx="85" cy="85" r="34" stroke="rgba(255,204,0,.2)"/><circle cx="85" cy="85" r="34" stroke="#ffcc00" stroke-dasharray="214" stroke-dashoffset="77"/>
+          </g>
+        </svg>
+        <div class="legend">
+          <div class="r"><b>64%</b>S4 A, shuts in 11:57</div>
+          <div class="o"><b>60%</b>S4 C, shuts in 12:15</div>
+          <div class="y"><b>59%</b>S4 D, shuts in 12:28</div>
+        </div>
+      </div>
+    </div>
+    <div class="card mini">
+      <div class="h">Plan cost</div>
+      <div class="n display">$3,088</div>
+      <div class="s">instead of $12,022 if nobody acts</div>
+      <div style="margin-top:10px">
+        <div class="row"><span>Trucks used</span><b>2 of 2</b></div>
+        <div class="row"><span>Wells shut in early</span><b>2</b></div>
+        <div class="row"><span>Saved</span><b style="color:#1f9d55">$8,934</b></div>
+      </div>
+    </div>
+    <div class="card mini">
+      <div class="h"><span style="width:14px;height:14px;border-radius:4px;background:#76b900;display:inline-block"></span>Shift handoff</div>
+      <div class="s" style="color:var(--ink);font-size:15px;line-height:1.5;margin-top:8px">Three pumps in System 4 are down. S4 A shuts in first, at about 11:57. Send one truck to S4 A and one to S4 C now, and shut in well D2 at 10:49. Send an inspector to System 2 pipeline C.</div>
+      <div class="s" style="margin-top:auto;padding-top:10px">Written by Nemotron from the solver's plan</div>
+    </div>
+  </div>
+
+  <div class="nexts">
+    <div class="card next"><div class="cd display">3<small>h</small>15<small>m</small></div><div><div class="who">S4, Facility C</div><div class="act">Send 1 truck now</div></div><div class="cost">$905<span>saves $1,687</span></div></div>
+    <div class="card next"><div class="cd display">3<small>h</small>29<small>m</small></div><div><div class="who">S4, Facility D</div><div class="act">Shut in well D2 at 10:49</div></div><div class="cost">$1,208<span>saves $1,906</span></div></div>
+  </div>
+
+  <h2 class="display">Every tank</h2>
+  <div class="tiles">
+    <div class="card sys"><div class="t"><b>System 1</b><span>2 trucks free</span></div><div class="bars">
+      <div class="bar"><i>A</i><div class="track"><div class="fill" style="width:62%"></div><div class="stop"></div></div><b>62%</b></div>
+      <div class="bar"><i>B</i><div class="track"><div class="fill" style="width:67%"></div><div class="stop"></div></div><b>67%</b></div>
+      <div class="bar"><i>C</i><div class="track"><div class="fill" style="width:37%"></div><div class="stop"></div></div><b>37%</b></div>
+    </div></div>
+    <div class="card sys"><div class="t"><b>System 2</b><span>2 trucks free</span></div><div class="bars">
+      <div class="bar"><i>A</i><div class="track"><div class="fill" style="width:38%"></div><div class="stop"></div></div><b>38%</b></div>
+      <div class="bar"><i>B</i><div class="track"><div class="fill" style="width:62%"></div><div class="stop"></div></div><b>62%</b></div>
+      <div class="bar"><i>C</i><div class="track"><div class="fill o" style="width:65%"></div><div class="stop"></div></div><b>65%</b></div>
+    </div></div>
+    <div class="card sys"><div class="t"><b>System 3</b><span>3 trucks free</span></div><div class="bars">
+      <div class="bar"><i>A</i><div class="track"><div class="fill" style="width:69%"></div><div class="stop"></div></div><b>69%</b></div>
+      <div class="bar"><i>B</i><div class="track"><div class="fill" style="width:68%"></div><div class="stop"></div></div><b>68%</b></div>
+    </div></div>
+    <div class="card sys"><div class="t"><b>System 4</b><span style="color:#ff3b30">no trucks free</span></div><div class="bars">
+      <div class="bar"><i>A</i><div class="track"><div class="fill r" style="width:64%"></div><div class="stop"></div></div><b>64%</b></div>
+      <div class="bar"><i>B</i><div class="track"><div class="fill" style="width:52%"></div><div class="stop"></div></div><b>52%</b></div>
+      <div class="bar"><i>C</i><div class="track"><div class="fill r" style="width:60%"></div><div class="stop"></div></div><b>60%</b></div>
+      <div class="bar"><i>D</i><div class="track"><div class="fill r" style="width:59%"></div><div class="stop"></div></div><b>59%</b></div>
+    </div></div>
+    <div class="card sys"><div class="t"><b>System 5</b><span>2 trucks free</span></div><div class="bars">
+      <div class="bar"><i>A</i><div class="track"><div class="fill" style="width:40%"></div><div class="stop"></div></div><b>40%</b></div>
+      <div class="bar"><i>B</i><div class="track"><div class="fill" style="width:60%"></div><div class="stop"></div></div><b>60%</b></div>
+      <div class="bar"><i>C</i><div class="track"><div class="fill" style="width:46%"></div><div class="stop"></div></div><b>46%</b></div>
+    </div></div>
+  </div>
+</div>
+<div class="note">Mockup B, Weather / Fitness. Static, real Oct 10 data.</div>
+</body>
+</html>

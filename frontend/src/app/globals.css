@@ -1,0 +1,171 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-panel: var(--panel);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-text: var(--text);
+  --color-faint: var(--faint);
+  --color-water: var(--water);
+  --color-water-deep: var(--water-deep);
+  --color-warn: var(--warn);
+  --color-warn-fill: var(--warn-fill);
+  --color-crit: var(--crit);
+  --color-ok: var(--ok);
+  --color-nv: var(--nv);
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Helvetica Neue", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", monospace;
+  --font-heading: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* v3: Mockup A (macOS / visionOS), approved 2026-11-07. See DESIGN.md.
+   SF system font, Apple system colors, frosted glass over a soft background. */
+:root {
+  --ink: #f3f4f7;          /* page */
+  --panel: #ffffff;        /* solid surfaces: pop-ups, menus */
+  --raised: rgba(0, 0, 0, 0.05);
+  --line: rgba(60, 60, 67, 0.14);
+  --line-soft: rgba(60, 60, 67, 0.08);
+  --text: #1d1d1f;
+  --muted: rgba(60, 60, 67, 0.75);
+  --faint: rgba(60, 60, 67, 0.58);
+  --water: #0a84ff;
+  --water-deep: #0071e3;
+  --warn: #c56a00;
+  --warn-fill: #ff9500;
+  --crit: #ff3b30;
+  --ok: #248a3d;
+  --nv: #76b900;
+  --glass: rgba(255, 255, 255, 0.62);
+
+  --background: var(--ink);
+  --foreground: var(--text);
+  --card: var(--panel);
+  --card-foreground: var(--text);
+  --popover: var(--panel);
+  --popover-foreground: var(--text);
+  --primary: var(--water);
+  --primary-foreground: #ffffff;
+  --secondary: var(--raised);
+  --secondary-foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --accent: var(--raised);
+  --accent-foreground: var(--text);
+  --destructive: var(--crit);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--water);
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+@layer base {
+  html { color-scheme: light; }
+  body {
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: color-mix(in oklab, var(--water) 22%, transparent); }
+  :focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+}
+
+.num { font-variant-numeric: tabular-nums lining-nums; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+}
+
+/* Soft backdrop the glass sits on. */
+body {
+  background:
+    radial-gradient(1200px 700px at 12% -10%, #dfe9f7 0%, transparent 60%),
+    radial-gradient(900px 700px at 100% 10%, #e8eef0 0%, transparent 55%),
+    radial-gradient(1000px 800px at 60% 110%, #eef0f4 0%, transparent 60%),
+    #f3f4f7;
+  background-attachment: fixed;
+}
+
+/* Glass card: light material with a bright top edge, as in Mockup A. */
+.glass {
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  backdrop-filter: blur(30px) saturate(180%);
+  border-radius: 18px;
+  box-shadow:
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 0.5px rgba(0, 0, 0, 0.06),
+    0 10px 30px -18px rgba(30, 40, 60, 0.35);
+}
+.tracking-display { letter-spacing: -0.022em; }
+
+@media (prefers-reduced-transparency: reduce) {
+  .glass { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* Network schematic: dashes travel along a pipe in the direction of flow. */
+.pipe-flow {
+  stroke-dasharray: 3 11;
+  stroke-linecap: round;
+  animation: pipe-flow 0.9s linear infinite;
+}
+@keyframes pipe-flow {
+  to { stroke-dashoffset: -14; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pipe-flow { animation: none; }
+}
