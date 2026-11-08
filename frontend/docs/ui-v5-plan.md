@@ -74,8 +74,7 @@ only for the playhead and projection. Glass blur is dropped in favor of Kumo's l
    seek. No automation lanes or take stacks on the main screen.
 
 Carry-over fixes: headline counts "no recent readings" only for real data-quality problems (not `health: unknown`);
-a detection note when no classifier model is loaded; Approve persists through `POST/GET /runs/:id/actions` (I-13);
-`/classic` already fixed.
+a detection note when no classifier model is loaded; Approve persists through `POST/GET /runs/:id/actions` (I-13).
 
 ## Phases and workers (implementation by non-Fable workers; this session orchestrates and reviews)
 | Phase | Work | Gate |

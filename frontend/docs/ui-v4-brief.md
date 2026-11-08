@@ -2,7 +2,7 @@
 
 Status: **DRAFT for Jason's review** (2026-11-08). Replaces `frontend/DESIGN.md` (v3, macOS glass) once approved;
 Gurneal owns UI-only matters (`global_plan.md`), so he signs off before this merges to `main`.
-Branch: `feature/ui-v4-pipeview`. The v3 console stays reachable at **`/classic`**.
+Branch: `feature/ui-v4-pipeview`. The v3 console stays at **`/`**. Pipe View is at **`/lab`**.
 
 Every implementation worker reads this whole file first, plus `global_plan.md` §2 (hard rules).
 
@@ -160,7 +160,7 @@ Unknown values read `UNKNOWN` in a dithered cell, never `0` or `$0` (hard rule 9
 
 ## 5. Routes and data
 
-- `/` → new v4 shell. `/classic` → the existing v3 console, unchanged. `/how-it-works` stays.
+- `/` is the classic console. `/lab` is Pipe View. `/how-it-works` stays.
 - Presentation only (global_plan §3): consume the existing `Snapshot` (`frontend/src/lib/engine/types.ts`) from the
   existing loaders/API proxy. No detector, planner or cost logic in the UI. Trucks, countdowns and costs come from
   `Incident.plan/options`, `FleetState`, `hoursToLimit`.

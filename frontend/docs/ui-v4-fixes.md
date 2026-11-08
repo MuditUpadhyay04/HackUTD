@@ -7,11 +7,8 @@
    trucks turn solid and every recommended take reads ACKNOWLEDGED. On 409 STALE_PLAN show "PLAN CHANGED, REFRESHING"
    and let the snapshot resync. Also: on load, GET `/runs/:id/actions` and pre-mark already-acknowledged plans
    (persistence, global_plan I-13). Type these via `@hackutd/contracts` instead of casts.
-2. **`/classic` shows "Request failed (503)".** Pre-existing v3 bug: the server component calls `listDatasets()` whose
-   Eden base on the server is `http://localhost/api/backend` (no port, hits port 80). Fix in `src/app/classic/page.tsx`
-   only: don't fetch datasets on the server; render the client `<Workspace />` (it already loads datasets and reads
-   `dataset`/`at` from the URL), keeping the BOARD_INGEST `boardNow`/`LiveRefresh` behavior. Check `src/app/page.tsx`
-   (v4) has no server-side Eden call with the same problem.
+2. **Server-side dataset fetch 503.** The Eden base on the server was `http://localhost/api/backend` (no port, hits
+   port 80). The console at `/` loads datasets in the client `Workspace`.
 3. **Ticker shows "BOARD BOARD UNAVAILABLE".** The label is repeated in the value. Value should be `UNAVAILABLE`
    (or `FPGA v4` / `SOFTWARE, NOT BIT-EXACT`).
 4. **Truck road header text overlaps** (`SYSTEM S5 TRUCKS FREE 0/3` runs into the next element; the

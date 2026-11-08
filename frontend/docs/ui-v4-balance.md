@@ -1,7 +1,7 @@
 # UI v4.1 "balance" pass
 
 Feedback (Jason, 2026-11-08): still too far toward technical mission control. Find the balance between the classic
-v3 console (`/classic`) and v4. Add a side panel with a simpler overview, auto-play the animations, and keep
+v3 console (`/`) and v4. Add a side panel with a simpler overview, auto-play the animations, and keep
 pushing toward a simpler, cleaner, still fairly info-dense solution.
 
 ## What each side does well

@@ -9,14 +9,14 @@ switch branches; the orchestrator commits.
 
 | Phase | Owner | Files |
 | --- | --- | --- |
-| A | foundation | `src/app/page.tsx`, `src/app/classic/**`, `src/app/v4.css`, `src/lib/v4/{use-run,store,derive,format}.ts` (+ `*.test.ts`), `src/components/v4/shell.tsx`, `src/components/v4/rail.tsx`, stub files for every B slot below, `frontend/package.json` deps |
+| A | foundation | `src/app/page.tsx`, `src/app/lab/**`, `src/app/v4.css`, `src/lib/v4/{use-run,store,derive,format}.ts` (+ `*.test.ts`), `src/components/v4/shell.tsx`, `src/components/v4/rail.tsx`, stub files for every B slot below, `frontend/package.json` deps |
 | B1 | pipe view | `src/components/v4/pipeview/**`, `src/lib/v4/pipeview-*.ts` |
 | B2 | arrangement | `src/components/v4/arrangement/**`, `src/lib/v4/arrangement-*.ts` |
 | B3 | chrome | `src/components/v4/ticker/**`, `src/components/v4/transport/**`, `src/components/v4/trucks/**`, `src/lib/v4/{audio,keyboard}*.ts` |
 | C | orchestrator | integration fixes anywhere |
 
 v3 files (`src/components/console/**`, `src/app/globals.css`, `src/lib/engine/**`, `src/lib/live/**`) are NOT edited,
-except the minimal change in A that keeps v3 navigation on `/classic`.
+except the minimal change in A that keeps v3 navigation on `/`.
 
 ## Slot contracts (A creates these as compiling stubs; B fills them in without changing the export signature)
 
