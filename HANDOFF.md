@@ -33,7 +33,7 @@ far used v1 numerics, so:
   #16 word numbers); where Mudit's code decides it, his code wins.
 - Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
 
-- **Last updated:** 2026-11-08 ~01:15 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
+- **Last updated:** 2026-11-08 ~01:45 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
 - **Repo:** `C:\Users\gurne\Documents\Lucas HackUTD\HackUTD\HackUTD` (the inner folder; the outer `HackUTD\` is
@@ -68,6 +68,7 @@ Run at most 8 agents at once.
 | T0.2 model + vectors | b873096, merged f9c083b; `python FPGA/model/test_model.py`: 13 passed / 0 failed (re-run this session) |
 | eog_div (T1.div.rtl + .fv) | merged 1565f11; `reports/formal_div.txt`; sim PASS 19,123 divisions |
 | eog_mul (T1.mul.rtl + .fv) | merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover); sim PASS 736,704 products |
+| eog_unpack (T1.unpack.rtl + .fv) | merged 39fd4ed; `reports/formal_unpack.txt` (prove = abc pdr, bmc, cover); sim PASS 108,846 records / 653,031 beats |
 
 **Spec is v4** (f32f60b, Lucas): see the ⚠ section at the top. v3 (`eog_head.wb_rst_n`, a350f71) is kept.
 Spec questions 1–19 were answered against v1 and must be re-checked against v4 (agents were told to). **#8** (BTN0
@@ -98,20 +99,18 @@ What was left on disk, and what this session did with it:
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
 
-**In flight (8):**
-- **T0.2b** model + vectors to v4 + `check_mudit.py` (new agent; worktree `T0.2b`). It messages the lead the moment
-  v4 vectors are committed. Every module sim waits on this.
-- **T1.unpack.fv** (resumed; unpack unaffected by v4).
-- **validate:** RTL rework (fresh agent on the old v1 RTL 2dd4565) + verifier (resumed, re-reading v4).
-- **countdown:** RTL rework (resumed from 2723d23) + verifier (resumed).
-- **alarm:** RTL rework (fresh agent on the old v1 RTL 3da09f1) + verifier (resumed).
-- The rework agents code, lint and run formal now. They hold simulation/smoke tests until the lead says the v4 vectors
-  are on FPGA. **When T0.2b reports:** merge `eog/T0.2b` into FPGA, run `python FPGA/model/gen_vectors.py` in the
-  main checkout (for the gitignored `*_week` files), then message every rework agent to `git merge FPGA` and run
-  its sims.
+**Fourth cutoff (~01:30, account switch):** 6 agents stopped and were resumed in place. **In flight (8), as of ~01:45:**
+- **T0.2b** model (resumed; v4 rewrite was uncommitted on disk, told to commit first). Vectors still pending.
+- **validate:** RTL rework (0542991+) and verifier (b3dea18+).
+- **countdown:** verifier (d391176+, given the v4 RTL's port facts). RTL **v4 rework done 9dc2ca5**, idle until vectors.
+- **alarm:** verifier (b2c9db5+, given the v4 RTL's port facts). RTL **v4 rework done a130317**, idle until vectors.
+- **head:** RTL (364fe4c, v3+v4) and verifier (resumed, told about v4).
+- **features:** RTL small v4 rework (resumed from 9441fc4).
+- Idle and waiting for vectors: countdown RTL, alarm RTL (resume both with "v4 vectors on FPGA, merge and smoke-test").
+- **When T0.2b reports:** merge `eog/T0.2b` into FPGA, run `python FPGA/model/gen_vectors.py` in the main checkout
+  (gitignored `*_week` files), then message every v4 agent to `git merge FPGA` and run its sims.
 
-**Queue (launch as slots free):** head RTL (resume; v3 `wb_rst_n` rework was mid-flight at c700642 + uncommitted)
-and head verifier (resume), features RTL + verifier (resume; small v4 rework), memory RTL (fresh agent on 560ee3b)
+**Queue (launch as slots free):** features verifier (resume; small v4 rework from b0f7bd1), memory RTL (fresh agent on 560ee3b)
 + verifier (resume; small v4 rework), pack RTL + verifier (new, v4), regs RTL + verifier (new, v4; DBGSEL/DBG and
 the 71-word window), then T2.ps1.
 
@@ -127,17 +126,16 @@ then `FPGA/reports/RTL_DONE_HANDOFF.md`.
 | agent-ab6d24063ec9bbe52, agent-a28845771a06344fc | eog/T1.mul.rtl, .fv | merged; removable |
 | agent-a11baa6d27ec3bc76 | eog/T0.2 | merged; removable |
 | T0.2b | eog/T0.2b | model v4 (in flight) |
-| agent-ac27b540402503b46 | eog/T1.unpack.rtl | REVIEW bc4a760 (unaffected by v4) |
-| T1.unpack.fv | eog/T1.unpack.fv | verifier (in flight) |
+| agent-ac27b540402503b46, T1.unpack.fv | eog/T1.unpack.rtl, .fv | merged (unpack DONE, 39fd4ed); removable |
 | agent-a6562db654e6251c2 | eog/T1.validate.rtl | REWORK v4 (in flight) |
 | agent-a36e87a8076c7f193 | eog/T1.validate.fv | verifier, v4 (in flight) |
-| T1.countdown.rtl | eog/T1.countdown.rtl | REWORK v4 (in flight; v1 version 2723d23) |
+| T1.countdown.rtl | eog/T1.countdown.rtl | v4 rework done 9dc2ca5; waiting for v4 vectors |
 | T1.countdown.fv | eog/T1.countdown.fv | verifier, v4 (in flight) |
-| agent-a00b1b054767aadb0 | eog/T1.alarm.rtl | REWORK v4 (in flight) |
+| agent-a00b1b054767aadb0 | eog/T1.alarm.rtl | v4 rework done a130317; waiting for v4 vectors |
 | agent-a1ef26a5b3ad9ded0 | eog/T1.alarm.fv | verifier, v4 (in flight) |
-| T1.head.rtl | eog/T1.head.rtl | REWORK v3+v4 (queued; c700642 + uncommitted wb_rst_n work) |
-| agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier (queued) |
-| T1.features.rtl | eog/T1.features.rtl | REWORK v4 (queued; v1 version 9441fc4) |
+| T1.head.rtl | eog/T1.head.rtl | REWORK v3+v4 (in flight; 364fe4c) |
+| agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier, v4 (in flight) |
+| T1.features.rtl | eog/T1.features.rtl | REWORK v4 (in flight; v1 version 9441fc4) |
 | agent-a065500e10062e0d1 | eog/T1.features.fv | REWORK v4 (queued; v1 version b0f7bd1) |
 | agent-a19dfaf203f8e17cc | eog/T1.memory.rtl | REWORK v4 (queued; v1 version 560ee3b) |
 | agent-adadf9ed52b6a452c | eog/T1.memory.fv | verifier (queued) |
