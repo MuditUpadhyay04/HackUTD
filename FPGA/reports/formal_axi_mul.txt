@@ -1,4 +1,4 @@
-# formal axi_mul  2026-11-08T05:45:40Z  sby rc=0  (formal/axi_mul.sby)
-axi_mul_bmc: PASS 0 8
+# formal axi_mul  2026-11-08T07:30:31Z  sby rc=0  (formal/axi_mul.sby)
+axi_mul_bmc: PASS 0 11
 axi_mul_cover: PASS 0 0
 axi_mul_prove: PASS 0 0
