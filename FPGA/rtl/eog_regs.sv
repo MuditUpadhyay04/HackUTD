@@ -45,7 +45,7 @@ module eog_regs (
     d_valid, d_ready, d_data, d_last,
     r_valid, r_ready, r_data, r_last,
     al_valid, al_data, al_full, al_drop,
-    tap_valid, tap_status, tap_reason, stall
+    tap_valid, tap_status, tap_reason, stall, rec_in
 );
     parameter integer N_FAC      = 32;      // CONFIG slots (<= 32: 5-bit facility ids)
     parameter integer N_WELL     = 8;       // reported in VERSION[23:16] only
@@ -129,6 +129,7 @@ module eog_regs (
     input  logic [2:0]    tap_status;
     input  logic [15:0]   tap_reason;
     input  logic          stall;
+    input  logic          rec_in;         // 1 pulse per record leaving eog_unpack (either source), ruling #59
 
     // ------------------------------------------------------------------------------------------------------
     // Constants
@@ -556,7 +557,7 @@ module eog_regs (
     logic [15:0] inc;
     always_comb begin
         inc     = '0;
-        inc[0]  = d_valid && d_ready && d_last;                         // records in (DATA window)
+        inc[0]  = rec_in;                                               // records in (eog_unpack output, #59)
         inc[1]  = tap_valid;
         inc[2]  = tap_valid && tap_status == EOG_ST_VALID;
         inc[3]  = tap_valid && tap_status == EOG_ST_HELD;
