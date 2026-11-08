@@ -9,7 +9,7 @@
 //              Both AXI-Stream ports are used only when CTRL.src_dma = 1; leave them unconnected (tie
 //              s_axis_tvalid = 0, m_axis_tready = 0) for the v1 AXI-Lite-only design.
 //   * btn0     BTN0 (raw, active high; synchronized and debounced in eog_alarm).
-//   * ld0, ld1 RGB LEDs LD0/LD1 ([0] = R, [1] = G, [2] = B as driven by eog_alarm).
+//   * ld0, ld1 RGB LEDs LD0/LD1 ([2] = R, [1] = G, [0] = B as driven by eog_alarm).
 //   * pmod_ja, pmod_jb  Pmod JA / JB outputs.
 //
 // Structure: eog_regs + the eight stages in series
