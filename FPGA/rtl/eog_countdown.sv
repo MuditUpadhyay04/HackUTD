@@ -471,5 +471,21 @@ module eog_countdown #(
     end
     /* verilator lint_on UNSIGNED */
     /* verilator lint_on CMPCONST */
+
+`ifdef EOG_FV_RECNO_SEQ
+    // Opt-in (define EOG_FV_RECNO_SEQ = the harness's REC_NO compare width RW): the FIFO entries hold consecutive
+    // REC_NOs in their low RW bits. True whenever the input REC_NO is the acceptance counter (formal/common
+    // eog_fv_stage assumption st_recno_in); with it, st_link_r / st_order are k-inductive for P > 1 (without it a
+    // FIFO entry behind the head may start with any REC_NO). Not an input assumption: off unless the harness opts in.
+    localparam integer FRW = `EOG_FV_RECNO_SEQ;
+    always_comb begin
+        if (rst_n) begin
+            for (int i = 1; i < P; i++)
+                if (i < 32'(cnt))
+                    assert (pay_mem[(32'(head) + i) % P][EOG_BC_REC_NO +: FRW]
+                            == pay_h[EOG_BC_REC_NO +: FRW] + FRW'(i));                     // unlabeled: one per entry
+        end
+    end
+`endif
 `endif
 endmodule
