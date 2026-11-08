@@ -9,6 +9,30 @@ the original laptop (Lucas's PC, with Vivado and the board). It covers what is p
 timing estimates, open spec questions, and the exact steps to run there (T2.bd1, T2.board1, wave 3). It is written
 once RTL is done (all T1 DONE plus T2.top), as `FPGA/KICKOFF.md` §3 requires.
 
+## ⚠ SPEC v4 (Sun Nov 8 ~01:00 CST, Lucas's laptop session) — read before anything else
+
+Lucas decided to align the engine with Mudit's bit-exact reference (`ml/hutd_ml/features_int.py`, branch `ml`).
+That is **spec v4**, committed on top of v3 (v2 observation ports and v3 `wb_rst_n` are kept). Everything built so
+far used v1 numerics, so:
+
+- **What changed:** `FPGA/spec/README.md` changelog row 4 and `spec/numerics.md` §1 (D6–D12). In short: countdown
+  `review_r1r2` with a prefilled 16-entry ring and `mean = sum >>> 4` (D6, replaces D5); validation, hold, INVALID,
+  timing and strict-`>` alarm rules as in `features_int.py` (D7); Night Shift latched like E-STOP (D8); reserved
+  field → DROPPED/`FRAMING` (D9); per-class K in GLOBAL bytes 20–23 (D10); weight window = Mudit's blob, 71 words,
+  version in word 70 (D11, was 69/68); feature debug readback (D12). Reason bits 11/13/14 and GLOBAL
+  `SHUTIN_WATER_MAX` are gone. `EOG_SPEC_VERSION` = 4.
+- **Unaffected:** mul, div (DONE), unpack (spec unchanged).
+- **Rework (TASKS.md status `REWORK v4`):** validate, countdown, alarm (substantial); head (weight window, debug
+  ports, word numbers); features, memory (small). Rework each from its existing branch/worktree, not from scratch.
+  Verifiers in flight on these modules must re-read their module spec and update properties.
+- **pack, regs:** not started; write them to v4 (regs gains DBGSEL/DBG and the 71-word window).
+- **Order:** T0.2b first (update `model/` to v4 + `check_mudit.py`, see `model/README.md`), because every module
+  sim needs v4 vectors. Then the rework rows. `check_mudit.py` can only fully pass after Mudit's T0.0 lands on
+  `origin/ml`; until then trust the spec text.
+- **Spec questions 1–19:** answered against v1. Re-check each against v4 and `features_int.py` (notably #10, #12,
+  #16 word numbers); where Mudit's code decides it, his code wins.
+- Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
+
 - **Last updated:** 2026-11-07 ~23:55 CST, session `04653333` (takes over from session `bd64467f`).
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
@@ -45,7 +69,8 @@ Run at most 8 agents at once.
 | eog_div (T1.div.rtl + .fv) | merged 1565f11; `reports/formal_div.txt`; sim PASS 19,123 divisions |
 | eog_mul (T1.mul.rtl + .fv) | merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover); sim PASS 736,704 products |
 
-Spec questions 1–15 are answered in `FPGA/TASKS.md`. **#12** (validate `PUMP_INCONS`/`WELL_INCONS` set only when
+**Spec is v3** (a350f71, Nov 8 ~00:45): `eog_head` got a hard-reset input `wb_rst_n` so soft reset keeps the weight
+banks (question 16, lead call, Lucas may reverse). Spec questions 1–19 are answered in `FPGA/TASKS.md`. **#12** (validate `PUMP_INCONS`/`WELL_INCONS` set only when
 their inputs are OK) is a lead call that Lucas may reverse. **#8** (BTN0 active high at `eog_alarm`) needs
 confirming against the board pinout in T2.bd1.
 
@@ -66,13 +91,32 @@ What was left on disk, and what this session did with it:
 
 ## In flight / next steps
 
-1. Relaunch the five verifiers (validate, memory, alarm, features, head), each in its old worktree,
-   fast-forwarded to `FPGA` so it has the vectors.
-2. Start RTL for features, head and countdown (unblocked now that mul and div are DONE).
-3. Queue after that: T1.unpack.fv, T1.countdown.fv, T1.pack.rtl/.fv, T1.regs.rtl/.fv, T2.ps1.
-4. Integrate each module as both halves reach REVIEW. validate, memory, alarm and unpack already have their RTL in
-   REVIEW and are waiting only for their verifiers.
-5. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
+**In flight (launched ~00:05 CST Nov 8 by session `04653333`, 8 background agents):**
+- Verifiers, each in its old worktree and told to `git merge --ff-only FPGA` first: T1.validate.fv, T1.memory.fv
+  (resuming its partial harness), T1.alarm.fv, T1.features.fv (resuming its partial harness), T1.head.fv.
+- RTL, in new worktrees the lead created: T1.features.rtl, T1.head.rtl, T1.countdown.rtl.
+- All were launched as `general-purpose` agents told to read `.claude/agents/fpga-{verify,rtl}.md` as their role
+  (see the start-folder gotcha below). All were told to commit WIP often. If a session dies, check each worktree's
+  `git log` and `git status`, then relaunch on top of whatever is there.
+
+**Second cutoff (~00:30 CST Nov 8):** the old account hit its 5-hour limit again and 7 of the 8 agents stopped. On a
+new account they were resumed in place with their context (SendMessage). Progress committed at that point:
+validate.fv 2aa31de (WIP harness + sby, prove passes on a stub; it never stopped), memory.fv 76e0072 → a51db02
+(harness + INDEX-driven tb), features.fv 055a9ee (harness; sby + tb uncommitted), features.rtl 9441fc4 (smoke PASS
+on all features vector cases), head.rtl c700642 (16 multipliers, II 13), countdown.rtl 29922fe (bit-exact on all
+12 countdown cases). alarm.fv and head.fv had nothing committed yet; their files were untracked in their
+worktrees. The features verifier's throwaway stub was sitting at `FPGA/rtl/eog_features.sv` inside its worktree,
+and it was told to move it out. Never merge that file.
+
+**Next:**
+1. As each agent reports: set its TASKS.md row to REVIEW (with its commit). When both halves of a module are
+   REVIEW, integrate: `git switch -c eog/integrate-<m> FPGA`, merge both branches, run `lint.sh`, `sim.sh` and
+   `formal.sh <m>` (generate the gitignored `*_week` vectors in the main checkout first:
+   `python FPGA/model/gen_vectors.py`), then merge to `FPGA`, set DONE, run `check_all.sh`, and push.
+   validate, memory and alarm have their RTL in REVIEW, so they integrate as soon as their verifier lands.
+2. Queue, launch as slots free up (unpack.fv and countdown.fv are running): T1.pack.rtl/.fv,
+   T1.regs.rtl/.fv, T2.ps1.
+3. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
 
 ## Worktrees (`HackUTD/.claude/worktrees/…`)
 
@@ -92,9 +136,20 @@ What was left on disk, and what this session did with it:
 | agent-a1ef26a5b3ad9ded0 | eog/T1.alarm.fv | verifier (relaunch) |
 | agent-a065500e10062e0d1 | eog/T1.features.fv | verifier (relaunch; partial harness on disk) |
 | agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier (relaunch) |
+| T1.features.rtl | eog/T1.features.rtl | REVIEW 9441fc4 |
+| T1.head.rtl | eog/T1.head.rtl | c700642 passes v2 checks; reworking for spec v3 (wb_rst_n) |
+| T1.countdown.rtl | eog/T1.countdown.rtl | REVIEW 2723d23 |
+| T1.countdown.fv | eog/T1.countdown.fv | verifier (launched after countdown RTL reported) |
+| T1.unpack.fv | eog/T1.unpack.fv | verifier (launched after features RTL reported) |
 
 ## Machine notes and gotchas
 
+- **Start Claude Code in the inner repo folder** (`...\HackUTD\HackUTD`). Started from the outer `...\HackUTD`, the
+  `fpga-rtl`, `fpga-verify` and `fpga-model` agent types and `/fpga-lead` are not loaded, and `isolation: worktree`
+  is unreliable. Workaround: create the worktree with `git worktree add -b eog/<task> .claude/worktrees/<task>
+  FPGA`, then launch a `general-purpose` agent that reads the role file first and works only in that path.
+- **Push auth:** `git push origin FPGA` goes through Git Credential Manager, which can sit waiting at a sign-in
+  window. Look for that window if a push hangs.
 - **Tools:** Git Bash on Windows; the OSS CAD Suite lives in WSL. `FPGA/scripts/{lint,sim,formal,check_all}.sh`
   re-run themselves in WSL. For anything else use `bash FPGA/scripts/wsl.sh <cmd>`.
 - **Python:** in Git Bash it is `python` (3.13). `python3` is a broken Store stub.
