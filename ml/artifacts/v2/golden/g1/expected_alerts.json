@@ -1,0 +1,1302 @@
+[
+ {
+  "fac_id": 1,
+  "ts_unix": 1791175200,
+  "result_no": 841,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 205,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791176400,
+  "result_no": 901,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 186,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791183600,
+  "result_no": 1267,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 146,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791183600,
+  "result_no": 1268,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 175,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791183900,
+  "result_no": 1283,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 171,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791184800,
+  "result_no": 1327,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 156,
+  "kind": 2,
+  "source": 19
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791185100,
+  "result_no": 1342,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 159,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791185700,
+  "result_no": 1372,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 164,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791186000,
+  "result_no": 1388,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 135,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791190500,
+  "result_no": 1612,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 205,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791193200,
+  "result_no": 1747,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 225,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791195300,
+  "result_no": 1852,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 244,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791196500,
+  "result_no": 1912,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 252,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791200100,
+  "result_no": 2092,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 281,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791202500,
+  "result_no": 2212,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 302,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791203100,
+  "result_no": 2242,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 308,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 4,
+  "ts_unix": 1791204600,
+  "result_no": 2314,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 146,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 4,
+  "ts_unix": 1791204900,
+  "result_no": 2329,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 141,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791211500,
+  "result_no": 2667,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 155,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791212100,
+  "result_no": 2697,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 159,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791213600,
+  "result_no": 2772,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 172,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791214800,
+  "result_no": 2832,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 181,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791216000,
+  "result_no": 2887,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 414,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791216000,
+  "result_no": 2892,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 191,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791217800,
+  "result_no": 2982,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 205,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791219000,
+  "result_no": 3042,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 215,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791240600,
+  "result_no": 4113,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 172,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791240900,
+  "result_no": 4128,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 174,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791242700,
+  "result_no": 4218,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 189,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791243300,
+  "result_no": 4248,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 193,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791244500,
+  "result_no": 4308,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 203,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791249900,
+  "result_no": 4578,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 245,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791252300,
+  "result_no": 4703,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 296,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791262500,
+  "result_no": 5213,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 380,
+  "kind": 2,
+  "source": 19
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791262800,
+  "result_no": 5228,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 383,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791263700,
+  "result_no": 5273,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 390,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791264600,
+  "result_no": 5317,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 416,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 7,
+  "ts_unix": 1791280800,
+  "result_no": 6127,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 147,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791282600,
+  "result_no": 6218,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 160,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791302400,
+  "result_no": 7212,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 394,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791304500,
+  "result_no": 7307,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 260,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791305400,
+  "result_no": 7352,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 267,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791306000,
+  "result_no": 7382,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 272,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791309000,
+  "result_no": 7532,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 295,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791309600,
+  "result_no": 7572,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 283,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791310800,
+  "result_no": 7628,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 392,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791310800,
+  "result_no": 7632,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 263,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791311700,
+  "result_no": 7677,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 249,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791312600,
+  "result_no": 7712,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 322,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791312900,
+  "result_no": 7737,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 227,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791316800,
+  "result_no": 7923,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 326,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791317700,
+  "result_no": 7967,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 362,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 12,
+  "ts_unix": 1791318300,
+  "result_no": 8007,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 138,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791352800,
+  "result_no": 9728,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 354,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791352800,
+  "result_no": 9728,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 354,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791360600,
+  "result_no": 10111,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 130,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791372600,
+  "result_no": 10716,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 293,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791373200,
+  "result_no": 10746,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 297,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791376800,
+  "result_no": 10926,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 327,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791379200,
+  "result_no": 11046,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 346,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791380100,
+  "result_no": 11091,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 352,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791381900,
+  "result_no": 11181,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 367,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791386400,
+  "result_no": 11406,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 400,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791388200,
+  "result_no": 11496,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 371,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791388800,
+  "result_no": 11526,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 359,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791391800,
+  "result_no": 11680,
+  "rules": 0,
+  "classes": 2,
+  "countdown_p10": 145,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791392100,
+  "result_no": 11695,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 147,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791393300,
+  "result_no": 11755,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 157,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791396600,
+  "result_no": 11920,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 184,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791398100,
+  "result_no": 11995,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 195,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791439800,
+  "result_no": 14083,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 134,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791442200,
+  "result_no": 14203,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 155,
+  "kind": 2,
+  "source": 19
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791442500,
+  "result_no": 14218,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 157,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 2,
+  "ts_unix": 1791445800,
+  "result_no": 14372,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 45,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791445800,
+  "result_no": 14383,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 184,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791449400,
+  "result_no": 14563,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 214,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791451200,
+  "result_no": 14653,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 229,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791451800,
+  "result_no": 14675,
+  "rules": 1,
+  "classes": 4,
+  "countdown_p10": 286,
+  "kind": 1,
+  "source": 3
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791453900,
+  "result_no": 14788,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 251,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791456300,
+  "result_no": 14908,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 271,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791457200,
+  "result_no": 14953,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 279,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791459900,
+  "result_no": 15088,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 301,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791461100,
+  "result_no": 15148,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 311,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791461700,
+  "result_no": 15178,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 316,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791464400,
+  "result_no": 15313,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 338,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791469500,
+  "result_no": 15568,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 379,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791471000,
+  "result_no": 15643,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 392,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 4,
+  "ts_unix": 1791477000,
+  "result_no": 15934,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 44,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791478800,
+  "result_no": 16025,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 45,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 3,
+  "ts_unix": 1791480900,
+  "result_no": 16128,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 47,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 0,
+  "ts_unix": 1791510900,
+  "result_no": 17625,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 161,
+  "kind": 1,
+  "source": 2
+ },
+ {
+  "fac_id": 0,
+  "ts_unix": 1791511200,
+  "result_no": 17640,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 156,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 6,
+  "ts_unix": 1791516900,
+  "result_no": 17931,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 47,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791517800,
+  "result_no": 17983,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 393,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791518700,
+  "result_no": 18016,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 399,
+  "kind": 2,
+  "source": 19
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791519000,
+  "result_no": 18031,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 400,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791528300,
+  "result_no": 18496,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 476,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791530100,
+  "result_no": 18586,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 491,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791532200,
+  "result_no": 18691,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 510,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791533100,
+  "result_no": 18736,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 517,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791533400,
+  "result_no": 18763,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 134,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791534300,
+  "result_no": 18796,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 527,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791534900,
+  "result_no": 18826,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 531,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791538200,
+  "result_no": 19000,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 43,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791540600,
+  "result_no": 19115,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 182,
+  "kind": 2,
+  "source": 19
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791540900,
+  "result_no": 19130,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 185,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791544200,
+  "result_no": 19295,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 213,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791545400,
+  "result_no": 19355,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 224,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791547200,
+  "result_no": 19445,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 238,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791547800,
+  "result_no": 19475,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 243,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791549900,
+  "result_no": 19580,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 262,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791552000,
+  "result_no": 19685,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 279,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791556200,
+  "result_no": 19895,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 313,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791556800,
+  "result_no": 19925,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 318,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791561600,
+  "result_no": 20165,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 355,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791564600,
+  "result_no": 20315,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 380,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 9,
+  "ts_unix": 1791568800,
+  "result_no": 20529,
+  "rules": 1,
+  "classes": 4,
+  "countdown_p10": 333,
+  "kind": 1,
+  "source": 3
+ },
+ {
+  "fac_id": 9,
+  "ts_unix": 1791596100,
+  "result_no": 21894,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 47,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791597600,
+  "result_no": 21961,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 528,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 1,
+  "ts_unix": 1791597600,
+  "result_no": 21961,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 528,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791609600,
+  "result_no": 22565,
+  "rules": 0,
+  "classes": 1,
+  "countdown_p10": 380,
+  "kind": 3,
+  "source": 16
+ },
+ {
+  "fac_id": 11,
+  "ts_unix": 1791617400,
+  "result_no": 22961,
+  "rules": 1,
+  "classes": 4,
+  "countdown_p10": 296,
+  "kind": 1,
+  "source": 3
+ },
+ {
+  "fac_id": 5,
+  "ts_unix": 1791624600,
+  "result_no": 23315,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 133,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 14,
+  "ts_unix": 1791640800,
+  "result_no": 24134,
+  "rules": 1,
+  "classes": 4,
+  "countdown_p10": 211,
+  "kind": 1,
+  "source": 3
+ },
+ {
+  "fac_id": 10,
+  "ts_unix": 1791642300,
+  "result_no": 24205,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 43,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 11,
+  "ts_unix": 1791644400,
+  "result_no": 24311,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 45,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 8,
+  "ts_unix": 1791646200,
+  "result_no": 24398,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 44,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 14,
+  "ts_unix": 1791668100,
+  "result_no": 25499,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 47,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 13,
+  "ts_unix": 1791669600,
+  "result_no": 25573,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 44,
+  "kind": 3,
+  "source": 0
+ },
+ {
+  "fac_id": 11,
+  "ts_unix": 1791694800,
+  "result_no": 26831,
+  "rules": 0,
+  "classes": 0,
+  "countdown_p10": 253,
+  "kind": 3,
+  "source": 0
+ }
+]
