@@ -111,6 +111,11 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
     const base = after.prompts[role]!;
     const result = await runCritic(o.model, critic ? choice(critic) : { version: 1, template: SEED_TEMPLATES.critic }, role, base.template, nodes);
     let toVersion: number | null = null;
+    // A "revision" identical to an existing version would A/B the same prompt and promote on sampling noise.
+    const known = (await o.store.listPrompts(role)).map((p) => p.template.replace(/\s+/g, " ").trim());
+    if (result.status === "accepted" && result.output && known.includes(result.output.template.replace(/\s+/g, " ").trim())) {
+      result.status = "rejected"; result.error = "critic returned a template identical to an existing version";
+    }
     if (result.status === "accepted" && result.output) {
       toVersion = Math.max(...(await o.store.listPrompts(role)).map((p) => p.version)) + 1;
       await o.store.addPrompt({ role, version: toVersion, parentVersion: base.version, template: result.output.template, author: "critic", rationale: result.output.rationale, status: "challenger", createdAt: new Date().toISOString() });

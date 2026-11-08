@@ -60,7 +60,11 @@ describe("weekly cycle", () => {
     const table = versionTable(evals, await store.listPrompts(), await store.listStrategies());
     expect(table.find((r) => r.role === "handoff" && r.version === 1)!.trainN).toBe(2);
     expect(cycleTrend(evals)[0]!.cycle).toBe("week1");
-    const decisions = await store.listDecisions();
+    const week2 = await runCycle({ store, model, cycle: "week2", train: { dataset, cases }, heldout: { dataset, cases: [] }, outcomeWindowHours: 0 });
+    const repeat = week2.critic.find((c) => c.role === "handoff")!;
+    expect(repeat.toVersion).toBeNull(); // the scripted critic repeats its template: not a new version
+    expect(repeat.result.error).toContain("identical");
+    const decisions = (await store.listDecisions()).filter((d) => d.cycle === "week1");
     expect(decisions.map((d) => [d.facilityId, d.approvedBy, d.outcome])).toEqual([["S4_FACILITY_C", "simulated", null], ["S4_FACILITY_A", "simulated", null]]);
   });
   test("strategy tuner proposes a fine challenger when coarse runs leave pump failures unexplained", async () => {
