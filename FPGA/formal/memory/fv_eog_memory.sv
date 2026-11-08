@@ -39,24 +39,34 @@ module fv_eog_memory (
     logic                rst_n, in_valid, out_ready;
     logic [EOG_BF_W-1:0] in_data;
     logic [RW-1:0]       f_in_cnt, f_out_cnt;   // from u_stage below
-`ifndef FV_DEEP
-    // all tasks except the deep ones: everything free (the solver drives it)
+`ifdef FV_DEEP
+ `define FV_FR
+`endif
+`ifdef FV_FULLRATE
+ `define FV_FR
+`endif
+`ifndef FV_FR
+    // prove, bmc, cover: everything free (the solver drives it)
     assign rst_n     = $anyseq;
     assign in_valid  = $anyseq;
     assign out_ready = $anyseq;
     assign in_data   = $anyseq;
 `else
-    // FV_DEEP (bmc64, cover64): the 64-record nsr cap needs ~66 records of one slot (~210 cycles), too deep for
-    // free inputs. Here: one reset in cycle 0, then in_valid = out_ready = 1 from cycle 2 on (full rate), every
-    // feature/value field 0, REC_NO = the acceptance count; only the fields that steer nsr/has_run/SINCE_RESET
-    // stay free: STATUS, FAC, HIST_RESET, PUMP_RUN, SINCE_RESET. (Values and handshake variety are covered by
-    // the prove and bmc tasks.)
+    // FV_FULLRATE (bmcarith) and FV_DEEP (bmc64, cover64): one reset in cycle 0, then in_valid = out_ready = 1
+    // from cycle 2 on, so records follow each other at the DUT's own rate (back-to-back records of one slot are
+    // the hazard case); handshake variety (gaps, back-pressure) is covered by the prove and bmc tasks.
     logic [1:0] d_t;
     initial d_t = 2'd0;
     always_ff @(posedge clk) if (d_t != 2'd3) d_t <= d_t + 2'd1;
     assign rst_n     = (d_t != 2'd0);
     assign in_valid  = (d_t >= 2'd2);
     assign out_ready = 1'b1;
+ `ifndef FV_DEEP
+    assign in_data   = $anyseq;
+ `else
+    // FV_DEEP: the 64-record nsr cap needs ~66 records of one slot (~210 cycles), too deep for free data. Every
+    // feature/value field is 0 and REC_NO = the acceptance count; only the fields that steer nsr/has_run/
+    // SINCE_RESET stay free: STATUS, FAC, HIST_RESET, PUMP_RUN, SINCE_RESET.
     logic [2:0] d_st;
     logic [4:0] d_fac;
     logic       d_hr, d_run;
@@ -67,14 +77,15 @@ module fv_eog_memory (
     assign d_run   = $anyseq;
     assign d_since = $anyseq;
     always_comb begin
-        in_data                                  = '0;
-        in_data[EOG_BF_REC_NO +: RW]             = f_in_cnt;
-        in_data[EOG_BF_STATUS +: 3]              = d_st;
-        in_data[EOG_BF_FAC +: 5]                 = d_fac;
-        in_data[EOG_BF_HIST_RESET]               = d_hr;
-        in_data[EOG_BF_PUMP_RUN]                 = d_run;
-        in_data[EOG_BF_SINCE_RESET +: 8]         = d_since;
+        in_data                          = '0;
+        in_data[EOG_BF_REC_NO +: RW]     = f_in_cnt;
+        in_data[EOG_BF_STATUS +: 3]      = d_st;
+        in_data[EOG_BF_FAC +: 5]         = d_fac;
+        in_data[EOG_BF_HIST_RESET]       = d_hr;
+        in_data[EOG_BF_PUMP_RUN]         = d_run;
+        in_data[EOG_BF_SINCE_RESET +: 8] = d_since;
     end
+ `endif
 `endif
 
     // anyconst slot and gated channel for the shadow models
@@ -156,6 +167,16 @@ module fv_eog_memory (
     endfunction
     function automatic logic slt(input logic [15:0] a, input logic [15:0] b);   // signed a < b
         slt = $signed(a) < $signed(b);
+    endfunction
+    // element c (0..4) of five packed 16-bit values, element 0 in the low bits (a mux, not a variable part-select)
+    function automatic logic [15:0] pick5(input logic [79:0] v, input logic [2:0] c);
+        case (c)
+            3'd0:    pick5 = v[15:0];
+            3'd1:    pick5 = v[31:16];
+            3'd2:    pick5 = v[47:32];
+            3'd3:    pick5 = v[63:48];
+            default: pick5 = v[79:64];
+        endcase
     endfunction
 
     // ---------------------------------------------------------------------------------------------------------
@@ -253,8 +274,11 @@ module fv_eog_memory (
 `ifdef FV_BMC
     // ---------------------------------------------------------------------------------------------------------
     // Shadow of slot f_slot (numerics.md §5, written from the spec), updated at acceptance in REC_NO order.
+    // last_run is shadowed for all 5 gated channels (plain copies); the two EMAs are shadowed exactly for the
+    // anyconst gated channel f_chan only (the solver may pick any channel, so every channel is covered, and the
+    // arithmetic in the problem is 1/5 of a full shadow). No variable part-selects (they put x bits in the AIG).
     logic [5*16-1:0] sh_last;
-    logic [5*32-1:0] sh_ef, sh_es;
+    logic [31:0]     sh_ef, sh_es;          // ema_f[f_chan], ema_s[f_chan]
     logic [31:0]     sh_net;
     logic [7:0]      sh_nsr;
     logic            sh_has;
@@ -264,23 +288,27 @@ module fv_eog_memory (
     logic in_f;   // accepted VALID/HELD record of slot f_slot
     assign in_f = in_fire && upd_rec(in_data) && (in_data[EOG_BF_FAC +: 5] == f_slot);
 
+    logic [5*16-1:0] xg_in;   // x_g[0..4] of the input record, x_g[0] in the low bits
+    logic [15:0]     xj_in;   // x_g[f_chan]
+    assign xg_in = {fin(in_data, 6), fin(in_data, 5), fin(in_data, 3), fin(in_data, 2), fin(in_data, 1)};
+    assign xj_in = pick5(xg_in, f_chan);
+
     logic [5*16-1:0] n_last;
-    logic [5*32-1:0] n_ef, n_es;
+    logic [31:0]     n_ef, n_es;
     logic [31:0]     n_net;
     logic [7:0]      n_nsr;
     logic            n_has;
     logic            n_first;     // the record is the slot's first running record since the last reset
     logic [15:0]     n_mn, n_mx, n_nmn, n_nmx;
-    logic [19*16-1:0] n_exp;      // expected FEAT[12..30] of the record being accepted (if it is in_f)
 
     always_comb begin : shadow_next
         logic signed [31:0] d, q;
-        logic [31:0] xs, e;
-        logic [15:0] x, x11, xj;
+        logic [31:0] xs;
+        logic [15:0] x11;
         logic        hr, run;
         hr  = in_data[EOG_BF_HIST_RESET];
         run = in_data[EOG_BF_PUMP_RUN];
-        d = '0; q = '0; xs = '0; e = '0; x = '0; x11 = '0; xj = '0;   // no latches for the block temporaries
+        d = '0; q = '0; xs = '0; x11 = '0;   // no latches for the block temporaries
         n_last = sh_last; n_ef = sh_ef; n_es = sh_es; n_net = sh_net; n_nsr = sh_nsr; n_has = sh_has;
         n_mn = tr_mn; n_mx = tr_mx; n_nmn = tr_nmn; n_nmx = tr_nmx;
         if (hr) begin   // HIST_RESET clears the slot before the update
@@ -289,52 +317,34 @@ module fv_eog_memory (
         end
         n_first = run && !n_has;
         if (run) begin
-            for (int i = 0; i < 5; i++) begin
-                x  = fin(in_data, gch(i));
-                xs = sh8(x);
-                if (!n_has) begin
-                    n_ef[32*i +: 32] = xs;
-                    n_es[32*i +: 32] = xs;
-                end else begin
-                    e = n_ef[32*i +: 32];
-                    d = $signed(xs) - $signed(e);
-                    q = d >>> EOG_EMA_FAST;
-                    n_ef[32*i +: 32] = e + q;
-                    e = n_es[32*i +: 32];
-                    d = $signed(xs) - $signed(e);
-                    q = d >>> EOG_EMA_SLOW;
-                    n_es[32*i +: 32] = e + q;
-                end
-                n_last[16*i +: 16] = x;
-            end
-            xj = fin(in_data, gch(f_chan));
+            xs = sh8(xj_in);
             if (!n_has) begin
-                n_mn = xj; n_mx = xj;
+                n_ef = xs;
+                n_es = xs;
+                n_mn = xj_in;
+                n_mx = xj_in;
             end else begin
-                if (slt(xj, n_mn)) n_mn = xj;
-                if (slt(n_mx, xj)) n_mx = xj;
+                d    = $signed(xs) - $signed(n_ef);
+                q    = d >>> EOG_EMA_FAST;
+                n_ef = n_ef + q;
+                d    = $signed(xs) - $signed(n_es);
+                q    = d >>> EOG_EMA_SLOW;
+                n_es = n_es + q;
+                if (slt(xj_in, n_mn)) n_mn = xj_in;
+                if (slt(n_mx, xj_in)) n_mx = xj_in;
             end
-            n_has = 1'b1;
-            n_nsr = 8'd0;
+            n_last = xg_in;
+            n_has  = 1'b1;
+            n_nsr  = 8'd0;
         end else begin
             n_nsr = (n_nsr == 8'd255) ? 8'd255 : n_nsr + 8'd1;
         end
-        x11 = fin(in_data, 11);
-        d = $signed(sh8(x11)) - $signed(n_net);
-        q = d >>> EOG_EMA_FAST;
+        x11   = fin(in_data, 11);
+        d     = $signed(sh8(x11)) - $signed(n_net);
+        q     = d >>> EOG_EMA_FAST;
         n_net = n_net + q;
         if (slt(x11, n_nmn)) n_nmn = x11;     // net_ema's inputs include its initial 0 (spec question 2)
         if (slt(n_nmx, x11)) n_nmx = x11;
-
-        for (int i = 0; i < 5; i++) begin
-            n_exp[16*(0  + i) +: 16] = n_last[16*i +: 16];
-            n_exp[16*(5  + i) +: 16] = n_ef[32*i + 8 +: 16];   // ema_f >>> 8
-            n_exp[16*(10 + i) +: 16] = n_es[32*i + 8 +: 16];   // ema_s >>> 8
-        end
-        n_exp[16*15 +: 16] = n_net[8 +: 16];                     // net_ema >>> 8
-        n_exp[16*16 +: 16] = cap64(n_nsr);
-        n_exp[16*17 +: 16] = n_has ? 16'd16384 : 16'd0;
-        n_exp[16*18 +: 16] = cap64(in_data[EOG_BF_SINCE_RESET +: 8]);
     end
 
     always_ff @(posedge clk) begin
@@ -347,10 +357,39 @@ module fv_eog_memory (
         end
     end
 
-    // expected values and bounds travel with the record through the same 2-entry queue
-    logic [19*16-1:0] q_exp0, q_exp1;
-    logic [63:0]      q_bnd0, q_bnd1;
-    logic             q_has0, q_has1, q_fst0, q_fst1;
+    // Harness lemmas (facts about the shadow alone, true by the numerics.md §5 equations). smtbmc keeps every
+    // assertion it has proven at earlier steps as a hypothesis, so these turn M2 on the DUT into a one-step
+    // argument (DUT = shadow by M5, shadow within bounds by L_*) instead of an arithmetic fact about the whole
+    // unrolled history.
+    function automatic logic in_rng(input logic [31:0] v, input logic [15:0] lo, input logic [15:0] hi);
+        in_rng = !($signed(v) < $signed(sh8(lo))) && !($signed(sh8(hi)) < $signed(v));
+    endfunction
+    always_comb if (f_past_valid && rst_n) begin
+        if (sh_has) begin
+`ifdef FV_ARITH
+            L_ef:   assert (in_rng(sh_ef, tr_mn, tr_mx));
+            L_es:   assert (in_rng(sh_es, tr_mn, tr_mx));
+`endif
+            L_last: assert (!slt(pick5(sh_last, f_chan), tr_mn) && !slt(tr_mx, pick5(sh_last, f_chan)));
+        end else begin
+            L_clr:  assert (sh_last == '0 && tr_mn == '0 && tr_mx == '0);
+`ifdef FV_ARITH
+            L_clre: assert (sh_ef == '0 && sh_es == '0);
+`endif
+        end
+`ifdef FV_ARITH
+        L_net:      assert (in_rng(sh_net, tr_nmn, tr_nmx) && !slt(16'd0, tr_nmn) && !slt(tr_nmx, 16'd0));
+`endif
+    end
+
+    // Expected outputs and bounds travel with the record through the same 2-entry queue:
+    //   [159:80] last_run[0..4], [79:64] ema_f[f_chan] >>> 8, [63:48] ema_s[f_chan] >>> 8,
+    //   [47:32] net_ema >>> 8, [31:16] min(nsr, 64) << 8, [15:0] has_run ? 16384 : 0
+    localparam integer XW = 160;
+    logic [XW-1:0] n_exp, q_exp0, q_exp1, h_exp;
+    assign n_exp = {n_last, n_ef[8 +: 16], n_es[8 +: 16], n_net[8 +: 16], cap64(n_nsr), n_has ? 16'd16384 : 16'd0};
+    logic [63:0] q_bnd0, q_bnd1, h_bnd;   // {min, max} of channel f_chan's inputs, {min, max} of net_ema's
+    logic        q_has0, q_has1, q_fst0, q_fst1, h_has, h_first;
     always_ff @(posedge clk) if (in_fire) begin
         if (f_in_cnt[0]) begin
             q_exp1 <= n_exp; q_bnd1 <= {n_mn, n_mx, n_nmn, n_nmx}; q_has1 <= n_has; q_fst1 <= n_first;
@@ -358,9 +397,6 @@ module fv_eog_memory (
             q_exp0 <= n_exp; q_bnd0 <= {n_mn, n_mx, n_nmn, n_nmx}; q_has0 <= n_has; q_fst0 <= n_first;
         end
     end
-    logic [19*16-1:0] h_exp;
-    logic [63:0]      h_bnd;
-    logic             h_has, h_first;
     assign h_exp   = (f_in_flight == 8'd0) ? n_exp : (f_out_cnt[0] ? q_exp1 : q_exp0);
     assign h_bnd   = (f_in_flight == 8'd0) ? {n_mn, n_mx, n_nmn, n_nmx} : (f_out_cnt[0] ? q_bnd1 : q_bnd0);
     assign h_has   = (f_in_flight == 8'd0) ? n_has : (f_out_cnt[0] ? q_has1 : q_has0);
@@ -369,43 +405,43 @@ module fv_eog_memory (
     logic h_f;
     assign h_f = h_upd && (h_fac == f_slot);
 
-    logic [4:0] ok5_last, ok5_ef, ok5_es;
-    always_comb begin
-        for (int i = 0; i < 5; i++) begin
-            ok5_last[i] = (fout(out_data, 12 + i) == h_exp[16*(0  + i) +: 16]);
-            ok5_ef[i]   = (fout(out_data, 17 + i) == h_exp[16*(5  + i) +: 16]);
-            ok5_es[i]   = (fout(out_data, 22 + i) == h_exp[16*(10 + i) +: 16]);
-        end
-    end
+    // outputs of channel f_chan
+    logic [15:0] o_last_c, o_ef_c, o_es_c;
+    assign o_last_c = pick5(out_data[EOG_BM_FEAT + 16*12 +: 80], f_chan);
+    assign o_ef_c   = pick5(out_data[EOG_BM_FEAT + 16*17 +: 80], f_chan);
+    assign o_es_c   = pick5(out_data[EOG_BM_FEAT + 16*22 +: 80], f_chan);
 
     always_comb if (chk && h_f) begin
         // M2 (cleared state): no running record since the last reset -> FEAT[12..26] still 0
         if (!h_has)
             M2_norun: assert (out_data[EOG_BM_FEAT + 16*12 +: 16*15] == '0);
         // M3: first running record after a reset (rst_n or HIST_RESET), after any number of idle records:
-        // FEAT[17+i] == FEAT[22+i] == FEAT[g_i] (ok_hr_* compare with x_g[i]) and FEAT[29] = 16384
+        // FEAT[17+i] == FEAT[22+i] == FEAT[g_i] for all 5 channels (ok_hr_*) and FEAT[29] = 16384
         if (h_first)
             M3_first: assert (ok_hr_f == 5'b11111 && ok_hr_s == 5'b11111 && fout(out_data, 29) == 16'd16384);
-        // M5: exact update equations of numerics.md §5 for slot f_slot. Because the shadow absorbs only the
-        // VALID/HELD records of f_slot (anyconst, so every slot), these also prove M1 "no state change for any
-        // slot" on INVALID/DROPPED/FAC >= N_FAC records and M6 slot independence.
-        M5_last:  assert (ok5_last == 5'b11111);
-        M5_emaf:  assert (ok5_ef   == 5'b11111);
-        M5_emas:  assert (ok5_es   == 5'b11111);
-        M5_net:   assert (fout(out_data, 27) == h_exp[16*15 +: 16]);
-        M4_nsr:   assert (fout(out_data, 28) == h_exp[16*16 +: 16]);   // harness nsr counter
-        M5_has:   assert (fout(out_data, 29) == h_exp[16*17 +: 16]);
-        M5_since: assert (fout(out_data, 30) == h_exp[16*18 +: 16]);
+        // M5: exact update equations of numerics.md §5 for slot f_slot (EMAs: channel f_chan). Because the shadow
+        // absorbs only the VALID/HELD records of f_slot (anyconst, so every slot), these also prove M1 "no state
+        // change for any slot" on INVALID/DROPPED/FAC >= N_FAC records and M6 slot independence: any effect of
+        // such a record, or of another slot's record, on f_slot's state shows up as a mismatch here.
+        M5_last:  assert (out_data[EOG_BM_FEAT + 16*12 +: 80] == h_exp[80 +: 80]);
+`ifdef FV_ARITH
+        M5_emaf:  assert (o_ef_c == h_exp[64 +: 16]);
+        M5_emas:  assert (o_es_c == h_exp[48 +: 16]);
+        M5_net:   assert (fout(out_data, 27) == h_exp[32 +: 16]);
+`endif
+        M4_nsr:   assert (fout(out_data, 28) == h_exp[16 +: 16]);   // harness nsr counter
+        M5_has:   assert (fout(out_data, 29) == h_exp[0 +: 16]);
         // M2: each average within the min/max of the inputs absorbed since the last reset
         if (h_has) begin
-            M2_last: assert (!slt(fout(out_data, 12 + f_chan), h_bnd[48 +: 16]) &&
-                             !slt(h_bnd[32 +: 16], fout(out_data, 12 + f_chan)));
-            M2_emaf: assert (!slt(fout(out_data, 17 + f_chan), h_bnd[48 +: 16]) &&
-                             !slt(h_bnd[32 +: 16], fout(out_data, 17 + f_chan)));
-            M2_emas: assert (!slt(fout(out_data, 22 + f_chan), h_bnd[48 +: 16]) &&
-                             !slt(h_bnd[32 +: 16], fout(out_data, 22 + f_chan)));
+            M2_last: assert (!slt(o_last_c, h_bnd[48 +: 16]) && !slt(h_bnd[32 +: 16], o_last_c));
+`ifdef FV_ARITH
+            M2_emaf: assert (!slt(o_ef_c,   h_bnd[48 +: 16]) && !slt(h_bnd[32 +: 16], o_ef_c));
+            M2_emas: assert (!slt(o_es_c,   h_bnd[48 +: 16]) && !slt(h_bnd[32 +: 16], o_es_c));
+`endif
         end
+`ifdef FV_ARITH
         M2_net:   assert (!slt(fout(out_data, 27), h_bnd[16 +: 16]) && !slt(h_bnd[0 +: 16], fout(out_data, 27)));
+`endif
     end
 `endif
 
@@ -421,12 +457,14 @@ module fv_eog_memory (
         else if (out_fire && h_upd) begin
             if (h_fac[0]) begin c_prev28_1 <= fout(out_data, 28); c_prev29_1 <= fout(out_data, 29); end
             else          begin c_prev28_0 <= fout(out_data, 28); c_prev29_0 <= fout(out_data, 29); end
-            c_seen[h_fac[0]] <= 1'b1;
+            if (h_fac[0]) c_seen[1] <= 1'b1; else c_seen[0] <= 1'b1;
         end
     end
     logic [15:0] c_p28, c_p29;   // previous VALID/HELD output of the current output's slot
-    assign c_p28 = h_fac[0] ? c_prev28_1 : c_prev28_0;
-    assign c_p29 = h_fac[0] ? c_prev29_1 : c_prev29_0;
+    logic        c_pseen;        // that slot has had a VALID/HELD output since reset
+    assign c_p28   = h_fac[0] ? c_prev28_1 : c_prev28_0;
+    assign c_p29   = h_fac[0] ? c_prev29_1 : c_prev29_0;
+    assign c_pseen = h_fac[0] ? c_seen[1] : c_seen[0];
 
 `ifdef FV_COVER
     logic c_bp;   // an output was held under back-pressure
@@ -434,9 +472,9 @@ module fv_eog_memory (
     always_ff @(posedge clk) if (!rst_n) c_bp <= 1'b0; else if (out_valid && !out_ready) c_bp <= 1'b1;
     always_ff @(posedge clk) if (f_past_valid && rst_n && out_fire) begin
         cv_first_run: cover (h_upd && h_hr && h_run);
-        cv_ema:       cover (h_upd && !h_hr && h_run && c_seen[h_fac[0]] && c_p29 == 16'd16384 &&
+        cv_ema:       cover (h_upd && !h_hr && h_run && c_pseen && c_p29 == 16'd16384 &&
                              fout(out_data, 17) != fout(out_data, 1));
-        cv_idle_run:  cover (h_upd && !h_hr && h_run && c_seen[h_fac[0]] && c_p29 == 16'd0);
+        cv_idle_run:  cover (h_upd && !h_hr && h_run && c_pseen && c_p29 == 16'd0);
         cv_invalid:   cover (h_st == EOG_ST_INVALID && c_seen[0]);
         cv_dropped:   cover (h_st == EOG_ST_DROPPED);
         cv_fac_oob:   cover (h_vh && h_fac >= FV_N_FAC);
@@ -448,7 +486,7 @@ module fv_eog_memory (
 `ifdef FV_COVER64
     // spec cover: a slot that has run, stopped 64+ records, and run again (no reset in between)
     always_ff @(posedge clk) if (f_past_valid && rst_n && out_fire)
-        cv_rerun64: cover (h_upd && !h_hr && h_run && c_seen[h_fac[0]] &&
+        cv_rerun64: cover (h_upd && !h_hr && h_run && c_pseen &&
                            c_p28 == 16'd16384 && c_p29 == 16'd16384);
 `endif
 endmodule
