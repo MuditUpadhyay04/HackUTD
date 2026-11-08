@@ -45,8 +45,10 @@ describe("grounded finalization check", () => {
   });
   test("keeps the shape limits and citation checks", () => {
     bad("x".repeat(1201));
-    bad("Line one.\nLine two.");
-    bad("Use `code`.");
+    // layout is tidied, not rejected (prose.ts tidyProse): the content is unchanged
+    expect(ok("Review S2_FAC_3.\nReview S2_FAC_3 again.").handoff).toBe("Review S2_FAC_3. Review S2_FAC_3 again.");
+    expect(ok("Review `S2_FAC_3`.").handoff).toBe("Review S2_FAC_3.");
+    bad("Review <S2_FAC_3>.");
     expect(() => validateFinalization(facts, { handoff: "Review S2_FAC_3.", evidenceIds: [], planIds: [] })).toThrow("Evidence citation required");
     expect(() => validateFinalization(facts, { handoff: "Review S2_FAC_3.", evidenceIds: ["inc-1:evidence:9"], planIds: [] })).toThrow("Invalid citation");
     expect(() => validateFinalization(facts, { handoff: "Review S2_FAC_3.", evidenceIds: ["inc-1:evidence:0"], planIds: [], extra: 1 })).toThrow();

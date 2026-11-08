@@ -50,9 +50,27 @@ function groundedNumber(token: string, numbers: number[]): boolean {
 }
 
 /** Throws with a message naming what to fix; returns the trimmed prose. */
-export function checkProse(ground: Grounding, input: unknown, options: { field?: string; maxLength?: number } = {}): string {
+/**
+ * Harmless formatting the model often adds, fixed instead of rejected (the model otherwise spends its retries on
+ * layout): line breaks joined, markdown emphasis / bullets / headings and backticks removed, spaces collapsed, and
+ * a slight overrun (up to 40 % over) cut at the last full sentence. Nothing is added; every check still runs on the
+ * result. Angle brackets are left alone, so they are still rejected.
+ */
+export function tidyProse(input: string, max: number): string {
+  let t = input.replace(/\r/g, "").replace(/^\s*#{1,6}\s+/gm, "").replace(/^\s*(?:[-*\u2022]|\d+[.)])\s+/gm, "")
+    .replace(/\*\*|__|`+/g, "").replace(/\s*\n+\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+  if (t.length > max && t.length <= max * 1.4) {
+    const cut = t.slice(0, max);
+    const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "), cut.endsWith(".") ? cut.length - 1 : -1);
+    if (end >= max * 0.6) t = cut.slice(0, end + 1);
+  }
+  return t;
+}
+
+export function checkProse(ground: Grounding, raw: unknown, options: { field?: string; maxLength?: number } = {}): string {
   const field = options.field ?? "text", max = options.maxLength ?? 1200;
-  if (typeof input !== "string" || !input.trim()) throw new Error(`Invalid ${field} prose: write one plain paragraph`);
+  if (typeof raw !== "string" || !raw.trim()) throw new Error(`Invalid ${field} prose: write one plain paragraph`);
+  const input = tidyProse(raw, max);
   const pastedIds = /\boption:[0-9a-f]{8,}|:(?:pump_failure|pipeline_leak|pump_degradation|well_shut_in)[:_]|:evidence:\d/.test(input);
   if (input.length > max) throw new Error(`Invalid ${field} prose: ${input.length} characters, limit ${max}; shorten it${pastedIds ? ". IDs go in the ID fields, not in the prose: name facilities as the tools' short labels (for example S2 B)" : ""}`);
   if (/[\r\n<>`]/.test(input)) throw new Error(`Invalid ${field} prose: one paragraph, no line breaks, markdown, angle brackets or backticks`);

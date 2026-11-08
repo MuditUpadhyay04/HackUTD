@@ -56,6 +56,19 @@ describe("simulation timeline while the board is part-way through", () => {
   });
 });
 
+describe("incremental rebuild", () => {
+  test("a rebuild with the previous timeline keeps the plans already made and gives the same story", async () => {
+    const d = await failingFacility();
+    const first = await buildTimeline(d);
+    const again = await buildTimeline(d, { prev: first });
+    expect(again.plans).toEqual(first.plans);
+    expect(again.trucks).toEqual(first.trucks);
+    expect(again.incidents).toEqual(first.incidents);
+    // a previous timeline of another dataset is ignored
+    expect((await buildTimeline(d, { prev: { ...first, datasetId: "other", plans: [] } })).plans).toEqual(first.plans);
+  });
+});
+
 describe("timeline cache", () => {
   const fake = (n: number) => ({ datasetId: `d${n}` }) as unknown as SimulationTimeline;
   test("concurrent requests share one build; same stamp is served from cache", async () => {

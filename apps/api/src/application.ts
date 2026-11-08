@@ -33,7 +33,7 @@ export class Application {
    * board-file state; read-only. */
   async timeline(datasetId: string) {
     const d = await this.requireDataset(datasetId);
-    return this.timelines.get(datasetId, `${boardStamp(this.config.boardJsonl)}|${this.modelFingerprint ?? ""}`, () => buildTimeline(d, {
+    return this.timelines.get(datasetId, `${boardStamp(this.config.boardJsonl)}|${this.modelFingerprint ?? ""}`, (prev) => buildTimeline(d, { prev,
       model: this.model, board: this.config.boardJsonl ? readBoardIndex(this.config.boardJsonl, this.config.boardSource) : undefined }));
   }
   private folderStamps = new Map<string, string>();

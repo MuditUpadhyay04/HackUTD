@@ -238,3 +238,11 @@ html.dark [class~="[&:hover>circle]:fill-[#f2f2f7]"]:hover > circle { fill: #2c2
 @keyframes live-dot { from { left: -12px; } to { left: 100%; } }
 .live-dot { animation-name: live-dot; animation-timing-function: linear; animation-iteration-count: infinite; }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+/* Field map: water moving down a pipe while the pump runs. */
+@keyframes pipe-flow { to { stroke-dashoffset: -20; } }
+.pipe-flow { stroke-dasharray: 4 6; animation: pipe-flow 0.9s linear infinite; }
+/* Live wall: switching Operator / Under the hood. */
+@keyframes wall-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.wall-fade { animation: wall-fade 0.35s ease-out; }
+@media (prefers-reduced-motion: reduce) { .pipe-flow, .wall-fade { animation: none; } }
