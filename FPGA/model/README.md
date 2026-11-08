@@ -11,14 +11,15 @@ numerics.md v4 text where it differs: countdown ring of `max(INFLOW, 0)`, `NOT_F
 agrees with his engine **byte for byte** on every RESULT and ALERT. `check_mudit.py` enforces that; a disagreement is
 a spec question, not a choice.
 
-**Spec question #70 (R7 option C, Lucas Sun 02:03, task T0.2c)** replaces numerics.md §3 step 5 ahead of Mudit's code
-(his task T0.5): `hold_run = any field held ? min(hold_run + 1, 3) : 0`; if `hold_run > hold` every held field
+**Spec question #70 (R7 option C, Lucas Sun 02:03, task T0.2c)** replaces numerics.md §3 step 5 (Mudit's code has it
+since his task T0.5, 59f3746): `hold_run = any field held ? min(hold_run + 1, 3) : 0`; if `hold_run > hold` every held field
 becomes missing, so the record is INVALID with `FIELD_LOST`, with **no history reset and no `HIST_RESET`**
 (`last_valid` kept, `since_reset` not incremented). History resets come only from time gaps, CONFIG writes and a
 facility's first record. Spec question #71 (proposed, as the validate RTL does it): on a hold-limit record
 `FIELD_HELD` = 0 (the held fields became missing), `SINCE_RESET` is the current value, `HIST_RESET` = 0,
-`PREV_LEVEL`/`PREV_OK` are unchanged, and a field that is OK on it still updates `last_valid`. Until T0.5 lands, `check_mudit.py` runs his engine with a stand-in for that one rule and
-lists every record it touches as a pre-T0.5 GAP (exit 2); everything else must still agree byte for byte.
+`PREV_LEVEL`/`PREV_OK` are unchanged, and a field that is OK on it still updates `last_valid`. `check_mudit.py`
+probes #70 on his engine; only if that probe fails (code older than T0.5) does it run a stand-in for that one rule
+and list every record it touches as a GAP (exit 2).
 
 ## Deliverables
 
@@ -77,7 +78,6 @@ no wells (`SHUT_IN` holds vacuously, as in `features_int.py`).
 - `alarm_<case>.al.hex` / `top_<case>.al.hex`: the ALERT records (128 bits) in push order; `.al.txt` adds the record
   index and the cause (`rec`, or `ack` for an ACKED sweep before that record).
 - `top_<case>.in.hex` holds 48 B DATA records (384 bits); `top_<case>.out.hex` the 32 B RESULT records (256 bits).
-  For the golden cases `top_<case>.in.hex` equals Mudit's `data.bin` and `top_<case>.out.hex` his
-  `expected_results.bin`, except that his sets predate #70 (R7): `g2`, `g2v0`, `g2v3` differ from their first
-  hold-limit record (record 14) on until his T0.5 regenerates them; `g0*` and `g1` have no hold-limit record.
+  For the golden cases these equal Mudit's `data.bin` / `expected_results.bin` (his sets regenerated with #70 in
+  T0.5, 59f3746).
 - Per-module files of `week` and `g1` (30,240 records each) are git-ignored; `top_week.*`, `top_g1.*` are committed.
