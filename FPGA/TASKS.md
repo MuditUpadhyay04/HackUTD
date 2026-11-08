@@ -40,8 +40,8 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.head.rtl` 5358207 (v3 + v4 + rulings #23/#25; bit-exact on all 18 v4 head cases; latency 12, II 13; 16 DSP48E1 estimate) |
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.alarm.rtl` ea519d9 (v4 + ruling #22; bit-exact on all 18 v4 alarm cases incl. ALERT stream; latency 1, II 2/3); integration `eog/integrate-alarm`: lint ok, sim PASS 200,130 records / 1,236 ALERTs, formal running |
-| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.alarm.fv` 0cf99c7 (v4; 11/11 mutants caught) |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | DONE | ea519d9, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt`; sim PASS 200,130 records / 1,236 ALERTs (18 v4 cases x 3 modes incl. dropped ALERTs, BTN0 acks) |
+| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 0cf99c7, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt` (prove, bmc_seq, bmc_ack, bmc_mod, bmc_a8, cover PASS) |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.pack.rtl` 9e684bc (v4; latency 1, 4 beats/record at 1 beat/cycle; smoke PASS all 19 pack_* cases incl. week/g1; #25 is owned upstream, pack copies) |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | v4 from the start |
 | T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | CLAIMED | v4 from the start |
@@ -54,7 +54,7 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | ID | Task | Needs | Owner | Status | Output |
 | --- | --- | --- | --- | --- | --- |
 | T2.top | `rtl/eog_top.sv` + bounded top proof + full-practice-week sim vs `model/` (`spec/modules/eog_top.md`) | all T1 DONE | | TODO | |
-| T2.ps1 | ARM app v1 (`ps/eog_app.c`): UDP 7000/7003/7004/heartbeat → AXI-Lite windows, RESULT/ALERT/STATS packets back; keep `udp_mul.c` on 7777 | T0.1 | | TODO | `ps/` |
+| T2.ps1 | ARM app v1 (`ps/eog_app.c`): UDP 7000/7003/7004/heartbeat → AXI-Lite windows, RESULT/ALERT/STATS packets back; keep `udp_mul.c` on 7777 | T0.1 | integration agent | CLAIMED | `eog/T2.ps1`: portable `eog_proto.{c,h}` + thin lwIP glue `eog_app.c`, host-tested against Mudit's `wire.py` |
 | T2.bd1 | Vivado block design v1: `eog_top` on GP0 at `0x43C1_0000` next to `axi_mul`; XDC for LEDs/BTN0/Pmods (O4); timing at 100 MHz | T2.top | | TODO | `vivado/` — **board machine only** |
 | T2.board1 | Board bring-up v1: practice data end to end, RESULTs match `model/` | T2.ps1, T2.bd1 | | TODO | report — **board machine only** |
 
