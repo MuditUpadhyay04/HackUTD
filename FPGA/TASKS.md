@@ -3,7 +3,7 @@
 Claim a task by writing your agent/session name in **Owner** and setting **Status** to CLAIMED, in the same
 commit as your first work. Statuses: TODO · CLAIMED · BLOCKED · REVIEW · DONE. A task can start only when every
 task in **Needs** is DONE (a Verify task may start writing properties before its vectors exist; it needs T0.2 only
-to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v2).
+to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v3).
 
 **Branches on Windows:** `fpga/<task-id>` cannot coexist with the `FPGA` branch on a case-insensitive filesystem, so
 task branches are named `eog/<task-id>` (e.g. `eog/T1.validate.rtl`). **Status edits:** only the lead edits this
@@ -14,35 +14,38 @@ file during a wave (agents report status in their final message) to avoid merge 
 | ID | Task | Needs | Owner | Status | Output |
 | --- | --- | --- | --- | --- | --- |
 | T0.1 | Freeze the spec (decisions D1–D5, conventions, numerics, regmap, 12 module specs, `rtl/eog_defs.svh`) | — | Claude (Lucas's session) | DONE | `spec/` v1 |
-| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | fpga-model agent (lead session) | CLAIMED | `model/`, `tb/vectors/` |
+| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | fpga-model agent (lead session) | DONE | `model/`, `tb/vectors/`; b873096, merged f9c083b; `python FPGA/model/test_model.py` 13 passed / 0 failed (R1 worst \|p50 − trips_at\| 2.0 min at all 13 onsets) |
 | T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | DONE | `formal/common/` (checker modules, abstract mul, self-test), `scripts/env.sh`, `scripts/wsl.sh`; 5d34900; `reports/formal_common.txt`, `reports/formal_axi_mul.txt` |
+| T0.4 | Spec v4: align with Mudit's `features_int.py` (numerics.md §1 D6–D12, Lucas's calls Sun 00:10) | T0.1 | Claude (Lucas's session) | DONE | `spec/` v4, `spec/README.md` changelog |
+| T0.0 | **Mudit:** apply `spec/numerics.md` §11 to `ml/hutd_ml`, regenerate weights + golden sets G0/G1/G2 | T0.4 | Mudit | TODO | branch `ml` |
+| T0.2b | Update `model/` (`eog_ref.py`, `cases.py`, `gen_vectors.py`, `test_model.py`) to spec v4; add `check_mudit.py` (byte-for-byte RESULT/ALERT agreement with Mudit's engine, see `model/README.md`); regenerate `tb/vectors/` | T0.4 (finish on T0.0) | | TODO | `model/`, `tb/vectors/` |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
 
 | ID | Module (spec) | Role | Needs | Owner | Status | Report |
 | --- | --- | --- | --- | --- | --- | --- |
-| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | | TODO | |
-| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | | TODO | |
-| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
-| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
-| T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | | TODO | |
-| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.memory.rtl | `eog_memory` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | | TODO | |
-| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | | TODO | |
-| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | DONE | 3919c2e, merged caf9580; `reports/formal_mul.txt`, `reports/sim_mul.log` (PASS 736,704 products, 36 configurations) |
+| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 8b25855, merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover PASS) |
+| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | DONE | 0a5a100, merged 1565f11; `reports/formal_div.txt`, `reports/sim_div.log` (PASS 19,123 divisions) |
+| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
+| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.unpack.rtl` bc4a760 (lint/iverilog/yosys clean, 1 beat/cycle at out_ready = 1, 841 flops) |
+| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
+| T1.validate.rtl | `eog_validate` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) |
+| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.features.rtl` 9441fc4 (lint/iverilog/yosys clean; latency 13, II 14; smoke PASS all 12 features vector cases). Note: the RTL agent read the verifier's WIP harness after its RTL was final (last commit is a no-op refactor); the verifier never saw the RTL, so the proof stays independent |
+| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.memory.rtl | `eog_memory` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) |
+| T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.countdown.rtl` 2723d23 (lint/iverilog/yosys clean; latency 57, accept gap ≤ 9 at defaults, up to 8 in flight; smoke PASS all 12 countdown vector cases incl. onsets/R1; ~18.5k flops in generic synth, estimate) |
+| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.head.rtl` c700642 passes its v2 checks (lint/iverilog/yosys clean; 16 eog_mul, latency 12, II 13; smoke PASS all 12 head vector cases; xc7 estimate 16 DSP48E1, ~1.9k LUT, 1,550 FF); rework for spec v3 (`wb_rst_n`, question 16) requested |
+| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) |
+| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | | TODO | |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | | TODO | |
-| T1.regs.rtl | `eog_regs` | RTL | T0.1 | | TODO | |
-| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3 | | TODO | |
+| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | | TODO | |
+| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | | TODO | |
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
 
@@ -66,3 +69,22 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 
 | # | Module | Question | Proposed answer | Raised by | Answer (lead) |
 | --- | --- | --- | --- | --- | --- |
+| 1 | memory | VALID/HELD record with `FAC ≥ N_FAC` (validate never produces it) | Treat as a no-update record: no slot changes, `FEAT[12..30] = 0` | T1.memory.rtl | Accepted (clarification). Applies to every stateful stage (countdown, head, alarm): out-of-range `FAC` never touches state |
+| 2 | memory | M2 "inputs absorbed" for `net_ema` (feature 27) | `net_ema` starts at 0 after a reset and updates on every VALID/HELD record, so 0 counts as an absorbed input for feature 27; gated EMAs start at the first running input (0 not included) | T1.memory.rtl | Accepted (clarification) |
+| 3 | alarm | Order of ALERTs from one record; order of ACKED in a sweep | NS_RAISED, ES_RAISED, CLEARED(NS), CLEARED(ES); ACKED slot-major (lowest slot first), NS before ES | T1.alarm.rtl | Accepted |
+| 4 | alarm | ACKED fields not listed (RULES, CLASSES, SOURCE bit 2) | 0, 0, 0 (only SOURCE bit 4 = latch type) | T1.alarm.rtl | Accepted |
+| 5 | alarm | Does `al_valid` pulse when `al_full`? | No: `al_valid` and `al_drop` are exclusive; a dropped ALERT is not retried | T1.alarm.rtl | Accepted |
+| 6 | alarm | ALERT `FAC_ID` width/source | Zero-extended `FAC` (= `FAC_RAW` for every non-DROPPED record; DROPPED raise no ALERT) | T1.alarm.rtl | Accepted |
+| 7 | alarm | `GAP_THR` signedness | Signed i16, compared signed with `CH3` | T1.alarm.rtl | Accepted |
+| 8 | alarm | BTN0 polarity | Active high at `eog_alarm`; any inversion happens in `eog_top`/XDC (O4) | T1.alarm.rtl | Accepted; confirm with the board pinout in T2.bd1 |
+| 9 | alarm | LED details (PWM, fault window, blink phase, override) | 25 % PWM (64/256 cycles); fault window on a free-running ms tick (±1 ms); free-running 2 Hz blink; `ledovr` raw, no PWM | T1.alarm.rtl | Accepted |
+| 10 | alarm | Status codes 2, 5–7 (never produced) | No state change (as DROPPED); they do light the `ld0` fault indicator | T1.alarm.rtl | Accepted |
+| 11 | all | `II` parameter unused by a stage | Keep the parameter (uniform interface), waive UNUSEDPARAM inline | T1.alarm.rtl | Accepted. The `eog_defs.svh` UNUSEDPARAM waiver is now inside the generated header (b1ab919) |
+| 12 | validate | numerics §3 step 8: are `PUMP_INCONS`/`WELL_INCONS` computed on raw or cleaned values, and when inputs are not OK? | On the carried (observed or held) values, and only when the inputs are OK: `PUMP_INCONS = FLD_OK[PUMP_ST] & FLD_OK[PUMP_FLOW] & PUMP_ST ≠ 1 & PUMP_FLOW > 0`; `WELL_INCONS` = some configured slot i with both its status and water OK, status 0 and water > 0 | T1.validate.rtl | Accepted (clarification, same rule as the §4 rule bits; reason-bit only, no layout change). Lucas may reverse |
+| 13 | validate | `PREV_LEVEL` when `PREV_OK = 0` | 0 | T1.validate.rtl | Accepted |
+| 14 | validate | `n_wells` when the `N_WELL` parameter < 8 (shrunk proofs) | `n_wells = min(CFG.N_WELLS, N_WELL)`; identical to the spec at the default N_WELL = 8 | T1.validate.rtl | Accepted |
+| 15 | all | conventions §7 example uses `EOG_*_W` in an ANSI port list, but §6 includes `eog_defs.svh` inside the body | Use non-ANSI port declarations after the include, or literal widths checked by lint | T1.validate.rtl | Accepted; §7 wording fixed (no version bump: example only) |
+| 16 | head | Spec conflict: conventions §1 / head spec say soft reset keeps the weight banks, but `eog_head` only gets the engine reset `rst_n & ~soft_rst` | (RTL agent implemented: any reset clears VER in both banks; alternative: separate hard-reset port) | T1.head.rtl | **Spec v3:** new input `eog_head.wb_rst_n` = raw `rst_n` (hard reset only) resets word 70 (v4; was 68) of both banks, `active_bank`, `swap_pending`; `rst_n` (incl. soft reset) only flushes the record in flight; writes ignored while either reset is 0; a pending swap waits for `rst_n` = 1. Internal port only, no wire-format/numerics change. Lucas may reverse |
+| 17 | head | `swap_req` while `swap_pending` = 1, including the cycle the swap executes | Merges with the pending swap (one swap); the ARM waits for `swap_pending` = 0 before writing the next image | T1.head.rtl | Accepted |
+| 18 | head | Pending swap vs accepting the next record in the same idle cycle | The swap wins; `in_ready` = 0 for that one cycle (II still ≤ 16) | T1.head.rtl | Accepted |
+| 19 | head | `CH3` for DROPPED records | Copied from `FEAT[3]` like every status (upstream already zeroes FEAT for DROPPED), as the head spec and the model do | T1.head.rtl | Accepted |

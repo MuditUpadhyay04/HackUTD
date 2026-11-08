@@ -1,10 +1,10 @@
 # eog_countdown — minutes to tank shutdown (p10 / p50 / p90)
 
-Implements numerics.md §7 (decisions D1, D2, D4, D5).
+Implements numerics.md §7 (D1, D2, D4, D6).
 
 ## Parameters
 
-`N_FAC` (32), `II` (16), `CD_N` (16, ring depth; formal may use 4).
+`N_FAC` (32), `II` (16). Ring depth fixed at 16 (`EOG_CD_N`); formal may set `CD_LOG2 = 2`.
 
 ## Ports
 
@@ -16,32 +16,32 @@ Implements numerics.md §7 (decisions D1, D2, D4, D5).
 | `cfg_fac` | out | 5 | |
 | `cfg_row` | in | 512 | uses `SHUT_LVL`, `K_CD` |
 
-Uses `eog_mul` for `K·Δ` and for `K·Δ·n` (`n` is not a power of two), and `eog_div` (`NW = 48`, `DW = 32`) for the
-three quotients.
+Uses one `eog_mul` (`K · Δ`, 24 × 17 bits) and `eog_div` (`NW = 48`, `DW = 32`) for the three quotients.
 
 ## Per-facility state
 
-Ring of `CD_N` × u15 inflow values, a count `n` (0..CD_N) and a write pointer (or derive it). `sum`, `max`, `min` may
-be recomputed from the ring each record (16 entries in ≤ 16 cycles) or kept incrementally.
+16 × s16 ring (prefilled), a "has ring" bit, a write pointer. `sum`/`max`/`min` may be recomputed per record (16
+entries within II) or kept incrementally.
 
 ## Behavior
 
 Header copied; `FEAT` copied; `RULES = {NOT_FILLING, RULES4}`; `CD = {p90, p50, p10}` (p10 in `[15:0]`).
+A non-DROPPED `HIST_RESET` record clears the "has ring" bit first. VALID/HELD: fill-or-push, then numerics.md §7.
 
 ## Required properties (verifier)
 
 Stage contract (conventions §3).
 
-- C1 INVALID/DROPPED → `CD = 3 × 0xFFFF`, `NOT_FILLING = 0`, no state change.
-- C2 `LEVEL ≥ SHUT_LVL` → `CD = 0` (all three) and `NOT_FILLING = 0` (D2, checked first).
-- C3 `sum == 0` (and level below shutdown) → all three `0xFFFF` and `NOT_FILLING = 1`.
-- C4 Ordering: when all three are finite, `p10 ≤ p50 ≤ p90` (max ≥ mean ≥ min).
-- C5 Ring: after a `HIST_RESET` record `n = 1`; `n` grows by 1 per VALID/HELD record up to `CD_N`; the ring holds
-  exactly the last `n` values of `max(INFLOW, 0)` for that slot (harness shadow for one anyconst slot, `CD_N = 4`).
-- C6 Quotients: with the real divider in bmc at reduced widths, each value equals `div()` from numerics.md §7.
+- C1 INVALID/DROPPED → `CD = 3 × 0xFFFF`, `NOT_FILLING = 0`, no ring change (INVALID may only clear via `HIST_RESET`).
+- C2 `LEVEL ≥ SHUT_LVL` → `CD = 0` (all three); `NOT_FILLING = (mean ≤ 0)`.
+- C3 First VALID/HELD record after a reset: all ring entries equal its `INFLOW` (so p10 = p50 = p90).
+- C4 Ring contents: after the first fill, the ring holds the last 16 VALID/HELD `INFLOW` values (shadow model for
+  one anyconst slot with `CD_LOG2 = 2`).
+- C5 `q ≤ 0` → that value is `0xFFFF`; `p10 ≤ p50 ≤ p90` whenever all three are finite and level is below shutdown.
+- C6 With the real divider in bmc at reduced widths, each value equals `m(q)` from numerics.md §7.
 - C7 Slot independence.
 
-Simulation: bit-exact against `tb/vectors/countdown_*.hex`, including all 13 practice failure onsets (the R1
-check: p50 must track `trips_at`, not show 0xFFFF).
+Simulation: bit-exact against `tb/vectors/countdown_*.hex` from Mudit's golden sets regenerated with
+`review_r1r2` (all 13 practice failure onsets: p50 must track `trips_at`).
 
-Cover: each branch (tripped, not filling, finite); a full ring wrapping.
+Cover: tripped, not filling, finite, and a ring that has wrapped.
