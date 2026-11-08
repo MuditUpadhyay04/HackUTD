@@ -207,6 +207,10 @@ module fv_eog_head #(
         else used_word = (32'(half_feat(w, 1'b0)) < N_FEAT) || (32'(half_feat(w, 1'b1)) < N_FEAT);
     endfunction
 
+    function automatic integer slot_ix(input integer j);
+        slot_ix = (j < NSH) ? j : 0;
+    endfunction
+
     // numerics.md section 8: sat16((acc + (S_OUT > 0 ? 2^(S_OUT-1) : 0)) >>> S_OUT)
     function automatic logic [15:0] logit_of(input logic signed [63:0] acc, input logic [4:0] s);
         logic signed [63:0] r;
@@ -530,12 +534,13 @@ module fv_eog_head #(
                     for (int i = 0; i < N_FEAT; i++) begin
                         c_f = f_td[EOG_BC_FEAT + 16 * i +: 16];
                         if (c_f != 16'd0) begin
+                            // slot indices clamped so the branch not taken at this SH stays in range
                             if (SH == 2) begin
-                                c_word = f_snap_v[(ST + k * N_FEAT + i)*32 +: 32];
-                                c_wk   = f_snap_k[ST + k * N_FEAT + i];
+                                c_word = f_snap_v[slot_ix(ST + k * N_FEAT + i)*32 +: 32];
+                                c_wk   = f_snap_k[slot_ix(ST + k * N_FEAT + i)];
                             end else if (SH == 3 && 32'(f_i) == i) begin
-                                c_word = f_snap_v[(ST + k)*32 +: 32];
-                                c_wk   = f_snap_k[ST + k];
+                                c_word = f_snap_v[slot_ix(ST + k)*32 +: 32];
+                                c_wk   = f_snap_k[slot_ix(ST + k)];
                             end else begin
                                 c_word = '0;
                                 c_wk   = 1'b0;
