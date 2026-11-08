@@ -27,7 +27,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
-| T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
+| T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) |
 | T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | | TODO | |
 | T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
@@ -77,3 +77,7 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 9 | alarm | LED details (PWM, fault window, blink phase, override) | 25 % PWM (64/256 cycles); fault window on a free-running ms tick (±1 ms); free-running 2 Hz blink; `ledovr` raw, no PWM | T1.alarm.rtl | Accepted |
 | 10 | alarm | Status codes 2, 5–7 (never produced) | No state change (as DROPPED); they do light the `ld0` fault indicator | T1.alarm.rtl | Accepted |
 | 11 | all | `II` parameter unused by a stage | Keep the parameter (uniform interface), waive UNUSEDPARAM inline | T1.alarm.rtl | Accepted. The `eog_defs.svh` UNUSEDPARAM waiver is now inside the generated header (b1ab919) |
+| 12 | validate | numerics §3 step 8: are `PUMP_INCONS`/`WELL_INCONS` computed on raw or cleaned values, and when inputs are not OK? | On the carried (observed or held) values, and only when the inputs are OK: `PUMP_INCONS = FLD_OK[PUMP_ST] & FLD_OK[PUMP_FLOW] & PUMP_ST ≠ 1 & PUMP_FLOW > 0`; `WELL_INCONS` = some configured slot i with both its status and water OK, status 0 and water > 0 | T1.validate.rtl | Accepted (clarification, same rule as the §4 rule bits; reason-bit only, no layout change). Lucas may reverse |
+| 13 | validate | `PREV_LEVEL` when `PREV_OK = 0` | 0 | T1.validate.rtl | Accepted |
+| 14 | validate | `n_wells` when the `N_WELL` parameter < 8 (shrunk proofs) | `n_wells = min(CFG.N_WELLS, N_WELL)`; identical to the spec at the default N_WELL = 8 | T1.validate.rtl | Accepted |
+| 15 | all | conventions §7 example uses `EOG_*_W` in an ANSI port list, but §6 includes `eog_defs.svh` inside the body | Use non-ANSI port declarations after the include, or literal widths checked by lint | T1.validate.rtl | Accepted; §7 wording fixed (no version bump: example only) |

@@ -99,10 +99,12 @@ extra output ports that exist **only under `` `ifdef FORMAL ``** (simulation and
 | `f_inflight` | 8 | number of records accepted on `in_*` whose output has not yet transferred (for `eog_pack`: whose last beat has not transferred) |
 | `f_oldest_recno` | 32 | `REC_NO` of the oldest such record; don't-care when `f_inflight = 0` |
 
-Place them last in the port list:
+Place them last in the port list. (Because `eog_defs.svh` is included inside the module body, an ANSI port list
+cannot use `EOG_*_W`: either declare the ports non-ANSI after the include, or use literal widths in the ANSI list,
+which Verilator lint checks against the connected buses. The example shows the ANSI form with a literal width.)
 
 ```systemverilog
-    output logic [EOG_BA_W-1:0] out_data
+    output logic [242:0] out_data       // EOG_BA_W
 `ifdef FORMAL
     , output logic [7:0]  f_inflight
     , output logic [31:0] f_oldest_recno
