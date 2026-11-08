@@ -123,12 +123,18 @@ module fv_eog_alarm #(
     end
 
     // ---------------------------------------------------------------------------------------------------------
-    // Stage contract. excl (II and latency checks off): an ack request and the next two cycles (the cycle the
-    // ack is applied), and every cycle with an ACKED push or drop (the sweep).
+    // Stage contract. excl (II and latency checks off, conventions §3 "except during an acknowledge sweep"):
+    // while an acknowledge can be in progress. A sweep is invisible at the ports when it clears nothing, and a
+    // BTN0 press is acted on inside the DUT, so the window is: ack_srv or btn0 high, and the ACK_W cycles after
+    // either (apply cycle + sweep of <= 2*N_FAC cycles + synchronizer/edge latency), plus every cycle with an
+    // ACKED push or drop.
+    localparam integer ACK_W = 2 * N_FAC + 6;
     logic al_is_acked;
     assign al_is_acked = (al_valid || al_drop) && (al_data[EOG_AL_KIND +: 8] == EOG_AK_ACKED);
+    logic [7:0] ack_win;
+    always_ff @(posedge clk) ack_win <= (ack_srv || btn0) ? 8'(ACK_W) : (ack_win != 8'd0) ? ack_win - 8'd1 : 8'd0;
     logic excl;
-    assign excl = ack_srv || (f_past_valid && (p_ack || pp_ack)) || al_is_acked;
+    assign excl = ack_srv || btn0 || (f_past_valid && ack_win != 8'd0) || al_is_acked;
 
     logic [7:0] f_in_cnt, f_out_cnt, f_in_flight;
     eog_fv_stage #(.RW(8), .MAX_INFLIGHT(2), .II_MAX(II_MAX), .LAT_MAX(LAT_MAX), .SWEEP(N_FAC + 8)) u_stage (
@@ -305,7 +311,7 @@ module fv_eog_alarm #(
     logic [3:0]  m_hit, m_ca;
     logic [31:0] m_oc, m_ncnt;
     logic [7:0]  m_ol, m_nleak;
-    integer f, k, c, i;
+    integer f, k, c, i, ca_i, cq, fu, fw;   // one loop variable per always block (Yosys)
     always_comb begin
         m_oc = '0; m_ol = '0; m_onl = 1'b0; m_oel = 1'b0; m_onc = 1'b0; m_oec = 1'b0;
         for (f = 0; f < N_FAC; f = f + 1) if (i_fac == f) begin
@@ -346,12 +352,12 @@ module fv_eog_alarm #(
     assign m_rec = rst_n && in_fire;
 
     always_comb begin
-        cand = '0; cv = '0;
+        cand = '0; cv = '0; ca_i = 0;
         if (m_ack) begin
             // ACKED sweep: lowest slot first, NS before ES (TASKS #3); RULES/CLASSES/SOURCE bit 2 = 0 (TASKS #4)
-            for (c = 0; c < 2 * N_FAC; c = c + 1) begin
-                cv[c] = (c % 2 == 0) ? clr_ns[c / 2] : clr_es[c / 2];
-                cand[c*EW +: EW] = {2'b01, mk_al(5'(c / 2), EOG_AK_ACKED, {3'd0, 1'(c % 2), 4'd0}, 32'd0, 32'd0,
+            for (ca_i = 0; ca_i < 2 * N_FAC; ca_i = ca_i + 1) begin
+                cv[ca_i] = (ca_i % 2 == 0) ? clr_ns[ca_i / 2] : clr_es[ca_i / 2];
+                cand[ca_i*EW +: EW] = {2'b01, mk_al(5'(ca_i / 2), EOG_AK_ACKED, {3'd0, 1'(ca_i % 2), 4'd0}, 32'd0, 32'd0,
                                                  8'd0, 8'd0, 16'hFFFF)};
             end
         end else if (m_rec && m_upd) begin
@@ -379,7 +385,7 @@ module fv_eog_alarm #(
     assign q_pop = (al_valid || al_drop) && (q_cnt != 5'd0);
     always_comb begin
         pre = '0;
-        for (c = 0; c < NC; c = c + 1) pre[(c+1)*5 +: 5] = pre[c*5 +: 5] + {4'd0, cv[c]};
+        for (cq = 0; cq < NC; cq = cq + 1) pre[(cq+1)*5 +: 5] = pre[cq*5 +: 5] + {4'd0, cv[cq]};
         q_sh   = q_pop ? (q >> EW) : q;
         q_base = q_cnt - {4'd0, q_pop};
         q_n    = q_sh;
@@ -389,8 +395,8 @@ module fv_eog_alarm #(
                 q_n[i*EW + 128] = q_sh[i*EW + 128] || !autonomous;
                 q_n[i*EW + 129] = q_sh[i*EW + 129] || autonomous;
             end
-            for (c = 0; c < NC; c = c + 1)
-                if (cv[c] && i == q_base + pre[c*5 +: 5]) q_n[i*EW +: EW] = cand[c*EW +: EW];
+            for (cq = 0; cq < NC; cq = cq + 1)
+                if (cv[cq] && i == q_base + pre[cq*5 +: 5]) q_n[i*EW +: EW] = cand[cq*EW +: EW];
         end
         q_cnt_n = q_base + pre[NC*5 +: 5];
     end
@@ -419,13 +425,13 @@ module fv_eog_alarm #(
                 m_nsl <= m_nsl & m_nsc;
                 m_esl <= m_esl & m_esc;
             end else if (m_rec && m_upd) begin
-                for (f = 0; f < N_FAC; f = f + 1) if (i_fac == f) begin
-                    m_cnt[f*32 +: 32] <= m_ncnt;
-                    m_leak[f*8 +: 8]  <= m_nleak;
-                    m_nsl[f] <= m_nsl[f] | m_nsc_new;
-                    m_esl[f] <= m_esl[f] | m_esc_new;
-                    m_nsc[f] <= m_nsc_new;
-                    m_esc[f] <= m_esc_new;
+                for (fu = 0; fu < N_FAC; fu = fu + 1) if (i_fac == fu) begin
+                    m_cnt[fu*32 +: 32] <= m_ncnt;
+                    m_leak[fu*8 +: 8]  <= m_nleak;
+                    m_nsl[fu] <= m_nsl[fu] | m_nsc_new;
+                    m_esl[fu] <= m_esl[fu] | m_esc_new;
+                    m_nsc[fu] <= m_nsc_new;
+                    m_esc[fu] <= m_esc_new;
                 end
             end
             q     <= q_n;
@@ -493,8 +499,8 @@ module fv_eog_alarm #(
     logic [4:0] m_worst;
     always_comb begin
         m_worst = 5'd0;
-        for (f = N_FAC - 1; f >= 0; f = f - 1) if (m_nsl[f]) m_worst = 5'(f);
-        if (m_esl != '0) for (f = N_FAC - 1; f >= 0; f = f - 1) if (m_esl[f]) m_worst = 5'(f);
+        for (fw = N_FAC - 1; fw >= 0; fw = fw - 1) if (m_nsl[fw]) m_worst = 5'(fw);
+        if (m_esl != '0) for (fw = N_FAC - 1; fw >= 0; fw = fw - 1) if (m_esl[fw]) m_worst = 5'(fw);
     end
     logic settled;
     assign settled = quiet_now && quiet_run >= 3'd3;
