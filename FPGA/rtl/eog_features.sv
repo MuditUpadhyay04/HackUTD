@@ -1,5 +1,5 @@
-// eog_features.sv -- the 12 feature channels and rule bits 0-3 (spec v2: modules/eog_features.md,
-// numerics.md section 4, conventions section 7 formal observation ports).
+// eog_features.sv -- the 12 feature channels and rule bits 0-3 (spec v4: modules/eog_features.md,
+// numerics.md section 4 = Mudit's features_int.py S2, conventions section 7 formal observation ports).
 //
 // Bus V in, bus F out. Stateless, one record at a time:
 //   S_IDLE  in_ready = 1; an accepted record is captured into in_r (cfg_fac = its FAC from the next cycle on,
@@ -12,11 +12,15 @@
 //
 // Multiplied channels, in issue order j = 0..9:  ch 0..6, 9, 10, 11  (ch 7 / 8 come from PUMP_ST directly)
 //   feat(x, M) = sat16((x * M + 2^16) >>> 17), x signed (<= 20 bits), M unsigned 32 bits.
-// Output gating (numerics.md section 4): channels and FEAT_SAT only for VALID/HELD; channel 11 (and its FEAT_SAT
-// contribution) only when PREV_OK; RULES4 = 0 for DROPPED; PUMP_RUN only for VALID/HELD. Status codes that are
-// never produced (2, 5-7) are treated like INVALID (rules yes, features no), as in model/eog_ref.py.
+// Output gating (numerics.md section 4, v4): channels, FEAT_SAT, RULES4 and PUMP_RUN only for VALID/HELD; every
+// other status (INVALID, DROPPED, and the never-produced codes 2, 5-7) gets 0. Channel 11 (and its FEAT_SAT
+// contribution) only when PREV_OK.
 //
-// SHUT_IN checks the configured slots i < n_wells = min(CFG.N_WELLS, N_WELL) (TASKS.md spec question 14);
+// Rules (VALID/HELD): PUMP_FAULT = PUMP_ST == 2; SHUT_IN = every configured slot i < n_wells has status 0
+// (WELL_ACT[i] = 0) and water exactly 0, with n_wells = min(CFG.N_WELLS, N_WELL) (TASKS.md question 14); an empty
+// set of slots (n_wells = 0) gives SHUT_IN = 1, as features_int.py's all() over range(0); LVL_SHUTDOWN / LVL_WARNING
+// = LEVEL (s16) >= SHUT_LVL / WARN_LVL (u16, zero-extended). FLD_OK / WELLS_OK are not used (v4: a VALID/HELD record
+// has every field OK or held).
 // popcount(WELL_ACT) and the WELL_WATER sum cover the whole bus field (slots >= n_wells are 0 from eog_validate).
 // N_FAC is unused: the stage keeps no per-facility state, so a FAC >= N_FAC record is processed like any other.
 
@@ -38,8 +42,7 @@ module eog_features #(
     input  logic                out_ready,
     output logic [343-1:0]      out_data,     // bus F (EOG_BF_W)
     output logic [4:0]          cfg_fac,      // slot whose CONFIG row is read (= FAC of the held record)
-    input  logic [511:0]        cfg_row,      // EOG_CFG_BITS, combinational from eog_regs
-    input  logic [255:0]        glb           // EOG_G_BITS; only SHUTIN_WATER_MAX is used
+    input  logic [511:0]        cfg_row       // EOG_CFG_BITS, combinational from eog_regs
 `ifdef FORMAL
     , output logic [7:0]        f_inflight      // records accepted on in_* whose output has not yet transferred
     , output logic [31:0]       f_oldest_recno  // REC_NO of the oldest such record; don't-care when f_inflight == 0
@@ -63,10 +66,6 @@ module eog_features #(
     localparam logic [CW-1:0] C_LAT  = CW'(MUL_LAT);
     localparam logic [CW-1:0] C_LAST = CW'(CNT_LAST);
 
-    // FLD_OK bit index (DATA PRESENT-bit order: 0 inflow, 1 level, 2 pump status, ...)
-    localparam integer FO_LEVEL   = 1;
-    localparam integer FO_PUMP_ST = 2;
-
     localparam logic [15:0] ONE16 = 16'(EOG_ONE);
     localparam logic [PW:0] RND   = {{(PW + 1 - EOG_FEAT_SHIFT){1'b0}}, 1'b1, {(EOG_FEAT_SHIFT - 1){1'b0}}};  // 2^(S-1)
 
@@ -79,7 +78,7 @@ module eog_features #(
     logic [EOG_BV_W-1:0]  in_r;        // the held record (bus V)
     logic [16*NMUL-1:0]   res_r;       // saturated product of issue slot j at [16j +: 16]
     logic [NMUL-1:0]      sat_r;       // issue slot j saturated
-    logic [3:0]           rules_r;     // rule bits 0-3 (before the DROPPED gate)
+    logic [3:0]           rules_r;     // rule bits 0-3 (before the VALID/HELD gate)
 
     assign in_ready  = (st == S_IDLE);
     assign out_valid = (st == S_OUT);
@@ -110,8 +109,7 @@ module eog_features #(
     logic [15:0]                 r_inflow, r_level, r_pflow, r_rflow, r_dis, r_pipe, r_prev_level;
     logic [EOG_BV_PUMP_ST_W-1:0] r_pump_st;
     logic [EOG_BV_WELL_ACT_W-1:0] r_well_act;
-    logic [EOG_BV_FLD_OK_W-1:0]  r_fld_ok;
-    logic                        r_wells_ok, r_prev_ok;
+    logic                        r_prev_ok;
 
     assign r_status     = in_r[EOG_BV_STATUS +: EOG_BV_STATUS_W];
     assign r_inflow     = in_r[EOG_BV_INFLOW +: EOG_BV_INFLOW_W];
@@ -123,13 +121,10 @@ module eog_features #(
     assign r_prev_level = in_r[EOG_BV_PREV_LEVEL +: EOG_BV_PREV_LEVEL_W];
     assign r_pump_st    = in_r[EOG_BV_PUMP_ST +: EOG_BV_PUMP_ST_W];
     assign r_well_act   = in_r[EOG_BV_WELL_ACT +: EOG_BV_WELL_ACT_W];
-    assign r_fld_ok     = in_r[EOG_BV_FLD_OK +: EOG_BV_FLD_OK_W];
-    assign r_wells_ok   = in_r[EOG_BV_WELLS_OK];
     assign r_prev_ok    = in_r[EOG_BV_PREV_OK];
 
-    logic r_vh, r_drop;
-    assign r_vh   = (r_status == EOG_ST_VALID) || (r_status == EOG_ST_HELD);
-    assign r_drop = (r_status == EOG_ST_DROPPED);
+    logic r_vh;
+    assign r_vh = (r_status == EOG_ST_VALID) || (r_status == EOG_ST_HELD);
 
     assign cfg_fac = in_r[EOG_BV_FAC +: EOG_BV_FAC_W];
 
@@ -145,9 +140,6 @@ module eog_features #(
     assign c_shut    = cfg_row[EOG_CFG_SHUT_LVL +: EOG_CFG_SHUT_LVL_W];
     assign c_warn    = cfg_row[EOG_CFG_WARN_LVL +: EOG_CFG_WARN_LVL_W];
     assign c_n_wells = cfg_row[EOG_CFG_N_WELLS +: EOG_CFG_N_WELLS_W];
-
-    logic [15:0] g_swm;
-    assign g_swm = glb[EOG_G_SHUTIN_WATER_MAX +: EOG_G_SHUTIN_WATER_MAX_W];
 
     // ---------------------------------------------------------------------------------------------------
     // multiplier operands (x sign-extended to AW bits)
@@ -205,24 +197,21 @@ module eog_features #(
     assign y_val = y_sat ? (y[YW-1] ? 16'h8000 : 16'h7FFF) : y[15:0];
 
     // ---------------------------------------------------------------------------------------------------
-    // rule bits 0-3 (numerics.md section 4), from the held record and its CONFIG row
-    logic [EOG_N_WELL-1:0] w_cfg, w_low;
-    logic                  shut_in;
+    // rule bits 0-3 (numerics.md section 4), from the held record and its CONFIG row (output-gated to VALID/HELD)
+    logic [EOG_N_WELL-1:0] w_cfg, w_off;
     logic [3:0]            rules_c;
     always_comb begin
         for (int i = 0; i < EOG_N_WELL; i++) begin
             // slot i is configured iff i < min(CFG.N_WELLS, N_WELL)
             w_cfg[i] = (i < NW) && (c_n_wells > 8'(i));
-            // water_i (s16) <= SHUTIN_WATER_MAX (u16)
-            w_low[i] = $signed({in_r[EOG_BV_WELL_WATER + 16*i + 15], in_r[EOG_BV_WELL_WATER + 16*i +: 16]})
-                       <= $signed({1'b0, g_swm});
+            // slot i is shut in: status 0 and water exactly 0
+            w_off[i] = !r_well_act[i] && (in_r[EOG_BV_WELL_WATER + 16*i +: 16] == 16'd0);
         end
-        shut_in = r_wells_ok && (NW >= 1) && (c_n_wells != 8'd0) && (r_well_act == '0) && (&(~w_cfg | w_low));
         rules_c = '0;
-        rules_c[EOG_RULE_PUMP_FAULT]   = r_fld_ok[FO_PUMP_ST] && (r_pump_st == 2'd2);
-        rules_c[EOG_RULE_SHUT_IN]      = shut_in;
-        rules_c[EOG_RULE_LVL_SHUTDOWN] = r_fld_ok[FO_LEVEL] && ($signed({r_level[15], r_level}) >= $signed({1'b0, c_shut}));
-        rules_c[EOG_RULE_LVL_WARNING]  = r_fld_ok[FO_LEVEL] && ($signed({r_level[15], r_level}) >= $signed({1'b0, c_warn}));
+        rules_c[EOG_RULE_PUMP_FAULT]   = (r_pump_st == 2'd2);
+        rules_c[EOG_RULE_SHUT_IN]      = &(~w_cfg | w_off);
+        rules_c[EOG_RULE_LVL_SHUTDOWN] = $signed({r_level[15], r_level}) >= $signed({1'b0, c_shut});
+        rules_c[EOG_RULE_LVL_WARNING]  = $signed({r_level[15], r_level}) >= $signed({1'b0, c_warn});
     end
 
     // ---------------------------------------------------------------------------------------------------
@@ -268,15 +257,16 @@ module eog_features #(
         out_data[EOG_BF_SINCE_RESET +: EOG_BF_SINCE_RESET_W] = in_r[EOG_BV_SINCE_RESET +: EOG_BV_SINCE_RESET_W];
         out_data[EOG_BF_HIST_RESET +: EOG_BF_HIST_RESET_W]   = in_r[EOG_BV_HIST_RESET +: EOG_BV_HIST_RESET_W];
         out_data[EOG_BF_FEAT0_11 +: EOG_BF_FEAT0_11_W]       = feat;
-        out_data[EOG_BF_RULES4 +: EOG_BF_RULES4_W]           = r_drop ? 4'd0 : rules_r;
+        out_data[EOG_BF_RULES4 +: EOG_BF_RULES4_W]           = r_vh ? rules_r : 4'd0;
         out_data[EOG_BF_INFLOW +: EOG_BF_INFLOW_W]           = r_inflow;
         out_data[EOG_BF_LEVEL +: EOG_BF_LEVEL_W]             = r_level;
         out_data[EOG_BF_PUMP_RUN]                            = r_vh && (r_pump_st == 2'd1);
     end
 
-    // CONFIG/GLOBAL fields and FLD_OK bits this stage does not use; the rounding bits the shift drops
+    // CONFIG fields, FLD_OK and WELLS_OK (not used in v4) and the rounding bits the shift drops
     logic unused_ok;
-    assign unused_ok = ^{glb, cfg_row, r_fld_ok, p_rnd[EOG_FEAT_SHIFT-1:0]};
+    assign unused_ok = ^{cfg_row, in_r[EOG_BV_FLD_OK +: EOG_BV_FLD_OK_W], in_r[EOG_BV_WELLS_OK],
+                         p_rnd[EOG_FEAT_SHIFT-1:0]};
 
     // ---------------------------------------------------------------------------------------------------
 `ifdef FORMAL
