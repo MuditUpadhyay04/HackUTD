@@ -75,7 +75,7 @@ Rules: no property is weakened to pass; UNKNOWN is not PASS; deep opt-in tasks t
 
 | ID | Task | Needs | Owner | Status | Output |
 | --- | --- | --- | --- | --- | --- |
-| T2.top | `rtl/eog_top.sv` + bounded top proof + full-practice-week sim vs `model/` (`spec/modules/eog_top.md`) | all T1 DONE | | TODO | |
+| T2.top | `rtl/eog_top.sv` + bounded top proof + full-practice-week sim vs `model/` (`spec/modules/eog_top.md`) | all T1 DONE | integration agent | CLAIMED | Started early (Lucas, Sun ~04:20: get the board running ASAP); branch `eog/T2.top` = FPGA + countdown/head/regs RTL branches (formal sign-off pending, ports final) |
 | T2.ps1 | ARM app v1 (`ps/eog_app.c`): UDP 7000/7003/7004/heartbeat → AXI-Lite windows, RESULT/ALERT/STATS packets back; keep `udp_mul.c` on 7777 | T0.1 | integration agent | DONE | 4251f8e, merged d658d41: `ps/eog_proto.{c,h}` (portable protocol + HAL), `ps/eog_app.c` (lwIP glue, unity build with udp_mul.c), `deploy/win_vitis_build_eog.bat`; host tests re-run by the lead: `bash FPGA/ps/test/run_tests.sh` PASS (C unit tests, 90 wire byte-compares vs Mudit wire.py on G0/G1/G2, loopback vs `hutd_ml.board` incl. 7 s heartbeat gap). Vitis build + board run → T2.bd1/T2.board1 |
 | T2.bd1 | Vivado block design v1: `eog_top` on GP0 at `0x43C1_0000` next to `axi_mul`; XDC for LEDs/BTN0/Pmods (O4); timing at 100 MHz | T2.top | | TODO | `vivado/` — **board machine only** |
 | T2.board1 | Board bring-up v1: practice data end to end, RESULTs match `model/` | T2.ps1, T2.bd1 | | TODO | report — **board machine only** |
