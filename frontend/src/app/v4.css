@@ -40,7 +40,7 @@
 
   --r-xs: 4px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
   --r-1: var(--r-xs); --r-2: var(--r-sm); --r-3: var(--r-md);
-  --gap: 8px;
+  --gap: 10px;
   --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
   /* Dot grid ink for the Pipe View canvas, about 30% lower contrast than before. */
   --grid-dot: rgba(255, 240, 225, 0.07);
@@ -53,7 +53,7 @@
   --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-num: var(--font-mono);
 
-  --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 15px; --fs-5: 20px; --fs-6: 28px;
+  --fs-1: 11px; --fs-2: 12px; --fs-3: 14px; --fs-4: 15px; --fs-5: 20px; --fs-6: 28px;
 
   /* Ordered dither tiles (4x4 Bayer, 2px cells => 8px tile). ink: warm white at 35% alpha (softened); mask: for any ink colour. */
   --dither-25: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3C%2Fsvg%3E");
@@ -64,7 +64,7 @@
   --dither-mask-75: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
 
   --dissolve-ms: 280ms;
-  --hdr-h: 44px; --rail-w: 60px; --transport-h: 48px;
+  --hdr-h: 0px; --rail-w: 60px; --transport-h: 48px; --overview-w: 380px;
 
   position: fixed;
   inset: 0;
@@ -74,7 +74,7 @@
   color: var(--text);
   font-family: var(--font-ui);
   font-size: var(--fs-3);
-  line-height: 1.4;
+  line-height: 1.5;
   font-variant-numeric: tabular-nums;
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
@@ -124,13 +124,15 @@
 .v4 .tip { transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out); }
 .v4 .tip[data-state="closed"] { transform: scale(.97); opacity: 0; }
 
-/* Shell layout: inset region cards on --bg with --gap gutters. No butted dividers. */
-.v4-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); grid-template-rows: var(--hdr-h) minmax(0, 1fr) var(--transport-h); gap: var(--gap); padding: var(--gap); }
+/* Shell layout (docs/ui-v4-balance.md): rail | main column (Pipe View hero, compact timeline, truck road, transport) |
+   overview column. Inset region cards on --bg with --gap gutters. No butted dividers. */
+.v4-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--overview-w); gap: var(--gap); padding: var(--gap); }
+.v4-shell[data-ov="closed"] { grid-template-columns: var(--rail-w) minmax(0, 1fr) auto; }
 .v4 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); }
-.v4-ticker-slot { grid-column: 1 / -1; grid-row: 1; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); min-width: 0; position: relative; z-index: 4; }
-.v4-rail { grid-column: 1; grid-row: 2; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); display: flex; flex-direction: column; align-items: stretch; padding: 6px 0; gap: 2px; min-height: 0; overflow-y: auto; scrollbar-width: none; }
-.v4-main { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; min-height: 0; }
-.v4-split { flex: 1 1 0; min-height: 0; display: grid; grid-template-rows: minmax(120px, var(--pv, 53fr)) var(--gap) minmax(120px, var(--ar, 47fr)); }
+.v4-rail-slot { grid-column: 1; grid-row: 1; min-height: 0; display: flex; }
+.v4-rail { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); display: flex; flex-direction: column; align-items: stretch; padding: 6px 0; gap: 2px; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.v4-main { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; min-height: 0; }
+.v4-split { flex: 1 1 0; min-height: 0; display: grid; grid-template-rows: minmax(120px, var(--pv, 62fr)) var(--gap) minmax(120px, var(--ar, 38fr)); }
 .v4-pane { min-height: 0; min-width: 0; overflow: hidden; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); }
 /* The resize handle lives in the gutter between the two cards. */
 .v4-handle { position: relative; cursor: row-resize; background: transparent; touch-action: none; }
@@ -139,7 +141,31 @@
 .v4-handle:hover::after, .v4-handle[data-drag="true"]::after { background: var(--amber); }
 .v4-trucks-slot { flex: none; }
 .v4-trucks-slot:empty { display: none; }
-.v4-transport-slot { grid-column: 1 / -1; grid-row: 3; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); min-width: 0; position: relative; z-index: 4; }
+.v4-transport-slot { flex: none; height: var(--transport-h); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); min-width: 0; position: relative; z-index: 4; }
+
+/* Overview column. OverviewPanel is its own card and scrolls itself; the aside only sizes and positions it. */
+.v4-overview { grid-column: 3; grid-row: 1; position: relative; min-width: 0; min-height: 0; }
+.v4-shell[data-ov="closed"] .v4-overview { display: none; }
+.v4 .v4-ov-tab { position: absolute; z-index: 3; left: -15px; top: 50%; width: 20px; height: 44px; margin-top: -22px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--panel-2); color: var(--muted); box-shadow: var(--shadow-pop); }
+.v4 .v4-ov-open { grid-column: 3; grid-row: 1; align-self: center; width: 26px; padding: 14px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--panel); color: var(--muted); font-size: var(--fs-1); }
+.v4 .v4-ov-open span { writing-mode: vertical-rl; }
+.v4-scrim { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .v4 .v4-ov-tab:hover, .v4 .v4-ov-open:hover { color: var(--text); background-color: var(--panel-2); }
+}
+/* Below 1280px the overview is an overlay sheet from the right: transform and opacity only, 200ms ease-out. */
+@media (max-width: 1279px) {
+  .v4-shell, .v4-shell[data-ov="closed"] { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+  .v4-shell[data-ov="closed"] .v4-overview { display: block; }
+  .v4-overview { position: absolute; z-index: 20; top: var(--gap); right: var(--gap); bottom: var(--gap); width: min(var(--overview-w), calc(100vw - 2 * var(--gap) - 40px)); box-shadow: var(--shadow-pop); border-radius: var(--r-lg); transform: translateX(calc(100% + var(--gap))); visibility: hidden; transition: transform 200ms var(--ease-out), visibility 0s linear 200ms; }
+  .v4-overview[data-open="true"] { transform: none; visibility: visible; transition: transform 200ms var(--ease-out), visibility 0s; }
+  .v4-overview[data-instant="true"] { transition: none; }
+  .v4 .v4-ov-tab { left: -12px; }
+  .v4-scrim { display: block; position: absolute; inset: 0; z-index: 19; background: rgba(14, 12, 10, 0.5); opacity: 0; pointer-events: none; transition: opacity 200ms var(--ease-out); }
+  .v4-scrim[data-open="true"] { opacity: 1; pointer-events: auto; }
+  .v4-scrim[data-instant="true"] { transition: none; }
+  .v4 .v4-ov-open { position: absolute; z-index: 5; right: var(--gap); top: 50%; margin-top: -42px; }
+}
 
 /* Rail: slim card */
 .v4 .rail-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 44px; margin-inline: 6px; border-radius: var(--r-md); color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-1); }
@@ -170,7 +196,7 @@
 .v4-loadbar { width: 160px; height: 8px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
 .v4-loadbar::after { content: ""; display: block; height: 100%; width: 40%; background: var(--amber); transform-origin: left; animation: v4-load 1.2s linear infinite; }
 @keyframes v4-load { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
-.v4-toast { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); z-index: 5; max-width: min(640px, 90vw); padding: 8px 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-2); box-shadow: var(--shadow-pop); font-size: var(--fs-2); color: var(--red); }
+.v4-toast { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 5; max-width: min(640px, 90vw); padding: 8px 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-2); box-shadow: var(--shadow-pop); font-size: var(--fs-2); color: var(--red); }
 
 /* Transport controls (shared basics, rounded) */
 .v4 .tp-btn { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 28px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-3); font-family: var(--font-ui); font-size: var(--fs-2); }
@@ -189,5 +215,6 @@
   .v4 .press:active { transform: none; }
   .v4 .tip, .v4 .tip[data-state="closed"] { transform: none; }
   .v4-loadbar::after { animation: none; transform: none; width: 100%; }
+  .v4-overview, .v4-overview[data-open="true"], .v4-scrim { transition: none; }
 }
 .v4 .rail-st { font-size: 10px; line-height: 1.1; color: var(--muted); text-align: center; max-width: 100%; padding-inline: 2px; }

@@ -1,6 +1,6 @@
 "use client";
 // Run lifecycle for the v4 shell. Same behaviour as the v3 Workspace (idempotent run creation, polling until ready,
-// SSE with snapshot resync, stale-snapshot guards), driven by the URL (?dataset, ?at, ?runtime) on pathname "/".
+// SSE with snapshot resync, stale-snapshot guards), driven by the URL (?dataset, ?at, ?runtime) on the current pathname (/lab).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DatasetInfo, LiveEvent, RunRecord, RuntimeMode } from "@hackutd/contracts";
@@ -23,7 +23,7 @@ export interface RunControls {
   loading: boolean;
   /** The committed `?at=` (unix seconds) or null for LIVE. */
   at: number | null;
-  /** Load a run at unix time `t`; null (or t at/after the dataset's end) = LIVE. Replaces history, stays on "/". */
+  /** Load a run at unix time `t`; null (or t at/after the dataset's end) = LIVE. Replaces history, stays on the current path. */
   commitAt(unix: number | null): void;
   setDataset(id: string): void;
   setRuntime(mode: RuntimeMode): void;

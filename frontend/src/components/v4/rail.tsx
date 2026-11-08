@@ -40,7 +40,7 @@ export function Rail({ snapshot, datasetId }: { snapshot: Snapshot; datasetId?: 
   const focused = usePlayhead((s) => (s.focus?.kind === "system" ? s.focus.id : null));
   const { setFocus } = usePlayheadActions();
   const statuses = keys.split(",") as FacilityStatus[];
-  const classic = datasetId ? `/classic?dataset=${encodeURIComponent(datasetId)}` : "/classic";
+  const classic = datasetId ? `/?dataset=${encodeURIComponent(datasetId)}` : "/";
   return (
     <nav className="v4-rail" aria-label="Views and systems">
       <button type="button" className="rail-item press" data-active="true" aria-current="page" title="Pipe View">

@@ -80,12 +80,23 @@ export function unloadedRegions(snapshot: Snapshot): Region[] {
 }
 
 /**
- * Takes shown by default under a failure: the recommended one (cheapest first) and "do nothing" (when it is not
- * already the recommended one). `rest` is everything else, behind "Show N more options".
+ * Takes shown by default under a failure: only the recommended one (cheapest first). `rest` (including "do nothing")
+ * sits behind "Show options".
  */
 export function splitTakes(takes: readonly PlanOption[]): { shown: { option: PlanOption; index: number }[]; rest: { option: PlanOption; index: number }[] } {
   const all = takes.map((option, index) => ({ option, index }));
-  const nothing = all.find((t) => t.index > 0 && t.option.kind === "do_nothing");
-  const shown = all.filter((t) => t.index === 0 || t === nothing);
-  return { shown, rest: all.filter((t) => !shown.includes(t)) };
+  return { shown: all.slice(0, 1), rest: all.slice(1) };
+}
+
+/**
+ * Facilities worth a row in the compact timeline: an incident (alert or history) overlapping the loaded window, or an
+ * ongoing failure. Everything else goes under "N more facilities".
+ */
+export function incidentFacilityIds(snapshot: Snapshot, window: { start: number; end: number }, failures: readonly Incident[] = ongoingFailures(snapshot)): Set<string> {
+  const ids = new Set<string>(failures.map((f) => f.facilityId));
+  for (const inc of [...snapshot.alerts, ...snapshot.history]) {
+    const end = inc.endUnix ?? snapshot.nowUnix;
+    if (inc.onsetUnix <= window.end && end >= window.start) ids.add(inc.facilityId);
+  }
+  return ids;
 }

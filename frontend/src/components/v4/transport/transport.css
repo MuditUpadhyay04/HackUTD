@@ -89,3 +89,10 @@
   .v4 .tx-thumb { transition: none; }
   .v4 .tx-run i::after { animation: none; width: 100%; }
 }
+
+/* Auto-play pill: floats just above the transport; enters with opacity and transform only. */
+.v4 .tx-auto { position: absolute; left: 10px; bottom: calc(100% + 8px); z-index: 5; display: inline-flex; align-items: center; gap: 8px; max-width: calc(100% - 20px); height: 30px; padding: 0 4px 0 12px; border-radius: var(--r-pill); background: var(--panel-2); border: 1px solid var(--line-2); box-shadow: var(--shadow-pop); font-size: var(--fs-2); color: var(--text); animation: tx-pop 180ms var(--ease-out) both; transform-origin: bottom left; }
+.v4 .tx-auto i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+.v4 .tx-auto span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.v4 .tx-auto button { flex: none; height: 22px; padding: 0 10px; border-radius: var(--r-pill); background: var(--tint-neutral); font-size: var(--fs-2); font-weight: 500; color: var(--text); }
+@media (prefers-reduced-motion: reduce) { .v4 .tx-auto { animation: none; } }

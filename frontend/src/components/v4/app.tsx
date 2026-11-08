@@ -15,7 +15,7 @@ export function V4App() {
           <div className="v4-center" role="alert">
             <div className="label" style={{ color: "var(--red)" }}>Run failed</div>
             <div className="mono" style={{ maxWidth: 560, whiteSpace: "pre-wrap", fontSize: "var(--fs-2)" }}>{run.error}</div>
-            <Link href="/classic" className="tp-btn press">Classic console</Link>
+            <Link href="/" className="tp-btn press">Classic console</Link>
           </div>
         </div>
       );

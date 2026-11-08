@@ -16,19 +16,19 @@ export interface Box { x0: number; y0: number; x1: number; y1: number }
 export interface SystemInput { id: string; facilities: { id: string; wellIds: readonly string[] }[] }
 
 /** Column x positions inside a cluster (cluster-local; the layout shifts them into world space). */
-export const COL = { well: 0, bend: 36, tank: 200, pump: 285, pipeEnd: 440 } as const;
+export const COL = { well: 0, bend: 36, tank: 200, pump: 275, pipeEnd: 510 } as const;
 export const WELL_PITCH = 18;
 export const LANE_PITCH = 11;
-export const ROW_MIN = 72;
+export const ROW_MIN = 108;
 export const ROW_PAD = 26;
 /** Default width/height the grid of clusters is shaped for (the Pipe View pane is wide and short). */
 export const TARGET_ASPECT = 2.6;
-export const CLUSTER_GAP = 160;
+export const CLUSTER_GAP = 120;
 /** Fillet radius of every bend, in map units (soften pass: 14 to 18). */
 export const ARC_RADIUS = 16;
 /** Chords per arc; a 45 degree bend turns at most 45/ARC_STEPS degrees per chord. */
 const ARC_STEPS = 6;
-const PAD = { left: 70, top: 62, right: 46, bottom: 24 };
+const PAD = { left: 60, top: 62, right: 46, bottom: 24 };
 
 export interface WellLayout { id: string; at: Pt; path: Pt[] }
 
@@ -164,7 +164,7 @@ function buildCluster(sys: SystemInput, index: number, ox: number, oy: number): 
   const R = Math.max(24, spread / 2 + 10);
   let maxdy = 0;
   for (let i = 0; i < n; i++) maxdy = Math.max(maxdy, Math.abs(laneAt(i) - rows[i]));
-  const termX = COL.pipeEnd + maxdy + 100 + R;
+  const termX = COL.pipeEnd + maxdy + 64 + R;
 
   const lines: LineLayout[] = sys.facilities.map((fac, i) => {
     const y = rows[i], lane = laneAt(i), dy = lane - y, ady = Math.abs(dy);
@@ -221,17 +221,23 @@ function buildCluster(sys: SystemInput, index: number, ox: number, oy: number): 
   };
 }
 
-function place(systems: readonly SystemInput[], probes: Box[], wrap: number): PipeLayout {
-  const clusters: ClusterLayout[] = [];
-  let x = 0, y = 0, rowH = 0;
-  systems.forEach((sys, i) => {
-    const probe = probes[i];
+/** Greedy row wrap of the probe boxes (cheap: no geometry). Returns each cluster's top-left and the total size. */
+function arrange(probes: Box[], wrap: number): { at: Pt[]; w: number; h: number } {
+  const at: Pt[] = [];
+  let x = 0, y = 0, rowH = 0, w = 0;
+  probes.forEach((probe) => {
     const bw = probe.x1 - probe.x0, bh = probe.y1 - probe.y0;
     if (x > 0 && x + bw > wrap) { x = 0; y += rowH + CLUSTER_GAP; rowH = 0; }
-    clusters.push(buildCluster(sys, i, x - probe.x0, y - probe.y0));
+    at.push([x, y]);
     x += bw + CLUSTER_GAP;
+    w = Math.max(w, x - CLUSTER_GAP);
     rowH = Math.max(rowH, bh);
   });
+  return { at, w, h: probes.length ? y + rowH : 0 };
+}
+
+function place(systems: readonly SystemInput[], probes: Box[], at: readonly Pt[]): PipeLayout {
+  const clusters = systems.map((sys, i) => buildCluster(sys, i, at[i][0] - probes[i].x0, at[i][1] - probes[i].y0));
   let minRowPitch = Infinity;
   for (const c of clusters) for (let i = 1; i < c.lines.length; i++) minRowPitch = Math.min(minRowPitch, c.lines[i].rowY - c.lines[i - 1].rowY);
   return { clusters, bounds: unionBox(clusters.map((c) => c.bounds)), minRowPitch };
@@ -250,18 +256,20 @@ export function computeLayout(systems: readonly SystemInput[], view: LayoutView 
   const aw = Math.max(1, w - pad * 2), ah = Math.max(1, h - pad * 2);
   const probes = systems.map((s, i) => buildCluster(s, i, 0, 0).bounds);
   const widths = probes.map((b) => b.x1 - b.x0);
+  // Every contiguous run of clusters is a possible row: any greedy wrap outcome is some wrap width equal to one of them.
   const candidates = new Set<number>();
-  let run = 0;
-  widths.forEach((bw, i) => { run += bw + (i > 0 ? CLUSTER_GAP : 0); candidates.add(run); });
-  let best: PipeLayout | null = null;
+  for (let i = 0; i < widths.length; i++) {
+    let run = 0;
+    for (let j = i; j < widths.length; j++) { run += widths[j] + (j > i ? CLUSTER_GAP : 0); candidates.add(run); }
+  }
+  let best: Pt[] | null = null;
   let bestScale = -Infinity;
   for (const wrap of candidates) {
-    const lay = place(systems, probes, wrap);
-    const bw = lay.bounds.x1 - lay.bounds.x0, bh = lay.bounds.y1 - lay.bounds.y0;
-    const scale = Math.min(aw / Math.max(1, bw), ah / Math.max(1, bh));
-    if (scale > bestScale + 1e-12) { best = lay; bestScale = scale; }
+    const arr = arrange(probes, wrap);
+    const scale = Math.min(aw / Math.max(1, arr.w), ah / Math.max(1, arr.h));
+    if (scale > bestScale + 1e-12) { best = arr.at; bestScale = scale; }
   }
-  return best ?? { clusters: [], bounds: { x0: 0, y0: 0, x1: 0, y1: 0 }, minRowPitch: Infinity };
+  return best ? place(systems, probes, best) : { clusters: [], bounds: { x0: 0, y0: 0, x1: 0, y1: 0 }, minRowPitch: Infinity };
 }
 
 /** Stable key of everything the layout depends on, to know when the camera should refit. */

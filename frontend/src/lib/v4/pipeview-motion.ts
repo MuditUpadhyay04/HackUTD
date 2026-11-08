@@ -24,3 +24,20 @@ export function introSeen(): boolean {
 export function markIntroSeen(): void {
   try { sessionStorage.setItem(INTRO_KEY, "1"); } catch { /* ignore */ }
 }
+
+// Playhead discontinuities (the auto-play loop wrapping to its start, a seek): state changes caused by a jump switch
+// instantly, with no dissolve and no onset pulse. A forward step of at most JUMP_FORWARD_S per notification is play.
+const JUMP_BACK_S = 60;
+const JUMP_FORWARD_S = 3600;
+let lastJump = 0;
+/** Feed every playhead time change; returns true (and marks a jump) when t did not move like normal playback. */
+export function noteTime(prev: number, next: number): boolean {
+  const d = next - prev;
+  const jumped = d < -JUMP_BACK_S || d > JUMP_FORWARD_S;
+  if (jumped) lastJump = performance.now();
+  return jumped;
+}
+export const jumpRecent = (ms = 400): boolean => lastJump > 0 && performance.now() - lastJump < ms;
+
+/** Onset pulses (3 pulses, then steady): at most one run per facility every PULSE_COOLDOWN_MS. */
+export const PULSE_COOLDOWN_MS = 4000;

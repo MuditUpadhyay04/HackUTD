@@ -318,7 +318,7 @@ function Takes({ incident, color }: { incident: Incident; color: string }) {
               aria-expanded={more}
               onClick={(e) => { setAnimate(e.detail > 0); setMore((m) => !m); }}
             >
-              {more ? "Show fewer options" : `Show ${rest.length} more ${rest.length === 1 ? "option" : "options"}`}
+              {more ? "Hide options" : `Show options (${rest.length})`}
             </button>
           </div>
           <div className="arr-lane" />

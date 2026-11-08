@@ -12,7 +12,7 @@ function Defs({ uid }: { uid: string }) {
   return (
     <defs>
       <pattern id={`${uid}-dots`} patternUnits="userSpaceOnUse" width={28} height={28}>
-        <circle cx={1} cy={1} r={1} style={{ fill: "var(--grid-dot, rgba(255,240,225,0.07))" }} />
+        <circle cx={1} cy={1} r={0.9} style={{ fill: "var(--grid-dot, rgba(255,240,225,0.07))", fillOpacity: 0.6 }} />
       </pattern>
       {[0.25, 0.5, 0.75].map((lit, i) => (
         <g key={lit}>
@@ -22,7 +22,7 @@ function Defs({ uid }: { uid: string }) {
           </mask>
         </g>
       ))}
-      <clipPath id={`${uid}-cap`}><rect x={-6} y={-10} width={12} height={20} rx={6} /></clipPath>
+      <clipPath id={`${uid}-cap`}><rect x={-5} y={-8.5} width={10} height={17} rx={5} /></clipPath>
       {Array.from({ length: 8 }, (_, c) => [1, 2, 3].map((s) => (
         <pattern key={`${c}-${s}`} id={`${uid}-d-${c + 1}-${s}`} data-grain="dither" patternUnits="userSpaceOnUse" width={8} height={8}>
           {cells(1 - GRAIN_BY_Q[s as 1 | 2 | 3], 2, undefined, { fill: `var(--n${c + 1})`, fillOpacity: 0.75 })}

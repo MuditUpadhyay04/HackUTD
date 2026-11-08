@@ -123,9 +123,9 @@ const Strip = memo(function Strip({ snapshot, systemId }: { snapshot: Snapshot; 
     <div className="rd" role="group" aria-label={`Truck road, system ${systemId}`}>
       <div className="rd-head">
         <div className="rd-title"><b>{systemId} trucks,</b><span><span className="num">{free}</span> of <span className="num">{size}</span> free</span></div>
-        {projected && <span className="rd-tag" data-kind="projected"><i aria-hidden="true" />Projection, not recorded</span>}
-        <span className="rd-tag" data-kind="plan"><i aria-hidden="true" />Planned, not dispatched</span>
-        <span className="rd-tag" data-ok={approvedAll}><i aria-hidden="true" />{approvedAll ? "Acknowledged" : "Recommended"}</span>
+        {projected
+          ? <span className="rd-tag" data-kind="projected"><i aria-hidden="true" />Projection, not recorded</span>
+          : <span className="rd-tag" data-kind="plan" data-ok={approvedAll}><i aria-hidden="true" />{approvedAll ? "Acknowledged, not dispatched" : "Planned, not dispatched"}</span>}
       </div>
       <div className="rd-lane" ref={laneRef}>
         <div className="rd-road" />
@@ -147,12 +147,13 @@ const Strip = memo(function Strip({ snapshot, systemId }: { snapshot: Snapshot; 
   );
 });
 
+/** Only systems with at least one planned or assigned truck get a row, and only when there is one: no layout shift as the playhead moves. */
 export function TruckRoad({ snapshot }: { snapshot: Snapshot }) {
-  const key = usePlayhead((s) => [...new Set(incidentsAt(snapshot, s.t).filter((i) => i.category === "pump_failure").map((i) => i.systemId))].join(","));
-  if (!key) return null;
+  const ids = snapshot.fleets.filter((f) => f.assignments.length > 0).map((f) => f.systemId);
+  if (ids.length === 0) return null;
   return (
     <div className="rd-stack card">
-      {key.split(",").map((id) => <Strip key={id} snapshot={snapshot} systemId={id} />)}
+      {ids.map((id) => <Strip key={id} snapshot={snapshot} systemId={id} />)}
     </div>
   );
 }

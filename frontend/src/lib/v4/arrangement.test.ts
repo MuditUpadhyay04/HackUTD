@@ -3,7 +3,7 @@ import type { FacilityState, Incident, PlanOption, Snapshot } from "@/lib/engine
 import { clampView, gridTicks, panView, timeToX, xToTime, zoomView } from "./arrangement-scale";
 import { curvePath, seriesGaps, seriesPath } from "./arrangement-paths";
 import { facilityClips, mergeGaps } from "./arrangement-clips";
-import { ongoingFailures, orderedFacilities, orderTakes, splitTakes, timeDomain, unloadedRegions } from "./arrangement-takes";
+import { incidentFacilityIds, ongoingFailures, orderedFacilities, orderTakes, splitTakes, timeDomain, unloadedRegions } from "./arrangement-takes";
 import { notesFromAnalysis, provenanceOf, sentenceCase, stackNotes } from "./arrangement-notes";
 
 const NOW = 1_000_000;
@@ -172,13 +172,21 @@ describe("notes", () => {
 });
 
 describe("softened disclosure helpers", () => {
-  test("splitTakes shows the recommended take and do nothing, the rest behind a toggle", () => {
+  test("splitTakes shows only the recommended take, every other option (do nothing too) behind Show options", () => {
     const takes = [opt("trucks", 1), opt("shut_in", 2), opt("do_nothing", 3), opt("mixed", 4)];
     const { shown, rest } = splitTakes(takes);
-    expect(shown.map((t) => [t.index, t.option.kind])).toEqual([[0, "trucks"], [2, "do_nothing"]]);
-    expect(rest.map((t) => t.option.kind)).toEqual(["shut_in", "mixed"]);
+    expect(shown.map((t) => [t.index, t.option.kind])).toEqual([[0, "trucks"]]);
+    expect(rest.map((t) => t.option.kind)).toEqual(["shut_in", "do_nothing", "mixed"]);
     expect(splitTakes([opt("do_nothing", 1), opt("trucks", 2)]).rest).toHaveLength(1);
     expect(splitTakes([]).shown).toEqual([]);
+  });
+  test("incidentFacilityIds keeps facilities with an incident in the window and drops the rest", () => {
+    const snap = { nowUnix: NOW, alerts: [{ id: "a", facilityId: "F1", onsetUnix: NOW - 600, endUnix: null, category: "pump_failure", status: "ongoing" }], history: [
+      { id: "h1", facilityId: "F2", onsetUnix: NOW - 5000, endUnix: NOW - 4000 },
+      { id: "h2", facilityId: "F3", onsetUnix: NOW - 90_000, endUnix: NOW - 80_000 },
+    ] } as unknown as Snapshot;
+    const ids = incidentFacilityIds(snap, { start: NOW - 10_000, end: NOW }, []);
+    expect([...ids].sort()).toEqual(["F1", "F2"]);
   });
   test("sentenceCase", () => {
     expect(sentenceCase("PLANNER_AGENT")).toBe("Planner agent");

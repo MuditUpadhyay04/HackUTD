@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { ARC_RADIUS, computeLayout, layoutKey, polyLength, roundCorners, type Box, type Pt, type SystemInput } from "./pipeview-layout";
-import { labelBoxes, pillTier, shortPill } from "./pipeview-labels";
+import { facilityLabel, labelBoxes, planPill, rowTier, shortPill, tinyPill, TRUNK_CLEAR, TRUNK_MARGIN } from "./pipeview-labels";
 import { dotSpacing, fitCam, zoomAt } from "./pipeview-camera";
 
 const sys = (id: string, nf: number, nw: number): SystemInput => ({
@@ -150,10 +150,10 @@ describe("label lanes", () => {
   const five = computeLayout([sys("S5", 5, 2)]);
   const lines = five.clusters[0].lines;
   const texts = ["Pump down 03:28", "Pump down 02:03", "Inspect 120 bbl/d", "Pump down, unknown", "Inspect pump"];
-  test("for a 5-facility system, pills and id labels never intersect each other at any zoom (tier picked from the pitch)", () => {
-    for (const z of [0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 1, 1.6]) {
-      const tier = pillTier(five.minRowPitch * z);
-      const boxes = lines.map((l, i) => labelBoxes(l, z, texts[i], tier));
+  const ZS = [0.15, 0.2, 0.3, 0.4, 0.45, 0.5, 0.7, 1, 1.6];
+  test("for a 5-facility system, pills and name labels never intersect each other at any zoom", () => {
+    for (const z of ZS) {
+      const boxes = lines.map((l, i) => labelBoxes(l, z, texts[i], five.minRowPitch * z));
       const all = boxes.flatMap((b, i) => [b.id && { k: `id${i}`, b: b.id }, b.pill && { k: `pill${i}`, b: b.pill }]).filter((x): x is { k: string; b: Box } => !!x);
       for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
         expect(overlap(all[i].b, all[j].b)).toBe(false);
@@ -161,26 +161,81 @@ describe("label lanes", () => {
     }
   });
   test("each pill sits to the right of its own pump station, on its own row", () => {
-    const z = 0.6;
+    const z = 1;
     lines.forEach((l, i) => {
-      const { pill } = labelBoxes(l, z, texts[i], "full");
+      const { pill } = labelBoxes(l, z, texts[i], five.minRowPitch * z);
+      expect(pill).not.toBeNull();
       expect(pill!.x0).toBeGreaterThan(l.pump[0] * z);
       expect((pill!.y0 + pill!.y1) / 2).toBeCloseTo(l.rowY * z);
     });
   });
-  test("tiers shrink as rows get tighter and the short form keeps the state word", () => {
-    expect(pillTier(72)).toBe("full");
-    expect(pillTier(34)).toBe("short");
-    expect(pillTier(22)).toBe("mini");
-    expect(pillTier(10)).toBe("none");
+  // A pill stays clear of the pipeline end (where the line bends into the merging trunk) and of every other line.
+  const segHitsBox = (a: Pt, b: Pt, bx: Box, z: number): boolean => {
+    const x0 = a[0] * z, y0 = a[1] * z, x1 = b[0] * z, y1 = b[1] * z;
+    if (Math.max(x0, x1) < bx.x0 || Math.min(x0, x1) > bx.x1 || Math.max(y0, y1) < bx.y0 || Math.min(y0, y1) > bx.y1) return false;
+    // Liang-Barsky clip of the segment against the box
+    let t0 = 0, t1 = 1;
+    const dx = x1 - x0, dy = y1 - y0;
+    for (const [p, q] of [[-dx, x0 - bx.x0], [dx, bx.x1 - x0], [-dy, y0 - bx.y0], [dy, bx.y1 - y0]] as const) {
+      if (p === 0) { if (q < 0) return false; continue; }
+      const r = q / p;
+      if (p < 0) { if (r > t1) return false; t0 = Math.max(t0, r); } else { if (r < t0) return false; t1 = Math.min(t1, r); }
+    }
+    return t0 <= t1;
+  };
+  test("pills never touch the merging trunk, the merge segments or another row's line, at fit zoom and everywhere else", () => {
+    for (const n of [3, 5, 9]) {
+      const lay = computeLayout([sys("S5", n, 2)]);
+      const c = lay.clusters[0];
+      const longest = ["Pump down 03:28", "Pump down 1d 02:10", "Pump down, unknown", "Inspect 120 bbl/d", "Inspect 18% loss", "Shut down", "No data", "Held 10 min"];
+      for (const z of [0.2, 0.3, 0.4, 0.45, 0.5, 0.6, 0.8, 1, 1.4, 1.6]) {
+        c.lines.forEach((l, i) => {
+          const text = longest[(i + n) % longest.length];
+          const { pill } = labelBoxes(l, z, text, lay.minRowPitch * z);
+          if (!pill) return;
+          expect(pill.x1).toBeLessThanOrEqual((l.pipe[l.pipe.length - 1][0] - TRUNK_CLEAR) * z - TRUNK_MARGIN + 1e-6);
+          const box: Box = { x0: pill.x0 - 2, x1: pill.x1 + 2, y0: pill.y0 - 2, y1: pill.y1 + 2 };
+          for (const other of c.lines) {
+            const own = other === l;
+            const paths: Pt[][] = [other.down, other.up, ...other.wells.map((w) => w.path)];
+            for (const path of paths) for (let k = 1; k < path.length; k++) {
+              // the pill sits on its own row line before the pipeline end; everything else must be clear
+              if (own && Math.abs(path[k][1] - l.rowY) < 1e-6 && Math.abs(path[k - 1][1] - l.rowY) < 1e-6 && path[k][0] <= l.pipe[l.pipe.length - 1][0] + 1e-6) continue;
+              expect(segHitsBox(path[k - 1], path[k], box, z)).toBe(false);
+            }
+          }
+        });
+      }
+    }
+  });
+  test("a pump down countdown stays readable at fit zoom (tiny variant at the least), full text when there is room", () => {
+    const l = lines[0];
+    const fit = planPill(l, 0.45, "Pump down 03:28", five.minRowPitch * 0.45);
+    expect(fit.variant).not.toBeNull();
+    expect(fit.variant).not.toBe("dot");
+    expect(planPill(l, 1.2, "Pump down 03:28", five.minRowPitch * 1.2).variant).toBe("full");
+  });
+  test("tiers shrink as rows get tighter and the short forms keep the state word", () => {
+    expect(rowTier(72)).toBe("full");
+    expect(rowTier(36)).toBe("short");
+    expect(rowTier(22)).toBe("mini");
+    expect(rowTier(10)).toBe("none");
     expect(shortPill("Pump down 03:28")).toBe("Down 03:28");
-    expect(shortPill("Inspect 120 bbl/d").length).toBeLessThan("Inspect 120 bbl/d".length);
+    expect(shortPill("Inspect 120 bbl/d")).toBe("Leak 120 bbl/d");
+    expect(tinyPill("Pump down 03:28")).toBe("03:28");
+    expect(tinyPill("Inspect pump")).toBe("Worn");
+    expect(tinyPill("No data")).toBe("No data");
+  });
+  test("friendly facility names, unknown shapes pass through", () => {
+    expect(facilityLabel("S5_FACILITY_B")).toBe("Facility B");
+    expect(facilityLabel("S13_FACILITY_NORTH_RIDGE")).toBe("Facility North Ridge");
+    expect(facilityLabel("weird")).toBe("weird");
   });
   test("the grid wrap maximizes the padded fit scale for the measured pane", () => {
     const systems = Array.from({ length: 5 }, (_, i) => sys(`S${i + 1}`, 3, 2));
     const scaleOf = (l: ReturnType<typeof computeLayout>, w: number, h: number) =>
       Math.min((w - 64) / (l.bounds.x1 - l.bounds.x0), (h - 64) / (l.bounds.y1 - l.bounds.y0));
-    for (const [w, h] of [[1350, 380], [900, 700], [400, 800]] as const) {
+    for (const [w, h] of [[1350, 380], [940, 520], [900, 700], [400, 800]] as const) {
       const best = scaleOf(computeLayout(systems, { w, h }), w, h);
       for (const other of [[1350, 380], [900, 700], [400, 800], [3000, 200]] as const) {
         expect(best).toBeGreaterThanOrEqual(scaleOf(computeLayout(systems, { w: other[0], h: other[1] }), w, h) - 1e-9);

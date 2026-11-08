@@ -96,6 +96,25 @@ describe("lineViewAt state encoding", () => {
     expect(vm.stateText.startsWith("Held")).toBe(true);
     expect(vm.motion).toBe("none");
   });
+  test("health unknown with valid readings renders as normal measured flow, never no-data and never healthy", () => {
+    const f = fac({ health: "unknown" });
+    const vm = lineViewAt(snap(f), f, NOW);
+    expect(vm.status).toBe("flowing");
+    expect(vm.q).toBe(0);
+    expect(vm.motion).toBe("flow");
+    expect(vm.tone).toBe("none");
+    expect(vm.problem).toBe(false);
+    expect(vm.flowText).toBe("100 bpd");
+    expect(vm.checksUnavailable).toBe(true);
+    expect(vm.tankText).toBe("50%");
+    expect(/healthy|\bok\b/i.test(JSON.stringify(vm))).toBe(false);
+    // known health never raises the note, and real missing data stays no-data (the note is not shown over it)
+    expect(lineViewAt(snap(fac()), fac(), NOW).checksUnavailable).toBe(false);
+    const g = fac({ health: "unknown", dataQuality: { quality: "DROPPED", reasons: [] } }, Array(7).fill(50).concat([null]), Array(7).fill(100).concat([null]));
+    const nd = lineViewAt(snap(g), g, NOW);
+    expect(nd.status).toBe("nodata");
+    expect(nd.checksUnavailable).toBe(false);
+  });
   test("board alarm is a display-only badge with text for the tooltip", () => {
     const f = fac();
     const board = { source: "live", provenance: "fpga", online: true, mode: "NORMAL", lastSeenUnix: NOW, weightsVersion: 4, autonomousSinceUnix: null, replayedAlerts: 0,

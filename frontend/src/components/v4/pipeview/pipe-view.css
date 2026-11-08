@@ -26,10 +26,12 @@
 .v4 .pv-svg[data-lod="far"] .lbl:not(.sys) { display: none; }
 .v4 .pv .pv-detail { transition: opacity 150ms ease; }
 .v4 .pv-svg:not([data-lod="near"]) .pv-line:not([data-hl="on"]) .pv-detail { opacity: 0; }
-.v4 .pv-svg:not([data-lod="near"]) .pv-line[data-problem="1"]:not([data-hl="on"]) .pv-lbl-id { opacity: 1; }
 .v4 .pv-svg:not([data-lod="near"]) .pv-cluster > .pv-detail { opacity: 0; }
 /* Keyboard focus never animates */
 .v4 .pv:has(.pv-line:focus-visible) :is(.pv-line, .pv-detail) { transition: none; }
+
+/* With facility names above the lines, the system title lifts clear of the first row's name */
+.v4 .pv-svg[data-names="1"] .pv-title { transform: translateY(-16px); }
 
 /* Line states: color + pattern, switched by data attributes from the view model. Soft: round caps and joins, 85-90% tint, no glow. */
 .v4 .pv-line { cursor: pointer; outline: none; transition: opacity 150ms ease; }
@@ -37,12 +39,12 @@
 .v4 .pv-line .vis { pointer-events: none; }
 .v4 .pv-line[data-hl="dim"] { opacity: 0.3; }
 .v4 .pv-wb, .v4 .pv-up, .v4 .pv-dn { stroke: var(--c); stroke-opacity: 0.88; }
-.v4 .pv-wb { stroke-width: 1.8; } .v4 .pv-up { stroke-width: 2.6; } .v4 .pv-dn { stroke-width: 4; }
-.v4 .pv-wgrey { stroke: var(--faint, #6F675F); stroke-width: 1.8; stroke-dasharray: 3 4; }
-.v4 .pv-red { stroke: var(--red, #F0625A); stroke-opacity: 0.9; stroke-width: 4; }
-.v4 .pv-hatch { stroke-width: 11; stroke-linecap: round; }
-.v4 .pv-dith { stroke-width: 4; }
-.v4 .pv-line[data-hl="on"] .pv-dn, .v4 .pv-line[data-hl="on"] .pv-red { stroke-width: 5.2; }
+.v4 .pv-wb { stroke-width: 1.45; } .v4 .pv-up { stroke-width: 2.1; } .v4 .pv-dn { stroke-width: 3.2; }
+.v4 .pv-wgrey { stroke: var(--faint, #6F675F); stroke-width: 1.45; stroke-dasharray: 3 4; }
+.v4 .pv-red { stroke: var(--red, #F0625A); stroke-opacity: 0.9; stroke-width: 3.2; }
+.v4 .pv-hatch { stroke-width: 9; stroke-linecap: round; }
+.v4 .pv-dith { stroke-width: 3.2; }
+.v4 .pv-line[data-hl="on"] .pv-dn, .v4 .pv-line[data-hl="on"] .pv-red { stroke-width: 4.2; }
 .v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-red, .v4 .pv-hatch, .v4 .pv-dith, .v4 .pv-wgrey { opacity: 0; }
 .v4 .pv-line[data-k="idle"] :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0.35; }
@@ -55,39 +57,34 @@
 .v4 .pv-line:not([data-q="0"]) :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0; }
 
 /* Stations: rounded glyphs */
-.v4 .pv-wt { fill: var(--panel, #23201D); stroke: var(--c); stroke-width: 1.5; }
+.v4 .pv-wt { fill: var(--panel, #23201D); stroke: var(--c); stroke-width: 1.3; }
 .v4 .pv-line[data-k="shut"] .pv-wt { stroke: var(--faint, #6F675F); }
 .v4 .pv-line:not([data-q="0"]) .gs { opacity: 0.6; }
-.v4 .pv-tbody { fill: var(--panel, #23201D); stroke: var(--c); stroke-opacity: 0.9; stroke-width: 1.5; }
+.v4 .pv-tbody { fill: var(--panel, #23201D); stroke: var(--c); stroke-opacity: 0.9; stroke-width: 1.3; }
 .v4 .pv-tfill { fill: var(--c); fill-opacity: 0.8; transform-box: fill-box; transform-origin: 50% 100%; transition: transform 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)), opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-line[data-gauge="none"] .pv-tfill { opacity: 0; }
 .v4 .pv-tlimit { fill: var(--red, #F0625A); }
-.v4 .pv-ring, .v4 .pv-pulse { fill: none; stroke: var(--red, #F0625A); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.v4 .pv-ring, .v4 .pv-pulse { fill: none; stroke: var(--red, #F0625A); stroke-width: 1.6; opacity: 0; transform-box: fill-box; transform-origin: center; }
 .v4 .pv-ring { transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-line[data-red="1"] .pv-ring { opacity: 0.9; }
 .v4 .pv-badge { fill: var(--amber, #FFB400); opacity: 0; }
 .v4 .pv-line[data-alarm="1"] .pv-badge { opacity: 1; }
-.v4 .pv-pring { fill: none; stroke-width: 3; opacity: 0; transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
+.v4 .pv-pring { fill: none; stroke-width: 2.4; opacity: 0; transition: opacity 240ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)); }
 .v4 .pv-line[data-k="worn"][data-q="0"] .pv-pring { opacity: 1; }
-.v4 .pv-pbody { fill: var(--panel, #23201D); stroke: var(--c); stroke-opacity: 0.9; stroke-width: 1.5; }
-.v4 .pv-pglyph { fill: var(--c); stroke: var(--c); stroke-width: 1.6; stroke-linejoin: round; }
+.v4 .pv-pbody { fill: var(--panel, #23201D); stroke: var(--c); stroke-opacity: 0.9; stroke-width: 1.3; }
+.v4 .pv-pglyph { fill: var(--c); stroke: var(--c); stroke-width: 1.3; stroke-linejoin: round; }
 .v4 .pv-line[data-red="1"] .pv-pbody { stroke: var(--red, #F0625A); }
 .v4 .pv-line[data-red="1"] .pv-pglyph { fill: var(--red, #F0625A); stroke: var(--red, #F0625A); }
-.v4 .pv-line:focus-visible .pv-tbody, .v4 .pv-line:focus-visible .pv-pbody { stroke: var(--amber, #FFB400); stroke-width: 2.4; }
+.v4 .pv-line:focus-visible .pv-tbody, .v4 .pv-line:focus-visible .pv-pbody { stroke: var(--amber, #FFB400); stroke-width: 2; }
 .v4 .pv-hit polyline { stroke: transparent; stroke-width: 18; stroke-linecap: round; pointer-events: stroke; }
 /* Disposal: soft double ring */
 .v4 .pv-tring { fill: none; stroke: var(--muted, #A39A8F); }
-.v4 .pv-tring.outer { stroke-width: 1.5; stroke-opacity: 0.45; }
-.v4 .pv-tring.inner { stroke-width: 1; stroke-opacity: 0.28; }
+.v4 .pv-tring.outer { stroke-width: 1.3; stroke-opacity: 0.4; }
+.v4 .pv-tring.inner { stroke-width: 1; stroke-opacity: 0.24; }
 
 /* Status pills (in the map): tinted background + small shape + sentence-case text */
 .v4 .pv-pillwrap { pointer-events: none; }
-/* Label lanes (screen px around the row line; keep in sync with LANES in lib/v4/pipeview-labels.ts) */
-.v4 .pv-svg .pv-idtext { transform: translateY(-14px); }
-.v4 .pv-svg[data-pill="short"] .pv-idtext { transform: translateY(-10px); }
-.v4 .pv-svg[data-pill="mini"] .pv-lbl-id { display: none; }
-.v4 .pv-svg[data-pill="full"] .pv-pill-short, .v4 .pv-svg[data-pill="short"] .pv-pill-full, .v4 .pv-svg[data-pill="mini"] .pv-pill-full { display: none; }
-.v4 .pv-svg[data-pill="none"] .pv-pillwrap { display: none; }
+/* Label lanes and pill variants are chosen per line by planPill (lib/v4/pipeview-labels.ts); --pg is the pill's left offset from the pump (set by the camera). */
 .v4 .pv-pbg { fill: var(--panel, #23201D); }
 .v4 .pv-ptint { fill: var(--tint-neutral, rgba(255, 240, 225, 0.06)); }
 .v4 .pv-ptext { font: 500 10.5px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); fill: var(--text, #E6E0D8); font-variant-numeric: tabular-nums; }
@@ -128,6 +125,7 @@
 .v4 .pv-tipwrap .tip { min-width: 190px; max-width: 320px; padding: 10px 12px; background: var(--panel-2, #2B2824); border: 1px solid var(--line-2, rgba(255, 240, 225, 0.12)); border-radius: var(--r-md, 10px); box-shadow: var(--shadow-pop, 0 12px 32px -12px rgba(0, 0, 0, 0.6)); font: 400 12px var(--font-ui, "Martian Grotesk", ui-sans-serif, system-ui, sans-serif); }
 .v4 .pv-tipwrap .tip[data-instant="true"] { transition: none; }
 .v4 .pv-th { font-weight: 500; font-size: 13px; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line, rgba(255, 240, 225, 0.07)); color: var(--c, var(--text)); }
+.v4 .pv-tid { display: block; margin-top: 1px; font: 400 11px var(--font-num, "Martian Mono", ui-monospace, monospace); color: var(--faint, #6F675F); }
 .v4 .pv-tr { display: flex; justify-content: space-between; gap: 14px; padding: 1px 0; color: var(--muted, #A39A8F); }
 .v4 .pv-tr b { font-weight: 500; color: var(--text, #E6E0D8); text-align: right; }
 .v4 .pv-tr b.num { font-family: var(--font-num, "Martian Mono", ui-monospace, monospace); font-variant-numeric: tabular-nums; }
@@ -135,6 +133,7 @@
 .v4 .pv-tr[data-tone="inspect"] b { color: var(--magenta, #E56A9E); }
 .v4 .pv-tr[data-tone="alarm"] b { color: var(--amber, #FFB400); }
 .v4 .pv-band { height: 6px; margin-top: 6px; border-radius: 3px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .pv-tcheck { color: var(--muted, #A39A8F); }
 .v4 .pv-tn { margin-top: 3px; color: var(--faint, #6F675F); }
 
 @media (prefers-reduced-motion: reduce) {

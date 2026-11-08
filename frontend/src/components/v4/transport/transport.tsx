@@ -9,6 +9,7 @@ import type { Snapshot } from "@/lib/engine/types";
 import type { RunControls } from "@/lib/v4/use-run";
 import { inWindow, isLive, isProjected, localWindow } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions, SPEEDS } from "@/lib/v4/store";
+import { toggleOverview } from "@/lib/v4/layout-state";
 import { stamp, systemNum } from "@/lib/v4/format";
 import { useGlobalKeyboard, useReverseSpeed } from "@/lib/v4/keyboard";
 import type { Command } from "@/lib/v4/keyboard-commands";
@@ -33,6 +34,7 @@ export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunContr
   const playing = usePlayhead((s) => s.playing);
   const speed = usePlayhead((s) => s.speed);
   const sound = usePlayhead((s) => s.sound);
+  const autoplay = usePlayhead((s) => s.autoplay);
   const reverse = useReverseSpeed();
   const [palette, setPalette] = useState(false);
   const [upload, setUpload] = useState(false);
@@ -52,7 +54,8 @@ export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunContr
     { id: "play", group: "Time", label: "Play or pause", hint: "Space", run: a.toggle },
     ...SPEEDS.map<Command>((s) => ({ id: `speed-${s}`, group: "Speed", label: `Set speed ${s}x`, run: () => a.setSpeed(s) })),
     { id: "sound", group: "Sound", label: sound ? "Turn sound off" : "Turn sound on", hint: "M", run: a.toggleSound },
-    { id: "classic", group: "Go to", label: "Go to classic console", hint: "/classic", run: () => router.push("/classic") },
+    { id: "overview", group: "View", label: "Toggle overview panel", run: () => toggleOverview(true) },
+    { id: "classic", group: "Go to", label: "Go to classic console", hint: "/", run: () => router.push("/") },
     { id: "how", group: "Go to", label: "Go to how it works", hint: "/how-it-works", run: () => router.push("/how-it-works") },
     ...datasets.map<Command>((d) => ({ id: `ds-${d.id}`, group: "Dataset", label: `Select dataset ${d.label}`, run: () => setDataset(d.id) })),
     ...RUNTIMES.map<Command>((r) => ({ id: `rt-${r.id}`, group: "Runtime", label: `Select runtime ${r.label}`, run: () => setRuntime(r.id) })),
@@ -67,6 +70,13 @@ export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunContr
 
   return (
     <div className="tx">
+      {autoplay && (
+        <div className="tx-auto" role="status">
+          <i aria-hidden="true" />
+          <span>{autoplay.projection ? "Auto-playing the last 12 hours and the projection" : "Auto-playing the last 12 hours"}</span>
+          <button type="button" className="press" onClick={a.stopAutoplay}>Stop</button>
+        </div>
+      )}
       <button type="button" className="tx-btn tx-round press" onClick={() => a.step(-1)} aria-label="Step back 5 minutes" title="Step back 5 minutes (Left)">{I.back}</button>
       <button type="button" className="tx-btn tx-round tx-play press" onClick={a.toggle} aria-pressed={playing} aria-label={playing ? "Pause" : "Play"} title="Play or pause (Space)">{playing ? I.pause : I.play}</button>
       <button type="button" className="tx-btn tx-round press" onClick={() => a.step(1)} aria-label="Step forward 5 minutes" title="Step forward 5 minutes (Right)">{I.fwd}</button>

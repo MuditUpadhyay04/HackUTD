@@ -41,6 +41,12 @@ export interface LineVM {
   reasonText: string | null;
   etaText: string | null;
   alarm: AlarmVM | null;
+  /**
+   * The leak and wear classifier is unavailable (health "unknown") while the readings themselves are fine. The line
+   * still draws as normal measured flow (facilityAt decides no-data only from dataQuality and missing samples); this
+   * only adds a tooltip note. It never implies "healthy" (hard rule 9).
+   */
+  checksUnavailable: boolean;
   key: string;
 }
 
@@ -154,6 +160,7 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number, ap
     tone, problem: tone !== "none" || shut || bad || alarm != null, pillText: clip(pillText), flowText,
     stateText: stateText || (a.status === "flowing" ? "Flowing" : ""),
     tankText: levelPct == null ? "Unknown" : `${levelPct}%`, reasonText, etaText, alarm,
+    checksUnavailable: fac.health === "unknown" && !bad,
   };
   return { ...vm, key: JSON.stringify(vm) };
 }

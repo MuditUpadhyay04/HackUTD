@@ -1,19 +1,17 @@
 "use client";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
-import type { Snapshot } from "@/lib/engine/types";
+import type { FacilityState, Snapshot, SystemState } from "@/lib/engine/types";
 import { isProjected, localWindow, projectedOffsetText } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
 import { stamp } from "@/lib/v4/format";
 import { clampView, gridTicks, panView, timeToX, viewSpan, xToTime, zoomView, type View } from "@/lib/v4/arrangement-scale";
 import { facilityClips } from "@/lib/v4/arrangement-clips";
-import { ongoingFailures, orderedFacilities, timeDomain, unloadedRegions } from "@/lib/v4/arrangement-takes";
-import { notesFromAnalysis, stackNotes, type NoteView } from "@/lib/v4/arrangement-notes";
+import { incidentFacilityIds, ongoingFailures, orderedFacilities, timeDomain, unloadedRegions } from "@/lib/v4/arrangement-takes";
+import { notesFromAnalysis, type NoteView } from "@/lib/v4/arrangement-notes";
 import { ArrContext, useArr, type ArrCtx } from "./ctx";
 import { useAnalysis } from "./use-analysis";
 import { FacilityBlock, GroupRow, Reveal } from "./tracks";
 import "./arrangement.css";
-
-const NOTE_ROW_PX = 28;
 
 const provLabel = (p: NoteView["provenance"]) => (p === "MODEL-WRITTEN" ? "Model written" : "Deterministic draft");
 
@@ -34,11 +32,11 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
   const home = useMemo(() => initialView(domain.start, domain.end, win.start, 3600), [domain, win]);
   const [view, setView] = useState<View>(home);
   const [width, setWidth] = useState(0);
-  // Less at once: only systems with a failing facility start expanded; the rest start collapsed.
-  const [open, setOpen] = useState<Record<string, boolean>>(() => {
-    const withFailure = new Set(failures.map((f) => f.systemId));
-    return Object.fromEntries(snapshot.systems.map((s) => [s.id, withFailure.has(s.id)]));
-  });
+  // Compact by default: systems and facilities with an incident in the window (plus failing ones) get rows; the rest sit
+  // under one "N more facilities" row. Group rows start open; `open` only records the ones the user collapsed.
+  const interesting = useMemo(() => incidentFacilityIds(snapshot, win, failures), [snapshot, win, failures]);
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [moreOpen, setMoreOpen] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => Object.fromEntries(failures.map((f) => [f.facilityId, true])));
   const [animate, setAnimate] = useState(false);
   const actions = usePlayheadActions();
@@ -82,7 +80,7 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
 
   const toggleSystem = useCallback((id: string, e: MouseEvent) => {
     setAnimate(e.detail > 0); // keyboard activation (detail 0) never animates
-    setOpen((o) => ({ ...o, [id]: !o[id] }));
+    setOpen((o) => ({ ...o, [id]: !(o[id] ?? true) }));
   }, []);
   const toggleFacility = useCallback((id: string, e: MouseEvent) => {
     setAnimate(e.detail > 0);
@@ -108,6 +106,42 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
   const onRulerUp = (e: PointerEvent<HTMLDivElement>) => {
     dragging.current = false;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  const parts = useMemo(() => snapshot.systems.map((system) => {
+    const entries = orderedFacilities(system, failures);
+    return { system, shown: entries.filter((e) => interesting.has(e.facility.id)), rest: entries.filter((e) => !interesting.has(e.facility.id)) };
+  }), [snapshot.systems, failures, interesting]);
+  const moreCount = parts.reduce((n, p) => n + p.rest.length, 0);
+
+  const renderSystem = (system: SystemState, entries: { facility: FacilityState; index: number }[], key: string) => {
+    const isOpen = open[key] ?? true;
+    return (
+      <div className="arr-sys" key={key}>
+        <GroupRow
+          id={system.id}
+          count={entries.length}
+          open={isOpen}
+          clips={isOpen ? [] : entries.flatMap(({ facility }) => facilityClips(snapshot, facility, win).filter((c) => c.kind !== "nodata").map((c) => ({ ...c, id: `${facility.id}:${c.id}`, label: `${facility.letter} ${c.label}` })))}
+          onToggle={(e) => toggleSystem(key, e)}
+        />
+        {isOpen && (
+          <Reveal animate={false}>
+            {entries.map(({ facility, index }) => (
+              <FacilityBlock
+                key={facility.id}
+                facility={facility}
+                index={index}
+                expanded={!!expanded[facility.id]}
+                failure={failures.find((f) => f.facilityId === facility.id) ?? null}
+                animate={animate}
+                onToggle={(e) => toggleFacility(facility.id, e)}
+              />
+            ))}
+          </Reveal>
+        )}
+      </div>
+    );
   };
 
   const ready = width > 0;
@@ -139,36 +173,23 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
           {ready && <Grid />}
           <div className="arr-scroll" tabIndex={-1}>
             <NemotronTrack />
-            {snapshot.systems.map((system) => {
-              const isOpen = !!open[system.id];
-              const entries = orderedFacilities(system, failures);
-              return (
-                <div className="arr-sys" key={system.id}>
-                  <GroupRow
-                    id={system.id}
-                    count={system.facilities.length}
-                    open={isOpen}
-                    clips={isOpen ? [] : entries.flatMap(({ facility }) => facilityClips(snapshot, facility, win).filter((c) => c.kind !== "nodata").map((c) => ({ ...c, id: `${facility.id}:${c.id}`, label: `${facility.letter} ${c.label}` })))}
-                    onToggle={(e) => toggleSystem(system.id, e)}
-                  />
-                  {isOpen && (
-                    <Reveal animate={animate}>
-                      {entries.map(({ facility, index }) => (
-                        <FacilityBlock
-                          key={facility.id}
-                          facility={facility}
-                          index={index}
-                          expanded={!!expanded[facility.id]}
-                          failure={failures.find((f) => f.facilityId === facility.id) ?? null}
-                          animate={animate}
-                          onToggle={(e) => toggleFacility(facility.id, e)}
-                        />
-                      ))}
-                    </Reveal>
-                  )}
+            {parts.map(({ system, shown }) => shown.length > 0 && renderSystem(system, shown, system.id))}
+            {moreCount > 0 && (
+              <div className="arr-row more">
+                <div className="arr-hdr sub">
+                  <button
+                    type="button"
+                    className="press arr-toggle"
+                    aria-expanded={moreOpen}
+                    onClick={(e) => { setAnimate(e.detail > 0); setMoreOpen((m) => !m); }}
+                  >
+                    {moreOpen ? `Hide ${moreCount} more ${moreCount === 1 ? "facility" : "facilities"}` : `${moreCount} more ${moreCount === 1 ? "facility" : "facilities"}`}
+                  </button>
                 </div>
-              );
-            })}
+                <div className="arr-lane" />
+              </div>
+            )}
+            {moreOpen && <Reveal animate={animate}>{parts.map(({ system, rest }) => rest.length > 0 && renderSystem(system, rest, `more:${system.id}`))}</Reveal>}
           </div>
           {ready && <Regions regions={regions} />}
         </div>
@@ -257,17 +278,7 @@ function NemotronTrack() {
   const { snapshot, view, width } = useArr();
   const analysis = useAnalysis(snapshot.runId);
   const notes = useMemo(() => notesFromAnalysis(analysis.record, snapshot.nowUnix), [analysis.record, snapshot.nowUnix]);
-  const [showAll, setShowAll] = useState(false);
   const [pop, setPop] = useState<PopoverState | null>(null);
-
-  const noteWidth = (n: NoteView) => Math.min(300, 150 + Math.min(n.title.length + n.text.length, 34) * 5.4);
-  const maxRows = showAll ? 12 : 3;
-  const { placed, hidden } = useMemo(() => stackNotes(
-    notes,
-    (n) => Math.min(Math.max(0, timeToX(view, width, n.unix)), Math.max(0, width - noteWidth(n))),
-    noteWidth, maxRows,
-  ), [notes, view, width, maxRows]);
-  const rows = Math.max(1, ...placed.map((p) => p.row + 1));
   const status = analysis.status === "loading" ? "Reading" : analysis.status === "error" ? "No note" : `${notes.length} ${notes.length === 1 ? "note" : "notes"}`;
 
   const openNote = (note: NoteView, e: MouseEvent<HTMLButtonElement>) => {
@@ -280,42 +291,37 @@ function NemotronTrack() {
       offset: below ? r.bottom + 4 : window.innerHeight - r.top + 4,
       maxH: Math.min(320, (below ? window.innerHeight - r.bottom : r.top) - 16),
       instant: e.detail === 0 || pop != null, // keyboard, or a popover was already open: no animation
-      origin: `${Math.round(r.left + Math.min(r.width, 40) / 2 - left)}px ${below ? "top" : "bottom"}`,
+      origin: `${Math.round(r.left + r.width / 2 - left)}px ${below ? "top" : "bottom"}`,
     });
   };
 
+  // A thin marker row: the overview shows the note text. One small dot per note at the time it refers to.
   return (
-    <div className="arr-row nem" style={{ height: rows * NOTE_ROW_PX }}>
+    <div className="arr-row nem">
       <div className="arr-hdr nem">
         <span className="arr-nv"><i className="arr-nvdot" aria-hidden />Nemotron</span>
         <em title={analysis.error ?? undefined}>{status}</em>
       </div>
       <div className="arr-lane">
-        {placed.map(({ item, row, left, width: w }) => {
-          const outside = item.unix < view.t0 ? "<" : item.unix > view.t1 ? ">" : null;
+        {notes.map((n) => {
+          const x = Math.min(Math.max(timeToX(view, width, n.unix), 7), Math.max(7, width - 7));
+          const outside = n.unix < view.t0 ? "before this view" : n.unix > view.t1 ? "after this view" : null;
           return (
             <button
-              key={item.id}
+              key={n.id}
               type="button"
-              className="arr-note"
-              data-draft={item.provenance !== "MODEL-WRITTEN"}
-              aria-expanded={pop?.note.id === item.id}
+              className="arr-mark"
+              data-draft={n.provenance !== "MODEL-WRITTEN"}
+              data-edge={outside != null}
+              aria-expanded={pop?.note.id === n.id}
               aria-haspopup="dialog"
-              style={{ left, width: w, top: row * NOTE_ROW_PX + 2 }}
-              onClick={(e) => openNote(item, e)}
-            >
-              <i className="arr-nvdot" aria-hidden />
-              <b>{outside}{provLabel(item.provenance)}</b>
-              <span>{item.title}: {item.text}</span>
-            </button>
+              aria-label={`${provLabel(n.provenance)} note about ${n.title}${outside ? `, ${outside}` : ""}`}
+              title={`${provLabel(n.provenance)}: ${n.title}`}
+              style={{ left: x - 7 }}
+              onClick={(e) => openNote(n, e)}
+            ><i /></button>
           );
         })}
-        {hidden.length > 0 && (
-          <button type="button" className="arr-more" onClick={() => setShowAll(true)}>+{hidden.length} more</button>
-        )}
-        {showAll && notes.length > 3 && (
-          <button type="button" className="arr-more less" onClick={() => setShowAll(false)}>Fewer</button>
-        )}
       </div>
       {pop && <NotePopover pop={pop} snapshot={snapshot} onClose={() => setPop(null)} />}
     </div>
@@ -333,7 +339,7 @@ function NotePopover({ pop, snapshot, onClose }: { pop: PopoverState; snapshot: 
   useEffect(() => {
     const onDown = (e: globalThis.PointerEvent) => {
       const target = e.target as Element | null;
-      if (ref.current?.contains(target) || target?.closest(".arr-note")) return;
+      if (ref.current?.contains(target) || target?.closest(".arr-mark")) return;
       onClose();
     };
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };

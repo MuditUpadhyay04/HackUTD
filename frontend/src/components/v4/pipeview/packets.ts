@@ -104,8 +104,8 @@ export class PacketEngine {
     }
     return est > MAX_PACKETS ? est / MAX_PACKETS : 1;
   }
-  private spacing(r: number) { return 46 - 30 * r; }
-  private spacingUp(r: number) { return 44 - 14 * r; }
+  private spacing(r: number) { return 62 - 34 * r; }
+  private spacingUp(r: number) { return 58 - 18 * r; }
 
   private draw(dt: number) {
     const ctx = this.ctx;
@@ -135,7 +135,7 @@ export class PacketEngine {
 
   private rail(ctx: CanvasRenderingContext2D, cam: Cam, pts: Pt[], cum: number[], phase: number, spacing: number, color: string, leakS: number | null) {
     const total = cum[cum.length - 1];
-    const sp = Math.max(10, spacing);
+    const sp = Math.max(14, spacing);
     for (let k = 0, s = phase % sp; s < total; s += sp, k++) {
       const p = along(pts, cum, s);
       let x = p.x, y = p.y, a = 1;
@@ -147,10 +147,10 @@ export class PacketEngine {
       const sx = cam.x + x * cam.z, sy = cam.y + y * cam.z;
       if (sx < -8 || sy < -8 || sx > this.w + 8 || sy > this.h + 8) continue;
       // Small soft dot in the (lightened) line tint: no streak, no white head, no glow.
-      ctx.globalAlpha = a * 0.85;
+      ctx.globalAlpha = a * 0.8;
       ctx.fillStyle = color;
       ctx.beginPath();
-      ctx.arc(sx, sy, 2.4, 0, Math.PI * 2);
+      ctx.arc(sx, sy, 1.9, 0, Math.PI * 2);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -162,15 +162,15 @@ export class PacketEngine {
     ctx.fillStyle = color;
     ctx.strokeStyle = color;
     ctx.lineJoin = "round";
-    ctx.lineWidth = 1.4;
-    ctx.globalAlpha = 0.85;
+    ctx.lineWidth = 1.2;
+    ctx.globalAlpha = 0.8;
     for (let s = sp / 2; s < total; s += sp) {
       const p = along(pts, cum, s);
       const sx = cam.x + p.x * cam.z, sy = cam.y + p.y * cam.z;
       if (sx < -8 || sy < -8 || sx > this.w + 8 || sy > this.h + 8) continue;
       ctx.save();
       ctx.translate(sx, sy); ctx.rotate(p.ang);
-      ctx.beginPath(); ctx.moveTo(2.6, 0); ctx.lineTo(-2, -2.6); ctx.lineTo(-2, 2.6); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(2.2, 0); ctx.lineTo(-1.7, -2.2); ctx.lineTo(-1.7, 2.2); ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
     }
     ctx.globalAlpha = 1;
