@@ -15,10 +15,14 @@ import { cn } from "@/lib/utils";
  */
 
 type Timeline = SimulationTimeline;
-interface BoardFeed { configured: boolean; online: boolean; source: string | null; weightsVersion: number | null; lastTsUnix: number | null; firstTsUnix: number | null; results: number; facilities: number }
+export interface BoardFeed {
+  configured: boolean; online: boolean; source: string | null; weightsVersion: number | null; lastTsUnix: number | null; firstTsUnix: number | null; results: number; facilities: number;
+  recent?: { facility: string; tsUnix: number; status: string; active: string[]; top: { head: string; p: number } | null }[];
+  stats?: { recordsIn: number; resultsOut: number; seqGaps: number; badPackets: number; mode: string; uptimeS: number } | null;
+}
 type Pt = { x: number; y: number };
 
-const SPEEDS = [
+export const SPEEDS = [
   { label: "1 h/s", secPerSec: 3600 },
   { label: "4 h/s", secPerSec: 4 * 3600 },
   { label: "12 h/s", secPerSec: 12 * 3600 },
@@ -26,11 +30,27 @@ const SPEEDS = [
 const RECORD_BYTES = 48;
 const shortName = (id: string) => facilityTitle(id);
 
-export function SimulationPanel({ datasetId }: { datasetId: string }) {
+/** The board feed (GET /api/board), polled every `ms`. */
+export function useBoardFeed(ms = 2000) {
+  const [feed, setFeed] = useState<BoardFeed | null>(null);
+  useEffect(() => {
+    let live = true;
+    const poll = async () => {
+      try { const r = await api.api.board.get(); if (live && !r.error && r.data) setFeed(r.data as unknown as BoardFeed); } catch { /* shown as offline */ }
+    };
+    void poll();
+    const id = setInterval(poll, ms);
+    return () => { live = false; clearInterval(id); };
+  }, [ms]);
+  return feed;
+}
+
+/** Timeline + playhead shared by the Simulation view and the live wall: follows the board while it streams this
+ * dataset, else plays at the chosen speed. */
+export function useSimulation(datasetId: string | undefined, feed: BoardFeed | null) {
   const [tl, setTl] = useState<Timeline | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [feed, setFeed] = useState<BoardFeed | null>(null);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -38,6 +58,7 @@ export function SimulationPanel({ datasetId }: { datasetId: string }) {
 
   // ---- data: the timeline (built once per dataset on the server, ~5 s) and the board feed (every 2 s)
   const load = useCallback(async (signal?: AbortSignal) => {
+    if (!datasetId) return;
     setError("");
     try {
       const data = unwrap(await api.api.datasets({ id: datasetId }).timeline.get({ fetch: { signal } })) as unknown as Timeline;
@@ -56,18 +77,11 @@ export function SimulationPanel({ datasetId }: { datasetId: string }) {
     void load(c.signal);
     return () => c.abort();
   }, [load]);
-  useEffect(() => {
-    let live = true;
-    const poll = async () => {
-      try { const r = await api.api.board.get(); if (live && !r.error && r.data) setFeed(r.data as unknown as BoardFeed); } catch { /* shown as offline */ }
-    };
-    void poll();
-    const id = setInterval(poll, 2000);
-    return () => { live = false; clearInterval(id); };
-  }, []);
   // While the board streams into this dataset, refresh the story now and then (the server reuses it for 20 s).
   const lastRefresh = useRef(0);
-  const liveHere = !!(tl && feed?.online && feed.lastTsUnix != null && feed.lastTsUnix >= tl.startUnix && feed.lastTsUnix <= tl.nowUnix);
+  // Compare with the dataset's end, not the timeline's: while the board is part-way through, the timeline ends where
+  // the board was when it was built, and the board moves on from there.
+  const liveHere = !!(tl && feed?.online && feed.lastTsUnix != null && feed.lastTsUnix >= tl.startUnix && feed.lastTsUnix <= tl.datasetNowUnix);
   useEffect(() => {
     if (!liveHere || Date.now() - lastRefresh.current < 20_000) return;
     lastRefresh.current = Date.now();
@@ -93,7 +107,13 @@ export function SimulationPanel({ datasetId }: { datasetId: string }) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [playing, speed, tl, liveHere, follow]);
+  const scrub = useCallback((v: number) => { setFollow(false); setT(v); }, []);
+  return { tl, error, loading, setLoading, load, t, setT: scrub, playing, setPlaying, speed, setSpeed, liveHere, follow, setFollow };
+}
 
+export function SimulationPanel({ datasetId }: { datasetId: string }) {
+  const feed = useBoardFeed();
+  const { tl, error, loading, setLoading, load, t, setT, playing, setPlaying, speed, setSpeed, liveHere, follow, setFollow } = useSimulation(datasetId, feed);
   if (loading && !tl) return <p className="glass mt-6 px-5 py-4 text-[14px] text-muted-foreground">Building the week: incidents, a plan at each pump failure, trucks… (a few seconds the first time)</p>;
   if (error && !tl) return (
     <div role="alert" className="glass mt-6 flex items-center justify-between gap-3 px-5 py-4 text-[14px] text-crit">
@@ -102,7 +122,7 @@ export function SimulationPanel({ datasetId }: { datasetId: string }) {
     </div>
   );
   if (!tl) return null;
-  return <SimulationBody tl={tl} t={t} setT={(v) => { setFollow(false); setT(v); }} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
+  return <SimulationBody tl={tl} t={t} setT={setT} playing={playing} setPlaying={setPlaying} speed={speed} setSpeed={setSpeed}
     feed={feed} liveHere={liveHere} follow={follow} setFollow={setFollow} />;
 }
 
@@ -191,7 +211,7 @@ function truckPos(j: Timeline["trucks"][number], at: number, yard: Pt, fac: Pt, 
   return yard;
 }
 
-function FieldMap({ tl, at, ongoing }: { tl: Timeline; at: number; ongoing: Timeline["incidents"] }) {
+export function FieldMap({ tl, at, ongoing }: { tl: Timeline; at: number; ongoing: Timeline["incidents"] }) {
   // Schematic, one tile per system (any number of systems): the disposal site in the middle, each facility around it
   // in its real compass direction from the site, the truck yard in the tile's corner. Trucks drive yard -> facility.
   const n = tl.systems.length, cols = n <= 2 ? n : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
@@ -271,7 +291,7 @@ function FieldMap({ tl, at, ongoing }: { tl: Timeline; at: number; ongoing: Time
   );
 }
 
-function Truck({ small }: { small?: boolean }) {
+export function Truck({ small }: { small?: boolean }) {
   return small
     ? <svg width="16" height="10" viewBox="0 0 22 14" aria-hidden className="inline align-[-1px]"><rect x="0" y="2" width="14" height="9" rx="2" fill="var(--crit)" /><rect x="14" y="5" width="7" height="6" rx="1.5" fill="var(--crit)" /></svg>
     : <g><rect x="0" y="2" width="14" height="9" rx="2" fill="var(--crit)" /><rect x="14" y="5" width="7" height="6" rx="1.5" fill="var(--crit)" /><circle cx="4" cy="12" r="2" fill="currentColor" /><circle cx="17" cy="12" r="2" fill="currentColor" /></g>;
