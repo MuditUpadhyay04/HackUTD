@@ -44,7 +44,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 0cf99c7, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt` (prove, bmc_seq, bmc_ack, bmc_mod, bmc_a8, cover PASS) |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.pack.rtl` 9e684bc (v4; latency 1, 4 beats/record at 1 beat/cycle; smoke PASS all 19 pack_* cases incl. week/g1; #25 is owned upstream, pack copies) |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | v4 from the start |
-| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | CLAIMED | v4 from the start |
+| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.regs.rtl` ac0d183 (v4 full regmap: CTRL/GLOBAL/LEDOVR/DBGSEL, CONFIG table, DATA window, RESULT/ALERT FIFOs, STATS, DBG, 71-word weight window; smoke PASS 447 regs_basic ops + directed; xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36) |
 | T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | CLAIMED | v4 from the start |
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
@@ -127,3 +127,11 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 56 | alarm, countdown, memory | Codes 2/5–7 with HIST_RESET | Per stage: alarm changes no state (#10); countdown (#34) and memory (#44) clear. Never produced by validate; the model does the same | T1.alarm.fv, T0.2b | Accepted |
 | 57 | pack | The vectors never produce a batch-only `m_last` (IN_LAST is set wherever m_last is) | Add a pack case with IN_LAST = 0 on most records (model follow-up); formal K3 covers it meanwhile | T1.pack.rtl | Open (model follow-up) |
 | 58 | pack | `tap_valid` timing | Same cycle as the beat-3 transfer | T1.pack.rtl | Accepted |
+| 59 | regs | STATS 0 "records in" in DMA mode | Counts DATA-window records only (6th beat accepted); regs has no view of DMA input | T1.regs.rtl | **Open for T2.top:** add an input-record tap from `eog_unpack` to regs if DMA-mode counting is wanted |
+| 60 | regs | STATS 10 "alerts raised" vs drops | Word 10 counts alerts pushed into the FIFO; word 11 counts drops (incl. `al_valid` while full) | T1.regs.rtl | Accepted |
+| 61 | regs | STATS 15 uptime tick | New parameter `CYC_PER_MS`; uptime cleared by reset, soft reset and `stats_clear` like all 16 | T1.regs.rtl | Accepted |
+| 62 | regs | Weight-window WSTRB (eog_head has no byte enables) | Partial strobes are read-modify-write via `wb_rdata`; a swap in the one cycle between would merge with the other bank (the ARM waits for `swap_pending` = 0) | T1.regs.rtl | Accepted |
+| 63 | regs | CONFIG after hard reset | Zero-filled by an N_FAC-cycle sweep; AXI not served during it | T1.regs.rtl | Accepted (matches the model) |
+| 64 | regs | DBG capture across soft reset | Cleared only by hard reset; capture count wraps at 2^32 | T1.regs.rtl | Accepted |
+| 65 | regs | DATA window while busy / in DMA mode | Words 0–10 writable any time; only the push is dropped while busy (counted as overrun); a push while `src_dma` = 1 is ignored and not counted | T1.regs.rtl | Accepted |
+| 66 | regs | VERSION[23:16] (N_WELL) | New parameter `N_WELL` (default 8) | T1.regs.rtl | Accepted |
