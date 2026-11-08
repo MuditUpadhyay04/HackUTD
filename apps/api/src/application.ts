@@ -36,6 +36,11 @@ export class Application {
     return this.timelines.get(datasetId, `${boardStamp(this.config.boardJsonl)}|${this.modelFingerprint ?? ""}`, (prev) => buildTimeline(d, { prev,
       model: this.model, board: this.config.boardJsonl ? readBoardIndex(this.config.boardJsonl, this.config.boardSource) : undefined }));
   }
+  /** Build a dataset's timeline in the background (one at a time) so the console's live wall opens instantly. */
+  private warmQueue: Promise<unknown> = Promise.resolve();
+  prewarm(datasetId: string) {
+    this.warmQueue = this.warmQueue.then(() => this.timeline(datasetId)).catch((e) => console.error(`[timeline] ${datasetId.slice(0, 12)}: ${e instanceof Error ? e.message : e}`));
+  }
   private folderStamps = new Map<string, string>();
   private folderSync: Promise<void> | null = null;
   readonly folderErrors = new Map<string, string>();
@@ -64,7 +69,9 @@ export class Application {
   async upload(files: { network: string; ops: string; telemetry: string }, label?: string) {
     const dataset = await importDataset(files, label);
     dataset.sourceFiles = { ...files };
-    return (await this.store.putDataset(dataset)).info;
+    const info = (await this.store.putDataset(dataset)).info;
+    this.prewarm(info.id);
+    return info;
   }
   async requireDataset(id: string): Promise<ImportedDataset> {
     const d = await this.store.getDataset(id);

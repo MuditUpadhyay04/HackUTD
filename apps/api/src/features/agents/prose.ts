@@ -19,6 +19,12 @@ export interface Grounding {
 const COMPLETED_ACTION = /(?<!\w[-\u2011])\b(?:dispatched|deployed|sent|completed|repaired|fixed|resolved|activated|approved|executed)\b|\b(?:was|were|been|is|are|got|has|have|had)\s+(?:\w+\s+)?shut[\s-]+(?:down|in)\b/i;
 /** Short all-caps words (FPGA, ID) are allowed mid-sentence; longer capitalized words must be snapshot names. */
 const ACRONYM = /^[A-Z]{2,5}s?$/;
+/** The domain's own words, which models capitalise mid-sentence ("the Incident", "Shift Handoff"). Not names: the
+ * name check is there to catch invented places and people, which this list doesn't cover. */
+const DOMAIN_WORDS = new Set(["incident", "incidents", "handoff", "hand", "shift", "pump", "pumps", "pipeline", "pipelines", "tank", "tanks", "truck",
+  "trucks", "plan", "plans", "option", "options", "facility", "facilities", "system", "systems", "leak", "leaks", "well", "wells", "inspection",
+  "inspector", "failure", "failures", "degradation", "worn", "priority", "recommended", "ongoing", "status", "action", "actions", "operator", "note",
+  "notes", "summary", "countdown", "limit", "level", "repair", "disposal", "field", "crew", "triage", "next", "immediate", "urgent", "critical"]);
 const TOKEN = /[\p{L}\p{N}]+(?:[_-][\p{L}\p{N}]+)*/gu;
 
 function escapeRegExp(text: string) { return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
@@ -58,7 +64,10 @@ function groundedNumber(token: string, numbers: number[]): boolean {
  */
 export function tidyProse(input: string, max: number): string {
   let t = input.replace(/\r/g, "").replace(/^\s*#{1,6}\s+/gm, "").replace(/^\s*(?:[-*\u2022]|\d+[.)])\s+/gm, "")
-    .replace(/\*\*|__|`+/g, "").replace(/\s*\n+\s*/g, " ").replace(/[ \t]{2,}/g, " ").trim();
+    .replace(/\*\*|__|`+/g, "").replace(/\s*\n+\s*/g, " ")
+    // arrows and comparisons are prose, not markup: "->" / "=>" become words, "< 3h" / "> 90%" become under / over
+    .replace(/\s*(?:->|=>|\u2192)\s*/g, " to ").replace(/(^|[\s(])<=?\s*(?=[\d$~])/g, "$1under ").replace(/(^|[\s(])>=?\s*(?=[\d$~])/g, "$1over ")
+    .replace(/[ \t]{2,}/g, " ").trim();
   if (t.length > max && t.length <= max * 1.4) {
     const cut = t.slice(0, max);
     const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "), cut.endsWith(".") ? cut.length - 1 : -1);
@@ -97,7 +106,7 @@ export function checkProse(ground: Grounding, raw: unknown, options: { field?: s
   }
   for (const m of text.matchAll(/\b\p{Lu}[\p{L}]*\b/gu)) {
     const before = text.slice(0, m.index).trimEnd();
-    if (!before || /[.!?:;]$/.test(before) || m[0] === "I" || ACRONYM.test(m[0]) || nameParts.has(m[0].toLowerCase())) continue;
+    if (!before || /[.!?:;]$/.test(before) || m[0] === "I" || ACRONYM.test(m[0]) || DOMAIN_WORDS.has(m[0].toLowerCase()) || nameParts.has(m[0].toLowerCase())) continue;
     throw new Error(`Ungrounded name "${m[0]}" in ${field}: name only facilities, systems and assets from the snapshot`);
   }
   for (const category of ["leak", "failure", "degradation"] as const) {
