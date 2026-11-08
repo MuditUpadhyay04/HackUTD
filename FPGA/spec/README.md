@@ -1,6 +1,6 @@
 # FPGA spec — module contracts
 
-**Status: FROZEN, version 2** (Sat Nov 7 2026, 22:45 CST). Wave 1 may start. `VERSION` holds the number.
+**Status: FROZEN, version 3** (Sun Nov 8 2026, ~00:45 CST; v3 = `eog_head.wb_rst_n`, see changelog). Wave 1 may start. `VERSION` holds the number.
 
 Source design: `../../docs/plan/lucas/fpga_hardware_plan.md` (engine v2) plus the decisions in `numerics.md` §1
 (R1–R3 from `../../docs/plan/lucas/review_notes.md` resolved as D1–D3; D4–D5 new). Lucas may reverse any of them;
@@ -38,3 +38,4 @@ v1 layouts are unchanged in size and position. The freeze **adds** (all previous
 | 0 | Sat Nov 7 22:10 | Scaffold |
 | 1 | Sat Nov 7 22:30 | Frozen: conventions, numerics (D1–D5), regmap, 12 module specs, generated `eog_defs.svh` |
 | 2 | Sat Nov 7 22:45 | conventions §7: formal-only observation ports `f_inflight`, `f_oldest_recno` on every pipeline stage (needed for inductive stage proofs). No wire-format, numerics or synthesized-port change; `EOG_SPEC_VERSION` (and so the VERSION register `[7:0]`) is now 2. `formal/common` checkers are modules (`eog_fv_props.sv`), not macros |
+| 3 | Sun Nov 8 ~00:45 | `eog_head` gets a second reset input, `wb_rst_n` (hard reset only; `eog_top` wires the raw `rst_n`). This resolves a conflict: conventions §1 and the head spec say soft reset keeps the weight banks, but the head only had the engine reset `rst_n & ~soft_rst`. Internal module port only: no wire-format or numerics change. `EOG_SPEC_VERSION` (VERSION register `[7:0]`) is now 3. Spec question 16; Lucas may reverse |

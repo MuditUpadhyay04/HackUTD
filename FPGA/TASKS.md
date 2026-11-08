@@ -3,7 +3,7 @@
 Claim a task by writing your agent/session name in **Owner** and setting **Status** to CLAIMED, in the same
 commit as your first work. Statuses: TODO · CLAIMED · BLOCKED · REVIEW · DONE. A task can start only when every
 task in **Needs** is DONE (a Verify task may start writing properties before its vectors exist; it needs T0.2 only
-to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v2).
+to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v3).
 
 **Branches on Windows:** `fpga/<task-id>` cannot coexist with the `FPGA` branch on a case-insensitive filesystem, so
 task branches are named `eog/<task-id>` (e.g. `eog/T1.validate.rtl`). **Status edits:** only the lead edits this
@@ -35,7 +35,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | fpga-rtl agent | REVIEW | `eog/T1.countdown.rtl` 2723d23 (lint/iverilog/yosys clean; latency 57, accept gap ≤ 9 at defaults, up to 8 in flight; smoke PASS all 12 countdown vector cases incl. onsets/R1; ~18.5k flops in generic synth, estimate) |
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
-| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | fpga-rtl agent | CLAIMED | |
+| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | fpga-rtl agent | CLAIMED | `eog/T1.head.rtl` c700642 passes its v2 checks (lint/iverilog/yosys clean; 16 eog_mul, latency 12, II 13; smoke PASS all 12 head vector cases; xc7 estimate 16 DSP48E1, ~1.9k LUT, 1,550 FF); rework for spec v3 (`wb_rst_n`, question 16) requested |
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) |
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
@@ -81,3 +81,7 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 13 | validate | `PREV_LEVEL` when `PREV_OK = 0` | 0 | T1.validate.rtl | Accepted |
 | 14 | validate | `n_wells` when the `N_WELL` parameter < 8 (shrunk proofs) | `n_wells = min(CFG.N_WELLS, N_WELL)`; identical to the spec at the default N_WELL = 8 | T1.validate.rtl | Accepted |
 | 15 | all | conventions §7 example uses `EOG_*_W` in an ANSI port list, but §6 includes `eog_defs.svh` inside the body | Use non-ANSI port declarations after the include, or literal widths checked by lint | T1.validate.rtl | Accepted; §7 wording fixed (no version bump: example only) |
+| 16 | head | Spec conflict: conventions §1 / head spec say soft reset keeps the weight banks, but `eog_head` only gets the engine reset `rst_n & ~soft_rst` | (RTL agent implemented: any reset clears VER in both banks; alternative: separate hard-reset port) | T1.head.rtl | **Spec v3:** new input `eog_head.wb_rst_n` = raw `rst_n` (hard reset only) resets word 68 of both banks, `active_bank`, `swap_pending`; `rst_n` (incl. soft reset) only flushes the record in flight; writes ignored while either reset is 0; a pending swap waits for `rst_n` = 1. Internal port only, no wire-format/numerics change. Lucas may reverse |
+| 17 | head | `swap_req` while `swap_pending` = 1, including the cycle the swap executes | Merges with the pending swap (one swap); the ARM waits for `swap_pending` = 0 before writing the next image | T1.head.rtl | Accepted |
+| 18 | head | Pending swap vs accepting the next record in the same idle cycle | The swap wins; `in_ready` = 0 for that one cycle (II still ≤ 16) | T1.head.rtl | Accepted |
+| 19 | head | `CH3` for DROPPED records | Copied from `FEAT[3]` like every status (upstream already zeroes FEAT for DROPPED), as the head spec and the model do | T1.head.rtl | Accepted |
