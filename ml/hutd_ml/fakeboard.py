@@ -77,6 +77,8 @@ class FakeBoard:
             self.last_hb = time.monotonic()
             if self.autonomous:
                 self.autonomous = False
+                for al in self.pending_alerts:  # buffered alerts go out as ARM replays (SOURCE bit 3, FPGA #74)
+                    al["source"] |= wire.SRC_ARM_REPLAY
                 self._flush()
             return
         if ptype != wire.T_CONFIG:

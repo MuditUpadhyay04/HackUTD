@@ -300,7 +300,7 @@ def render_report(a, cv, chosen_C, per_class, single, k_single, estop, ablation,
          ("Training data: the clean practice week **plus augmented copies** (healthy pressure offsets x0.8 / x1.2, "
           "sizes x0.7 / x1.5, extra sensor noise; see `augment.TRAIN`). Validation scores are always on the clean "
           "held-out system." if wjson.get("augmented") else "Training data: the clean practice week."),
-         ("Missing-data augmentation: also a copy with 2 % of telemetry rows deleted (held, reset and INVALID "
+         ("Missing-data augmentation: also a copy with 2 % of telemetry rows deleted (held and INVALID "
           "records; INVALID rows are not trained on)." if wjson.get("missing_data_aug") else ""),
          ("Observable labels: leak / degradation positives before the pump first runs inside their event get "
           "training weight 0 (nothing can show the problem yet); evaluation uses the full labels."

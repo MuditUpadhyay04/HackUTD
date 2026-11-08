@@ -18,7 +18,7 @@ import zlib
 
 import numpy as np
 
-from .features_int import FEATURE_SET_ID, N_FEATURES, Weights
+from .features_int import FEATURE_SET_ID, N_FEATURES, Weights, round_shift
 
 L_OUT = 8
 BLOB_FORMAT = 1
@@ -31,7 +31,7 @@ def logits_int(X, w_q, b_q, s_out):
     """Vectorized integer heads. X: (N, 31) int features. Returns (N, 4) int16 logits (as int64)."""
     acc = np.asarray(X, dtype=np.int64) @ np.asarray(w_q, dtype=np.int64).T + np.asarray(b_q, dtype=np.int64)
     assert np.abs(acc).max(initial=0) < 2 ** 47, "48-bit accumulator overflow"
-    return np.clip((acc + (1 << (s_out - 1))) >> s_out, -32768, 32767)
+    return np.clip(round_shift(acc, s_out), -32768, 32767)
 
 
 def quantize(w, b, l_out=L_OUT):
@@ -85,8 +85,12 @@ def unpack_blob(blob):
 
 
 def self_test(blob):
-    """What the board does on COMMIT: recompute every packed vector and compare."""
-    m = unpack_blob(blob)
+    """What the board does on COMMIT: check the header, recompute every packed vector and compare. A header the
+    board can't run (format, heads, features, feature set) fails like a bad vector: ACK status 3 (FPGA #67 / #75)."""
+    try:
+        m = unpack_blob(blob)
+    except (ValueError, struct.error):
+        return False
     for x, e in m["vectors"]:
         if not np.array_equal(logits_int(x.reshape(1, -1), m["w_q"], m["b_q"], m["s_out"])[0], e):
             return False

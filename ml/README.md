@@ -25,15 +25,17 @@ Implements [`docs/plan/mudit/ml_plan.md`](../docs/plan/mudit/ml_plan.md) against
 
 ```sh
 DATA=/path/to/HackUTD-ZeroDay/history/full_week
-HUTD_DATA=$DATA python3 -m pytest -q tests                      # 10 tests, ~6 s
-python3 -m hutd_ml.train --data $DATA --answer-key $DATA/answer_key.json --out artifacts/v3 --version 3 \
-    --augment --observable --c 3,3,0.03,0.03 \
-    --mock $DATA/../mock_test_2026-10-10T1530                     # ~3 min
-python3 -m hutd_ml.golden --data $DATA --out artifacts/v3/golden/g1 --set g1 \
-    --weights artifacts/v3/weights.bin --weights-version 3 --config artifacts/v3/global_config.json
+HUTD_DATA=$DATA python3 -m pytest -q tests                      # 12 tests, ~7 s
+python3 -m hutd_ml.train --data $DATA --answer-key $DATA/answer_key.json --out artifacts/v4 --version 4 \
+    --augment --observable --drop-aug --c 3,3,0.03,0.03 \
+    --mock $DATA/../mock_test_2026-10-10T1530                     # ~4 min
+python3 -m hutd_ml.golden --data $DATA --out artifacts/v4/golden/g1 --set g1 \
+    --weights artifacts/v4/weights.bin --weights-version 4 --config artifacts/v4/global_config.json
 python3 -m hutd_ml.experiments --data $DATA --answer-key $DATA/answer_key.json --out artifacts/experiments  # ~15 min
 python3 -m hutd_ml.fpga_sync --record     # what changed on branch FPGA + xcheck vs eog_ref
 python3 -m hutd_ml.robustness --data $DATA --answer-key $DATA/answer_key.json --out artifacts/robustness  # ~25 min
+python3 -m hutd_ml.missing_data --data $DATA --answer-key $DATA/answer_key.json \
+    --config artifacts/v4/global_config.json --out artifacts/missing_data_v4 --drop-aug   # R7 C vs A6, ~10 min
 ```
 
 ## For Lucas: what to use
@@ -43,23 +45,28 @@ python3 -m hutd_ml.robustness --data $DATA --answer-key $DATA/answer_key.json --
 | Folder | Weights | Contents |
 | --- | --- | --- |
 | `artifacts/v0/golden/g0`, `g2` | Untrained pseudo-random int16 (`weights_ver` **240**): full range, both signs, saturating logits | Bring-up of the head/accumulator/saturation path |
-| `artifacts/v3/golden/g0`, `g1`, `g2` | **Trained v3, deployed** (`weights_ver` 3) + its GLOBAL CONFIG | Use for the board run and the demo |
-| `artifacts/v3/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Deployed model + validation report |
+| `artifacts/v4/golden/g0`, `g1`, `g2` | **Trained v4, deployed** (`weights_ver` 4) + its GLOBAL CONFIG | Use for the board run and the demo |
+| `artifacts/v4/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Deployed model + validation report |
+| `artifacts/v3/` (+ `golden/`) | Trained v3 (`weights_ver` 3): same recipe without missing-data augmentation | Fallback: 5 min faster on clean leaks, worse with missing readings |
 | `artifacts/v2/golden/g0`, `g1`, `g2` | Trained v2 (`weights_ver` 2) | What the RTL is verified against (T2.top). Equally valid: the RTL doesn't depend on the weights. |
 | (v1 removed) | v1 used the pre-review spec (`S_feat` 11, old countdown); it is in git history only | — |
 | `artifacts/robustness/` | `report.md`, `results.json` | Robustness pass (section below) |
+| `artifacts/missing_data_v4/`, `missing_data/` | `report.md`, `results.json` | R7 option C vs legacy A6 with missing readings, v4 and v3 settings |
+| `artifacts/experiments*/` | `report.md`, `results.json` | Architecture experiments (`experiments_r7c/` re-runs them under R7 option C) |
 
 **The golden sets:**
 
 - **G0:** 30 records, one facility (`fac_id` 0), across a pump start. Cold start, small enough to check by hand.
 - **G1:** the whole practice week, 30,240 records, timestep-major.
-- **G2:** 34 synthetic edge cases:
+- **G2:** 41 synthetic edge cases:
   - duplicate, out-of-order;
   - a 1-step gap (HELD), a 3-step gap (reset);
-  - inflow absent ×3 (HELD, HELD, reset → INVALID);
+  - inflow absent ×3 (HELD, HELD, then INVALID with `FIELD_LOST` and no reset: R7 option C);
   - illegal pump enum, level out of range, illegal well status (→ reset), inflow above `hi`;
   - disabled slot 31, `fac_id` 40;
-  - two framing errors (non-zero reserved field, one with `fac_id` 40: framing is checked first), then normal records.
+  - two framing errors (non-zero reserved field, one with `fac_id` 40: framing is checked first), then normal records;
+  - pump flow absent ×5 (HELD, HELD, INVALID ×3: the hold counter saturates at 3), then recovery with memory and
+    `since_reset` intact (R7 option C).
 
 **Files in each set:**
 
@@ -78,27 +85,33 @@ G1 omits `.mem` and `.csv` to keep the repo small. Regenerate them with `--mem -
 **Check an RTL dump or a board capture:**
 
 ```sh
-python3 -m hutd_ml.compare artifacts/v1/golden/g2/expected_results.bin my_results.bin --stages artifacts/v1/golden/g2/expected_stages.csv
+python3 -m hutd_ml.compare artifacts/v4/golden/g2/expected_results.bin my_results.bin --stages artifacts/v4/golden/g2/expected_stages.csv
 ```
 
 **On the board** (direct cable, PC 192.168.1.50 ↔ board 192.168.1.10):
 
 ```sh
-python3 -m hutd_ml.board --golden artifacts/v3/golden/g0                      # then g2, then g1 (v2 sets work too)
-python3 -m hutd_ml.board --golden artifacts/v3/golden/g0 --heartbeat-test 6   # AUTONOMOUS + replay
+python3 -m hutd_ml.board --golden artifacts/v4/golden/g0                      # then g2, then g1 (v2 sets work too)
+python3 -m hutd_ml.board --golden artifacts/v4/golden/g0 --heartbeat-test 6   # AUTONOMOUS + replay
 ```
 
 The harness binds local UDP ports 7001–7004. Stop anything else on the PC that uses them first.
+
+**Compare ALERTs on a freshly started board (or fakeboard).** A CONFIG write restarts each slot's history but keeps
+its alarm latches and `result_no`, exactly like the RTL. If G0 or G2 ran first, a latch that is already set
+suppresses the matching `*_RAISED` in G1. RESULTs are not affected (`board.py` compares `result_no` relative to the
+first result).
 
 **Without the board:**
 
 ```sh
 python3 -m hutd_ml.fakeboard &        # listens on 127.0.0.2
-python3 -m hutd_ml.board --golden artifacts/v3/golden/g1 --board 127.0.0.2 --local 127.0.0.1 --pps 200
+python3 -m hutd_ml.board --golden artifacts/v4/golden/g1 --board 127.0.0.2 --local 127.0.0.1 --pps 200
 ```
 
-Verified Sat 23:05 CST: G0, G2 and G1 (30,240/30,240 RESULTs) byte-identical over UDP, plus a 6 s heartbeat gap
-replayed correctly. The Python stand-in needs `--pps` ≤ about 200; the real board shouldn't.
+Verified Sat 23:05 CST and again for v4 (Sun): G0, G2 and G1 (30,240/30,240 RESULTs, 71/71 ALERTs on a fresh
+fakeboard) byte-identical over UDP, plus a 6 s heartbeat gap replayed correctly. Buffered alerts come back with
+SOURCE bit 3 (ARM replay, FPGA spec question 74); a bad blob header gets WEIGHTS_ACK status 3 (question 75). The Python stand-in needs `--pps` ≤ about 200; the real board shouldn't.
 
 ## Assumptions where the FPGA plan is silent
 
@@ -215,28 +228,33 @@ when level ≥ shutdown.
 - INVALID clears `cnt` and `gap_run`, and leaves the conditions, latches and ALERTs alone.
 - ALERT rules: A19 above.
 
-## Current model (v3, deployed)
+## Current model (v4, deployed)
 
 **Full design, recipe and the experiments behind it:** [`docs/plan/mudit/ml_architecture.md`](../docs/plan/mudit/ml_architecture.md).
 
-| Item | v3 |
+| Item | v4 |
 | --- | --- |
-| Recipe | practice week + augmented copies; **observable labels** (leak/degradation positives before the pump first runs in the event get weight 0); C = 3 for leak and degradation, 0.03 for failure and shut-in |
-| GLOBAL | `persist_K4` [1, 3, 1, 1], `logit_thr` [−64, 0, 0, 0] (1/256), `gap_thr` 504, S 17 |
-| Blob | 980 B, CRC32 `0xA8E1639F`, Fw 8, S_out 14 |
+| Recipe | practice week + augmented copies + **a copy with 2 % of rows missing** (Lucas: the judging data will have missing readings); **observable labels** (leak/degradation positives before the pump first runs in the event get weight 0); C = 3 for leak and degradation, 0.03 for failure and shut-in |
+| GLOBAL | `persist_K4` [2, 4, 1, 1], `logit_thr` [−128, −64, 0, 0] (1/256), `gap_thr` 504, S 17 |
+| Blob | 980 B, CRC32 `0x3A17A6A0`, Fw 8, S_out 14 |
+| Fallback | v3 (`artifacts/v3`, CRC32 `0xA8E1639F`, `persist_K4` [1, 3, 1, 1], `logit_thr` [−64, 0, 0, 0]): one `replay.py --weights/--config` argument away |
 
 Out-of-fold results, holding out one system at a time, with integer logits:
 
 | Head | Precision / recall | Events caught | Median / worst delay | False alerts per facility-day |
 | --- | --- | --- | --- | --- |
-| Leak | 0.95 / 0.99 | 5/5 | 5 / 60 min | 0.019 |
-| Degradation | 0.95 / 0.90 | 5/5 | 155 / 180 min | 0.038 |
+| Leak | 0.92 / 0.99 | 5/5 | 10 / 65 min | 0.038 |
+| Degradation | 0.96 / 0.90 | 5/5 | 160 / 170 min | 0.029 |
 | Failure | 1.00 / 1.00 | 13/13 | 0 | 0 |
 | Shut-in | 1.00 / 1.00 | — | — | 0 |
 
 - E-STOP fires on 5/5 leaks and never outside one.
-- Under healthy pressure offsets ×1.3, false alerts are 0.05 / 0.11 per facility-day (v2: 0.08 / 0.27).
-- G0 / G1 / G2 plus all 100 alerts are byte-identical over UDP against the stand-in.
+- **With 2 % of readings missing (R7 option C):** leak / degradation false alerts 0.03 / 0.17 per facility-day,
+  AP 0.98 / 0.89, 5/5 and 5/5 events (v3: 0.21 / 0.11, AP 0.93 / 0.77). At 5 % missing: 0.18 / 0.41, AP 0.96 / 0.82.
+  Full table: `artifacts/missing_data_v4/report.md`.
+- Integer vs float decisions agree 100 %; logit error ≤ 0.019.
+- G0 / G1 / G2 plus all 71 alerts are byte-identical over UDP against the stand-in, and bit-exact against
+  `FPGA/model/eog_ref.py` with R7 option C (FPGA `10be393`, `ml/FPGA_SYNC.md`).
 
 **Why degradation is slower than leak:**
 
@@ -249,23 +267,18 @@ Out-of-fold results, holding out one system at a time, with integer logits:
 
 ## Cross-check with the FPGA team's reference model
 
-`python -m hutd_ml.xcheck --fpga-model <FPGA/model> --golden artifacts/v2/golden/g1 --zero-k4 --remap-lohi` runs
-`FPGA/model/eog_ref.py` (branch `FPGA` at `97ef685`) on the same records. Results, Sun 01:05 CST:
+`python -m hutd_ml.fpga_sync --golden artifacts/v4/golden --sets g0,g2,g1 --record` fetches branch `FPGA`, lists
+what changed (commits, spec files, spec questions) and runs `hutd_ml.xcheck`: `FPGA/model/eog_ref.py` on the same
+records as `features_int.py`. History is in [`FPGA_SYNC.md`](FPGA_SYNC.md).
 
-- **G1 (30,240 records):**
-  - every field is identical except p50 countdowns, which differ by ±1 min in 1,096 records;
-  - 103 of 130 ALERTs are identical in order. The first difference is one record whose flow gap equals `gap_thr`
-    exactly.
-- **G2:** the hold/reset records (12–33) differ.
+**Latest (FPGA `10be393`, spec v4 + R7 option C):** v4 G0, G2 (41 records, including the R7 sequence) and G1 (30,240
+records, 71 ALERTs) are **identical in every RESULT field and every ALERT**. The FPGA side's `check_mudit.py` agrees
+on all 8 golden sets (FPGA TASKS T0.2c / T0.5). The "pre-v4 layout" rows in the log (`--zero-k4 --remap-lohi`) are a
+legacy mode and are expected to differ.
 
-All remaining differences are decisions Lucas already accepted that `eog_ref.py` doesn't implement yet:
-
-- D6: the prefilled ring with mean = sum >> 4;
-- D7: A6 hold/reset;
-- A10: strict `>` for logits and the gap;
-- A14: `lo[]/hi[]` in present-bit order. `--remap-lohi` exists only to see past this.
-
-Spec v1's SHUTIN_WATER_MAX also sits in GLOBAL bytes 20–21, where D10 now puts `persist_K4` (`--zero-k4`).
+ML-side follow-ups from FPGA spec questions 46–93, all done without changing a golden byte: `S_OUT` = 0 means no
+rounding and no shift (#46); `N_WELLS` > 8 clamps to 8 (#48); the fakeboard sets ALERT SOURCE bit 3 on replay (#74)
+and answers a bad blob header with WEIGHTS_ACK status 3 (#75).
 
 ## Robustness pass (rerun Sun 01:15 CST under the reviewed spec, `S_feat` = 17)
 
@@ -298,3 +311,8 @@ Both models caught 5/5 leaks and 5/5 degradations under every distortion.
   The cause is the FPGA's hold/reset policy, not the weights: review R7 in `docs/plan/lucas/review_notes.md`. The
   practice data has no gaps, and SPEC says every sensor reports every interval, so this matters only if the judging
   data is dirty.
+
+**Resolved (Sun):** Lucas chose R7 option C (FPGA spec question 70: a hold overflow makes the record INVALID without a
+history reset) and said the judging data *will* have missing readings. Under C, resets from missing readings drop
+to 0 and memory < 64 steps stays at 3 %. v4 adds a 2 %-missing training copy: with 2 % missing, false alerts are
+0.03 / 0.17 (AP 0.98 / 0.89). See "Current model" above and `artifacts/missing_data_v4/report.md`.

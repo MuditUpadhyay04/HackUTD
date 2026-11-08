@@ -1,11 +1,26 @@
 # ML plan — four logistic regressions for the Eclypse Z7
 
-Owner: **Mudit** · Sat Nov 7 2026, 22:45 CST · Status: **IN PROGRESS.** The plan was accepted as-is (revert
-later if needed); D1–D5 are implemented in [`ml/`](../../../ml/README.md).
+Owner: **Mudit** · Sat Nov 7 2026, 22:45 CST · Status: **IN PROGRESS: v4 deployed.** The plan was accepted as-is (revert
+later if needed); D1–D6 are implemented in [`ml/`](../../../ml/README.md).
 
 Builds on Lucas's [FPGA plan](../lucas/fpga_hardware_plan.md), the source of truth for the wire format, engine and
 feature rules, and on [`global_plan.md`](../../../global_plan.md) (hard rules §2, contracts §5). Dataset:
 [nihaal419/HackUTD-ZeroDay](https://github.com/nihaal419/HackUTD-ZeroDay) at commit `135ba4c`.
+
+## Progress update (Sun 02:40 CST): R7 option C, weights v4 deployed, in step with FPGA `10be393`
+
+- **R7 option C** (FPGA spec question 70) implemented at `59f3746`, with R7 vectors in G2 (41 records) for Lucas.
+  The legacy A6 rule stays as `hold_policy="A6"` for comparison only.
+- **C vs A6 with missing readings** (`hutd_ml.missing_data`): C clearly wins. At 2 % missing with v4 settings, leak /
+  degradation false alerts are 0.03 / 0.17 per facility-day under C vs 0.13 / 0.23 under A6; AP 0.98 / 0.89 vs
+  0.79 / 0.73; history resets 0 vs 2.7 per facility-day; results with < 64 steps of memory 3 % vs 47 %.
+- **Weights v4 deployed:** the v3 recipe plus a 2 %-missing training copy, because the judging data will have
+  missing readings. Clean results stay close to v3 (leak 10 / 65 min instead of 5 / 60), and false alerts with
+  missing readings drop a lot (leak 0.21 → 0.03 at 2 %). Golden sets v4; UDP loopback byte-identical, 71/71 alerts.
+- **FPGA sync at `10be393`:** v4 G0 / G2 / G1 bit-exact against `eog_ref.py` with R7 C; ML-side follow-ups for
+  FPGA questions 46, 48, 74 and 75 done ([`fpga_spec_questions.md`](fpga_spec_questions.md)).
+- **Next:** board run with v4 golden sets (Lucas, T2.top), then the CSV → binary demo through the real board
+  (`replay.py` on Lucas's PC → board → `listen.py` → server) and the Nemotron integration (Jason, `global_plan.md` §7).
 
 ## Progress update (Sun 01:50 CST): architecture frozen, release candidate v3
 

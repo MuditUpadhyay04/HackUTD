@@ -1,4 +1,4 @@
-# ML architecture — release candidate v3
+# ML architecture — deployed weights v4
 
 Owner: Mudit (ML) · Sun Nov 8 2026, 01:50 CST (updated 02:40 for R7 option C) · Status: **FROZEN for the demo.**
 The FPGA spec is locked; only a bug or new data reopens this.
@@ -9,7 +9,7 @@ The FPGA spec is locked; only a bug or new data reopens this.
 | FPGA spec | **v4, locked** (`FPGA/spec/numerics.md`) + Lucas's final rulings: FPGA spec questions 20–25, 38, 67–70 (**70 = R7 option C**). Our questions ML-1 … ML-13 and their answers: [`fpga_spec_questions.md`](fpga_spec_questions.md) |
 | Normative integer reference | `ml/hutd_ml/features_int.py` (spec v4 says so); exact semantics in `ml/README.md` → "RESULT semantics" |
 | Feature set | id **1**: 31 integer features, unchanged since the FPGA plan's "memory feature set v1" |
-| Deployed weights | **v3** (`weights_ver` 3): `ml/artifacts/v3/` |
+| Deployed weights | **v4** (`weights_ver` 4): `ml/artifacts/v4/`. v3 recipe + missing-data augmentation, because the judging data will have missing readings (Lucas) |
 | Previous weights | v2 (`weights_ver` 2), kept because its golden sets are what the RTL is verified against |
 
 ## 1. Summary
@@ -53,7 +53,7 @@ flowchart LR
 | --- | --- | --- |
 | CSV → binary records, CONFIG from `network.json` | Lucas's PC | `ml/hutd_ml/encode.py`, `replay.py` |
 | Validation, features, heads, rules, countdown, alarms | FPGA fabric | spec v4; `features_int.py` is the reference |
-| Weights, thresholds, K, `gap_thr` | trained offline, loaded at runtime | `ml/hutd_ml/train.py` → `artifacts/v3/` |
+| Weights, thresholds, K, `gap_thr` | trained offline, loaded at runtime | `ml/hutd_ml/train.py` → `artifacts/v4/` |
 | Binary → JSON, confidence (Platt), heartbeat | Lucas's PC (or the server) | `ml/hutd_ml/listen.py`, `ml/INTEGRATION.md` |
 | Events, inspections, truck/shut-in plans | server | Jason, `global_plan.md` |
 
@@ -112,7 +112,7 @@ With current channels only, leak precision is 0.23; with memory, 0.95.
   "normal" = all four low). No softmax.
 - **Integer form** (spec v4 §8):
   - `logit_k = sat16((Σ_i W[k][i]·x_i + B[k] + 2^(S_out−1)) >>> S_out)`;
-  - W is int16 with `Fw` fractional bits (v3: Fw = 8, S_out = 14), B is int32, the accumulator is 48 bits (in
+  - W is int16 with `Fw` fractional bits (v4: Fw = 8, S_out = 14), B is int32, the accumulator is 48 bits (in
     practice < 2^31);
   - logits are in 1/256 units.
 - **Why logistic regression:**
@@ -126,10 +126,10 @@ With current channels only, leak precision is 0.23; with memory, 0.95.
 
 ## 6. Decision layer (runtime-loadable, GLOBAL CONFIG)
 
-| Setting | v3 value | Meaning |
+| Setting | v4 value | Meaning |
 | --- | --- | --- |
-| `logit_thr` | [−64, 0, 0, 0] (1/256) | a class is "hit" when its logit is **>** threshold |
-| `persist_K4` | [1, 3, 1, 1] | hits needed in a row (degradation: 3 steps = 15 min) |
+| `logit_thr` | [−128, −64, 0, 0] (1/256) | a class is "hit" when its logit is **>** threshold |
+| `persist_K4` | [2, 4, 1, 1] | hits needed in a row (leak: 2 steps = 10 min; degradation: 4 steps = 20 min) |
 | `gap_thr` | 504 (3.1 % of Q) | E-STOP needs flow gap > `gap_thr` **and** a leak hit, K(leak) times in a row |
 | `persist_K`, `S`, `HOLD_MAX`, `CD_LOG2` | 1, 17, 2, 4 | fallback K; fixed by the RTL |
 
@@ -147,7 +147,7 @@ With current channels only, leak precision is 0.23; with memory, 0.95.
 | Data | `history/full_week` only. Snapshots / mock test are prefixes of it, so not independent. |
 | Labels | half-open `[onset, end)` per facility from `answer_key.json` (offline only); shut-in derived from the readings |
 | **Observable labels** | leak / degradation positives **before the pump first runs inside their event** get weight 0. Nothing can show the problem yet; training on those steps teaches the model to fire on healthy-looking pump-off data. Evaluation keeps the full labels. |
-| Augmentation | copies with healthy pressure offsets ×0.8 / ×1.2, sizes ×0.7 / ×1.5, extra sensor noise (`augment.TRAIN`), all passed through the real encoder and engine |
+| Augmentation | copies with healthy pressure offsets ×0.8 / ×1.2, sizes ×0.7 / ×1.5, extra sensor noise (`augment.TRAIN`), **plus a copy with 2 % of telemetry rows deleted** (held and INVALID records under R7 option C; INVALID rows are not trained on). All are passed through the real encoder and engine. |
 | Loss | L2 logistic regression per head, class-balanced; **C = 3** (leak, degradation) and 0.03 (failure, shut-in); no feature scaling (the FPGA uses raw features) |
 | Validation | train on 4 systems, score the 5th, for each of S1–S5; out-of-fold scores computed **after** int16 export |
 | Thresholds / K | per class, on the out-of-fold integer logits, within ≤ 0.05 false alerts per facility-day. Priority: most events caught, then fastest median detection, then shortest worst-case detection, then frame recall. |
@@ -158,52 +158,58 @@ Reproduce:
 
 ```sh
 cd ml && python -m hutd_ml.train --data <full_week> --answer-key <full_week>/answer_key.json \
-    --out artifacts/v3 --version 3 --augment --observable --c 3,3,0.03,0.03
+    --out artifacts/v4 --version 4 --augment --observable --drop-aug --c 3,3,0.03,0.03
 ```
 
-(about 3 min; the training-data SHA-256 is recorded in `weights.json`)
+(about 4 min; the training-data SHA-256 is recorded in `weights.json`)
 
-## 8. Results (v3)
+## 8. Results (v4)
 
 **Clean practice week**, each system scored by a model that never saw it, with integer logits. These numbers are
 optimistic, because the thresholds were chosen on the same scores.
 
 | Head | Precision / recall | Events caught | Median / worst delay after onset | False alerts per facility-day |
 | --- | --- | --- | --- | --- |
-| Leak | 0.95 / 0.99 | 5/5 | 5 / 60 min (EVENT_1 starts with the pump off) | 0.019 |
-| Degradation | 0.95 / 0.90 | 5/5 | 155 / 180 min | 0.038 |
+| Leak | 0.92 / 0.99 | 5/5 | 10 / 65 min (EVENT_1 starts with the pump off) | 0.038 |
+| Degradation | 0.96 / 0.90 | 5/5 | 160 / 170 min | 0.029 |
 | Failure | 1.00 / 1.00 | 13/13 | 0 | 0 |
 | Shut-in | 1.00 / 1.00 | — | — | 0 |
 
 - E-STOP: 5/5 leaks, 0 records outside a leak.
-- int16 vs float: decisions 99.998 % identical, logit error ≤ 0.014.
+- int16 vs float: decisions 100 % identical, logit error ≤ 0.019.
+- v3 on clean data, for comparison: leak 0.95 / 0.99, 5 / 60 min, FA 0.019; degradation 0.95 / 0.90, 155 / 180 min.
+  v4 gives up 5 min of leak latency to hold up under missing data (table below).
 - **Mock-test dry run** (same week; sanity only): at "now" it flags exactly the two pump failures in progress,
   S5_B and S5_C, with p50 countdowns of 205 and 123 min.
 
 **Robustness**: a held-out system distorted *before* encoding, with clean thresholds kept. False alerts per
 facility-day, leak / degradation:
 
-| Distortion | v2 (previous) | **v3** |
-| --- | --- | --- |
-| Healthy pressure offsets ×0.7 | 0.04 / 0.03 | 0.01 / 0.04 |
-| Healthy pressure offsets ×1.3 | 0.08 / 0.27 | 0.05 / 0.11 |
-| Extra sensor noise | 0.19 / 0.17 | 0.13 / 0.09 |
-| 2 % of readings missing, old hold rule A6 | 0.33 / 0.26 (AP 0.83 / 0.73) | 0.15 / 0.20 (AP 0.80 / 0.71) |
-| 2 % of readings missing, **R7 option C (current)** | — | 0.21 / 0.11 (AP **0.93 / 0.77**) |
-| All sizes ×0.5 / ×2, disposal pressure +200 psi | identical to clean | identical to clean (normalization makes this structural) |
+| Distortion | v2 | v3 | **v4 (deployed)** |
+| --- | --- | --- | --- |
+| Healthy pressure offsets ×0.7 | 0.04 / 0.03 | 0.01 / 0.04 | 0.02 / 0.04 ¹ |
+| Healthy pressure offsets ×1.3 | 0.08 / 0.27 | 0.05 / 0.11 | 0.06 / 0.08 ¹ |
+| Extra sensor noise | 0.19 / 0.17 | 0.13 / 0.09 | 0.06 / 0.07 ¹ |
+| 2 % of readings missing, old hold rule A6 | 0.33 / 0.26 (AP 0.83 / 0.73) | 0.15 / 0.20 (AP 0.80 / 0.71) | 0.13 / 0.23 (AP 0.79 / 0.73) |
+| 2 % of readings missing, **R7 option C (current)** | — | 0.21 / 0.11 (AP 0.93 / 0.77) | **0.03 / 0.17 (AP 0.98 / 0.89)** |
+| 5 % of readings missing, R7 option C | — | 0.54 / 0.49 (AP 0.83 / 0.55) | 0.18 / 0.41 (AP 0.96 / 0.82) |
+| All sizes ×0.5 / ×2, disposal pressure +200 psi | identical to clean | identical to clean | identical to clean (structural) |
+
+¹ From the experiment run with this recipe, whose thresholds were chosen with K ≤ 3 (`ml/artifacts/experiments_r7c/`).
+Missing-data rows use v4's shipped settings (`ml/artifacts/missing_data_v4/report.md`; v3: `missing_data/`).
 
 **What the weights learned**, which is good for explaining the model:
 
-- **Leak:** the slow pipeline-pressure average weighs +53, the fast one −33, the last running value −15. In words:
+- **Leak:** the slow pipeline-pressure average weighs +53, the fast one −35, the last running value −13. In words:
   *pipeline pressure has dropped below its own 8-hour baseline*, while the pump still discharges normally.
-- **Degradation:** the fast discharge-pressure average weighs −70, the slow one +51; the last running pump flow
-  weighs −42. In words: *the pump pushes less hard and moves less water than its own baseline*.
-- **Failure:** pump status = fault (+9.6).
-- **Shut-in:** wells active, inflow and well water all zero (−2.9 each).
+- **Degradation:** the fast discharge-pressure average weighs −91, the slow one +80; the fast pump-flow average
+  weighs −49. In words: *the pump pushes less hard and moves less water than its own baseline*.
+- **Failure:** pump status = fault (+9.9).
+- **Shut-in:** wells active, inflow and well water all zero (about −3 each).
 
 **Known limits:**
 
-- Degradation is detected 2.5–3 h after onset. The pump is often off for the first ~2 h, and the first percent of
+- Degradation is detected about 2.5–3 h after onset. The pump is often off for the first ~2 h, and the first percent of
   wear is inside normal noise. Events last 24–36 h, so this is still ~30 h before the failures that follow.
 - Failure and shut-in come straight from status bits; the ML value is leak and degradation.
 - Everything rests on one synthetic week, 5 + 5 events.
@@ -222,7 +228,8 @@ facility-day, leak / degradation:
 | Slots → clamped drop below the very slow average | 0.95 / 0.86, 260 / 340 | 0.05 / 0.10 | 0.04 / 0.09 | slower → rejected |
 | Observable labels, C 1 | 0.95 / 0.83, 170 / 275 | 0.02 / 0.07 | 0.19 / 0.16 | robust; adopted (labels) |
 | + missing-data augmentation | 0.95 / 0.83, 200 / 275 | 0.09 / 0.06 | 0.08 / 0.05 | leak FA 0.75 on missing data → rejected |
-| **Observable labels, C 3 (= v3)** | **0.95 / 0.90, 155 / 180** | **0.05 / 0.11** | **0.13 / 0.09** | **adopted** |
+| Observable labels, C 3 (= v3) | 0.95 / 0.90, 155 / 180 | 0.05 / 0.11 | 0.13 / 0.09 | adopted for v3 |
+| **+ missing-data augmentation, under R7 option C (= v4)** | **0.96 / 0.88, 165 / 180** | **0.06 / 0.08** | **0.06 / 0.07** | **adopted for v4**: leak FA with 2 % missing 0.21 → 0.03 (`experiments_r7c/`) |
 
 Conclusion: **the feature set and the RTL stay as specified.** All the gains came from the training recipe, which
 the board picks up by loading a new 980-byte weight blob.
@@ -234,7 +241,8 @@ the board picks up by loading a new 980-byte weight blob.
 | 0 | no model loaded: logits 0, reason `NO_MODEL`; rules and countdown still work |
 | 1 | v1, retired (pre-review spec) |
 | 2 | v2: augmented, C 1. Golden sets used for RTL verification. |
-| **3** | **v3: deployed** |
+| 3 | v3: observable labels + C 3 (clean-data best; deployable alternative) |
+| **4** | **v4: deployed** (v3 + missing-data augmentation) |
 | 240 | untrained pseudo-random test weights (RTL bring-up only) |
 
 | Can change… | How | Needs Lucas? |
@@ -258,9 +266,10 @@ the board picks up by loading a new 980-byte weight blob.
 
 | Item | Owner | Effect on ML |
 | --- | --- | --- |
-| ~~R7 hold/reset policy~~ | Lucas | **Decided: option C** (FPGA spec question 70), implemented in `features_int.py`; golden sets regenerated (ml `59f3746`). C vs A6 under missing data: `ml/artifacts/missing_data/report.md` |
+| ~~R7 hold/reset policy~~ | Lucas | **Decided: option C** (FPGA spec question 70), implemented in `features_int.py`; golden sets regenerated (ml `59f3746`). C vs A6 under missing data: `ml/artifacts/missing_data_v4/report.md` (C wins on every measure at 1–2 % missing) |
 | ~~ML-1 … ML-13~~ | Lucas | **All answered** (FPGA spec questions 38, 67–70); see [`fpga_spec_questions.md`](fpga_spec_questions.md) |
 | ~~`eog_ref.py` at v4~~ | Lucas's team | **Done** (`f264be2`): v4 `eog_ref.py` and `features_int.py` agree bit for bit on G0/G1/G2 |
-| `eog_ref.py` with option C (FPGA T0.2c) | Lucas's team | then `python -m hutd_ml.fpga_sync` must PASS without flags on the regenerated G2 |
-| Leak false alarms with missing readings under C | ML | rise at fixed thresholds (one flow field held while its partner updates). Testing missing-data augmentation; weights only, no RTL change |
+| ~~`eog_ref.py` with option C (FPGA T0.2c)~~ | Lucas's team | **Done** (FPGA `10be393`): `fpga_sync` PASS on v4 G0 / G2 / G1, all 71 alerts |
+| ~~Leak false alarms with missing readings under C~~ | ML | **Fixed by v4** (missing-data augmentation, weights only): 0.21 → 0.03 per facility-day at 2 % missing |
+| Board run with v4 golden sets (T2.top) | Lucas | `board.py --golden artifacts/v4/golden/g0`, then g2, then g1; compare ALERTs on a fresh board |
 | Judging network `test/` (S6–S11) | — | run `replay.py` on it unchanged; check the facility count ≤ 32 and wells ≤ 8 (the encoder refuses otherwise) |

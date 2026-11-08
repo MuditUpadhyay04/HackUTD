@@ -49,6 +49,25 @@ def test_blob_roundtrip_and_self_test():
     assert not model_int.self_test(bytes(bad))
 
 
+def test_fpga_rulings_46_48_75():
+    """FPGA spec questions 46 (S_OUT = 0: no rounding, no shift), 75 (a bad blob header fails the self-test, which
+    the board answers with ACK status 3) and 48 (N_WELLS > 8 clamps to 8)."""
+    acc = np.array([[5, -5, 7, 0]], dtype=np.int64)
+    assert np.array_equal(model_int.logits_int(np.ones((1, 31)), np.ones((4, 31)), np.zeros(4), 0), [[31] * 4])
+    assert fi.round_shift(-5, 0) == -5 and fi.round_shift(-3, 1) == -1 and fi.round_shift(3, 1) == 2
+    w_q, b_q, s_out = model_int.weights_v0()
+    blob = bytearray(model_int.pack_blob(w_q, b_q, s_out))
+    assert model_int.self_test(bytes(blob))
+    blob[0] = 2  # blob_format != 1
+    assert not model_int.self_test(bytes(blob))
+    assert not model_int.self_test(b"\x01")  # truncated header
+    fac = np.zeros(1, dtype=wire.FAC_CONFIG_DTYPE)
+    fac["n_wells"], fac["flags"] = 12, 1
+    glob = np.zeros(1, dtype=wire.GLOBAL_CONFIG_DTYPE)
+    glob["S"], glob["hold_max"], glob["cd_log2"] = 17, 2, 4
+    assert fi.Engine(glob[0], fac).fac[0].n_wells == 8
+
+
 def test_quantize_close_to_float():
     rng = np.random.default_rng(0)
     w = rng.normal(0, 5, size=(4, 31))

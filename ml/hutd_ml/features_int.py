@@ -36,6 +36,12 @@ def sat16(v):
     return -32768 if v < -32768 else 32767 if v > 32767 else v
 
 
+def round_shift(acc, s_out):
+    """Head output step: round half up, then shift right by S_OUT. S_OUT = 0 means no rounding constant and no
+    shift (FPGA spec question 46); quantize() never emits it, but the RTL accepts it."""
+    return (acc + (1 << (s_out - 1))) >> s_out if s_out > 0 else acc
+
+
 def mul_shift(raw, m, s):
     """sat16((raw * M + 2^(S-1)) >> S); Python >> is an arithmetic shift (A3). Returns (value, saturated)."""
     v = (raw * m + (1 << (s - 1))) >> s
@@ -102,7 +108,8 @@ class Engine:
         from .encode import fixed_multipliers
         fm = fixed_multipliers(self.s)
         self.m_level, self.m_dis, self.m_pl = fm["M_level"], fm["M_discharge"], fm["M_pipeline"]
-        self.fac = {fid: _Fac(int(c["n_wells"])) for fid, c in self.cfg.items()}
+        # N_WELLS > 8 is clamped to 8, like the RTL (FPGA spec questions 14 / 48); the ingest never writes more
+        self.fac = {fid: _Fac(min(int(c["n_wells"]), 8)) for fid, c in self.cfg.items()}
         self.result_no = 0
 
     # ---- helpers ---------------------------------------------------------------------------------------------
@@ -321,7 +328,7 @@ class Engine:
             for h in range(4):
                 acc = sum(w * x for w, x in zip(wts.w[h], feats)) + wts.b[h]
                 assert -(1 << (ACC_BITS - 1)) <= acc < (1 << (ACC_BITS - 1)), "48-bit accumulator overflow"
-                logits[h] = sat16((acc + (1 << (wts.s_out - 1))) >> wts.s_out)
+                logits[h] = sat16(round_shift(acc, wts.s_out))  # S_OUT = 0: no shift (FPGA #46)
 
         # S6: alarms (A10-A12, A19 / FPGA D8). Order per record: NS_RAISED, ES_RAISED, CLEARED(NS), CLEARED(ES).
         for h in range(4):

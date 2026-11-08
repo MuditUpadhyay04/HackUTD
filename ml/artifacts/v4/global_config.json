@@ -1,0 +1,30 @@
+{
+ "s_feat": 17,
+ "persist_k": 1,
+ "persist_k_per_class": [
+  2,
+  4,
+  1,
+  1
+ ],
+ "logit_thr": [
+  -128,
+  -64,
+  0,
+  0
+ ],
+ "gap_thr": 504,
+ "countdown": "review_r1r2",
+ "hold_max": 2,
+ "cd_log2": 4,
+ "logit_units": "1/256",
+ "single_k_alternative": {
+  "persist_k": 1,
+  "logit_thr": [
+   768,
+   256,
+   0,
+   0
+  ]
+ }
+}

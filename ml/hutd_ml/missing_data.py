@@ -1,12 +1,13 @@
-"""R7 comparison: hold policy C (spec question 70) vs legacy A6 under missing readings, with the v3 recipe.
+"""R7 comparison: hold policy C (spec question 70) vs legacy A6 under missing readings.
 
     python -m hutd_ml.missing_data --data <full_week> --answer-key <full_week/answer_key.json> \
         --config artifacts/v3/global_config.json --out artifacts/missing_data [--rates 0.01,0.02,0.05]
 
 The model is trained once per held-out system with the v3 recipe (clean + augment.TRAIN, observable labels, C 3 /
-0.03; none of that data has holds, so it is the same under C and A6) and quantized like the export. The same rows are
-then deleted from the practice week at each rate, and the held-out system is run through the engine under each hold
-policy. Scoring uses v3's shipped thresholds and per-class K. Reported per (rate, policy):
+0.03; none of that data has holds, so it is the same under C and A6) or, with --drop-aug, the v4 recipe (plus a 2 %
+missing-readings copy, built under hold policy C), and quantized like the export. The same rows are then deleted from
+the practice week at each rate, and the held-out system is run through the engine under each hold policy. Scoring uses
+the shipped thresholds and per-class K from --config. Reported per (rate, policy):
   - false alerts per facility-day and AP, for leak and degradation;
   - events caught;
   - history resets per facility-day (the first record of each facility excluded);
@@ -40,10 +41,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", required=True)
     ap.add_argument("--answer-key", required=True)
-    ap.add_argument("--config", required=True, help="global_config.json of the weights being evaluated (v3)")
+    ap.add_argument("--config", required=True, help="global_config.json of the weights being evaluated")
     ap.add_argument("--out", required=True)
     ap.add_argument("--rates", default="0.01,0.02,0.05")
     ap.add_argument("--c", default="3,3,0.03,0.03")
+    ap.add_argument("--drop-aug", action="store_true", help="also train on a 2 % missing-readings copy (v4 recipe)")
     a = ap.parse_args(argv)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -53,7 +55,8 @@ def main(argv=None):
     net = encode.load_network(a.data)
     tel = pd.read_csv(Path(a.data) / "telemetry.csv")
 
-    train_sets = [build(*fn(net, tel), a.answer_key) for fn in [augment.identity, *augment.TRAIN.values()]]
+    makers = [augment.identity, *augment.TRAIN.values()] + ([augment.drop_rows(0.02, seed=7)] if a.drop_aug else [])
+    train_sets = [build(*fn(net, tel), a.answer_key) for fn in makers]
     systems = sorted(set(train_sets[0]["system"]))
     folds = {}
     for s in systems:
@@ -102,9 +105,10 @@ def main(argv=None):
             rows.append(row)
             print(json.dumps(row), flush=True)
     (out / "results.json").write_text(json.dumps(rows, indent=1))
-    L = ["# R7: hold policy C vs A6 under missing readings (weights v3 recipe)", "",
+    L = [f"# R7: hold policy C vs A6 under missing readings ({Path(a.config).parent.name} settings"
+         f"{', missing-data augmentation' if a.drop_aug else ''})", "",
          "Same rows deleted under both policies (seed 2). Each system is scored by a model trained without it, "
-         "using v3's shipped thresholds and per-class K. FA = false alerts per facility-day; AP = average precision "
+         f"using {Path(a.config).parent.name}'s shipped thresholds and per-class K. FA = false alerts per facility-day; AP = average precision "
          "(VALID/HELD records). Resets exclude each facility's first record.", "",
          "| Case | Policy | Leak FA | Degr FA | Leak AP | Degr AP | Leak / degr events | Resets per facility-day | "
          "Memory < 64 steps | INVALID | HELD |",
