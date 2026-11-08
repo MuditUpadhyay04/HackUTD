@@ -1,13 +1,14 @@
 // tb_eog_features.sv -- golden-vector simulation of eog_features (Verify role, task T1.features.fv).
 //   bash scripts/sim.sh features
 //
-// Written from spec/modules/eog_features.md, numerics.md §4 and conventions.md §2-§3 (spec v2) and tb/README.md.
+// Written from spec/modules/eog_features.md, numerics.md §4 and conventions.md §2-§3 (spec v4) and tb/README.md.
 // The DUT runs at its default parameters (N_FAC = 32, N_WELL = 8, II = 16).
 //
 // Cases: every `case <name>` line of tb/vectors/INDEX.txt whose features_<name>.in.hex exists (the per-module
 // *_week files are git-ignored: generate them with `python model/gen_vectors.py`, see model/README.md). Each case
 // uses features_<name>.{in,out,cfg}.hex and features_<name>.events.txt:
-//   cfg.hex    line 0 = GLOBAL (glb), lines 1..32 = CONFIG rows of slots 0..31 (cfg_row = row[cfg_fac], combinational)
+//   cfg.hex    line 0 = GLOBAL (unused: v4 eog_features has no glb input), lines 1..32 = CONFIG rows of slots 0..31
+//              (cfg_row = row[cfg_fac], combinational)
 //   events     `<i> cfg <slot> <row hex>`: the row changes before record i. The bench stops feeding, waits until every
 //              earlier record has left the DUT, rewrites the row, then continues (a row only changes while its slot
 //              is disabled, i.e. not between a record's accept and its output; conventions §5).
@@ -47,7 +48,6 @@ module tb_eog_features;
     logic [FW-1:0] out_data;
     logic [4:0]    cfg_fac;
     logic [511:0]  cfg_row;
-    logic [255:0]  glb = '0;
 
     logic [511:0] rows [0:31];
     assign cfg_row = rows[cfg_fac];
@@ -56,7 +56,7 @@ module tb_eog_features;
         .clk(clk), .rst_n(rst_n),
         .in_valid(in_valid), .in_ready(in_ready), .in_data(in_data),
         .out_valid(out_valid), .out_ready(out_ready), .out_data(out_data),
-        .cfg_fac(cfg_fac), .cfg_row(cfg_row), .glb(glb));
+        .cfg_fac(cfg_fac), .cfg_row(cfg_row));
 
     always #5 clk = ~clk;
 
@@ -269,7 +269,6 @@ module tb_eog_features;
         logic   fired;
         mode = md;
         // configuration at the start of the case
-        glb = vcfg[0][255:0];
         for (int s = 0; s < 32; s++) rows[s] = vcfg[s + 1];
         // reset (2 cycles, as eog_top's soft reset)
         @(negedge clk);
