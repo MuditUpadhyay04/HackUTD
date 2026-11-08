@@ -22,9 +22,9 @@ file during a wave (agents report status in their final message) to avoid merge 
 | ID | Module (spec) | Role | Needs | Owner | Status | Report |
 | --- | --- | --- | --- | --- | --- | --- |
 | T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | | TODO | |
+| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
-| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | | TODO | |
+| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
