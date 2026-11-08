@@ -60,6 +60,18 @@ ALLOW_INSECURE_LOCAL=1 HOSTNAME=127.0.0.1 bun run dev:web
 
 Memory mode is labeled and never used automatically after a database failure. All data disappears when that API process stops.
 
+### Demo: the board, the night-shift wall, Nemotron
+
+- **Datasets from folders:** set `DATA_ROOT` for the API to a clone of the organizers' repo (`HackUTD-ZeroDay`).
+  Every folder holding the three files, up to two levels down (`history/<name>/`, `test/`), appears in the dataset
+  menu; the judges' `test/` is picked by default. `answer_key.json` is never read.
+- **Board results:** `listen.py --jsonl live.jsonl` writes the board's results; start the API with
+  `BOARD_JSONL=<path to live.jsonl> BOARD_SOURCE=fpga` (or `fakeboard`). `GET /api/board` reports the feed live.
+- **The night-shift wall:** http://localhost:3000/live (Operator, or Under the hood). With the board idle, "Run the
+  week" reads the week, has Nemotron plan its hardest moment, and shows the money kept.
+- **On the board PC (Windows):** `ml\win_demo.bat` starts the API, console, `listen.py` and `replay.py`;
+  `docs/plan/mudit/judging_day.md` is the procedure.
+
 ## Architecture
 
 - `apps/api/src/features/`: dataset import, runtime/projection, planning, agents, hardware and export.
