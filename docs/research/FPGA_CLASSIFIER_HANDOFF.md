@@ -2,6 +2,13 @@
 
 Date: 2026-11-07. Status: **proposed interface, backed by a completed data audit; no CNN has been trained or synthesized here.**
 
+> **Superseded in part (Sat Nov 7, 21:10 CST).** The FPGA plan ([`docs/plan/lucas/fpga_hardware_plan.md`](../plan/lucas/fpga_hardware_plan.md))
+> dropped the CNN for four logistic regressions on causal memory features, computed on the FPGA from raw
+> streamed records. **Superseded here:** the CNN architecture, the `[1, 12, 96]` window and its warm-up, host-side
+> windowing, and the 2,304 B full-window transport. **Still valid:** the 12 channel formulas (section 4), the output
+> order, the int16 scale 1/16384, server-side sigmoid/events/planning, and the training and validation rules
+> (section 7). See [`global_plan.md`](../../global_plan.md) §6.
+
 Reference repository: https://github.com/nihaal419/HackUTD-ZeroDay
 
 Audited commit: `135ba4c8348357457420a1111df80ec1906bcbdb`.
