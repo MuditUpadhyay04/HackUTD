@@ -1,0 +1,107 @@
+/* Pipe View styles. Scoped under .v4 .pv. Tokens come from app/v4.css (brief sections 3 and 4). */
+.v4 .pv { position: absolute; inset: 0; overflow: hidden; background: var(--bg); outline: none; }
+.v4 .pv:focus-visible::after { content: ""; position: absolute; inset: 0; border: 2px solid var(--amber); pointer-events: none; }
+.v4 .pv-svg, .v4 .pv-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.v4 .pv-svg { touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.v4 .pv-svg[data-drag="1"] { cursor: grabbing; }
+.v4 .pv-canvas { pointer-events: none; }
+
+/* Counter-scaling: labels stay readable at any zoom; glyphs cap their growth and shrink when zoomed far out. */
+.v4 .pv .cs { transform: scale(var(--iz, 1)); }
+.v4 .pv .gs { transform: scale(var(--gz, 1)); }
+
+.v4 .pv .lbl { font: 400 9px var(--font-mono); fill: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; stroke-linejoin: round; user-select: none; pointer-events: none; }
+.v4 .pv .lbl.id { fill: var(--text); font-weight: 500; }
+.v4 .pv .lbl.num { fill: var(--text); }
+.v4 .pv .lbl.well { fill: var(--faint); }
+.v4 .pv .lbl.dim { fill: var(--faint); }
+.v4 .pv .lbl.sys { font: 500 11px var(--font-mono); fill: var(--text); }
+.v4 .pv .lbl.slot { fill: var(--muted); font-weight: 500; }
+.v4 .pv .pv-line[data-tone="down"] .slot { fill: var(--red); }
+.v4 .pv .pv-line[data-tone="inspect"] .slot { fill: var(--magenta); }
+.v4 .pv .pv-line[data-tone="nodata"] .slot { fill: var(--text); }
+.v4 .pv .pv-line[data-k="flowing"][data-q="0"] .slot { fill: var(--text); }
+
+/* Level of detail by zoom (set on the svg by the camera) */
+.v4 .pv-svg[data-lod="far"] .lbl:not(.sys) { display: none; }
+/* mid: facility IDs only (state is carried by color and pattern); near: tank, flow or state and well IDs */
+.v4 .pv-svg[data-lod="mid"] :is(.lbl.num, .lbl.well, .lbl.slot) { display: none; }
+
+/* Line states: color + pattern, switched by data attributes from the view model */
+.v4 .pv-line { cursor: pointer; outline: none; transition: opacity 150ms ease; }
+.v4 .pv-line polyline { fill: none; stroke-linejoin: round; stroke-linecap: butt; }
+.v4 .pv-line .vis { pointer-events: none; }
+.v4 .pv-line[data-hl="dim"] { opacity: 0.35; }
+.v4 .pv-wb, .v4 .pv-up, .v4 .pv-dn { stroke: var(--c); }
+.v4 .pv-wb { stroke-width: 2; } .v4 .pv-up { stroke-width: 3; } .v4 .pv-dn { stroke-width: 5; }
+.v4 .pv-wgrey { stroke: var(--faint); stroke-width: 2; stroke-dasharray: 3 3; }
+.v4 .pv-red { stroke: var(--red); stroke-width: 5; }
+.v4 .pv-hatch { stroke-width: 12; }
+.v4 .pv-dith { stroke-width: 5; }
+.v4 .pv-line[data-hl="on"] .pv-dn, .v4 .pv-line[data-hl="on"] .pv-red { stroke-width: 6.5; }
+.v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition: opacity 240ms var(--ease-out); }
+.v4 .pv-red, .v4 .pv-hatch, .v4 .pv-dith, .v4 .pv-wgrey { opacity: 0; }
+.v4 .pv-line[data-k="idle"] :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0.4; }
+.v4 .pv-line[data-red="1"] .pv-dn { opacity: 0; }
+.v4 .pv-line[data-red="1"] .pv-red { opacity: 1; }
+.v4 .pv-line[data-k="shut"] .pv-wb { opacity: 0; }
+.v4 .pv-line[data-k="shut"] .pv-wgrey { opacity: 1; }
+.v4 .pv-line[data-k="leak"][data-q="0"] .pv-hatch { opacity: 1; }
+.v4 .pv-line[data-q="1"] .pv-d1, .v4 .pv-line[data-q="2"] .pv-d2, .v4 .pv-line[data-q="3"] .pv-d3 { opacity: 1; }
+.v4 .pv-line:not([data-q="0"]) :is(.pv-up, .pv-dn, .pv-wb) { opacity: 0; }
+
+/* Stations */
+.v4 .pv-wt { fill: var(--bg); stroke: var(--c); stroke-width: 1.6; }
+.v4 .pv-line[data-k="shut"] .pv-wt { stroke: var(--faint); }
+.v4 .pv-line:not([data-q="0"]) .gs { opacity: 0.6; }
+.v4 .pv-tbody { fill: var(--bg); stroke: var(--c); stroke-width: 1.6; }
+.v4 .pv-tfill { fill: var(--c); transform-box: fill-box; transform-origin: 50% 100%; transition: transform 240ms var(--ease-out), opacity 240ms var(--ease-out); }
+.v4 .pv-line[data-gauge="none"] .pv-tfill { opacity: 0; }
+.v4 .pv-tlimit { fill: var(--red); }
+.v4 .pv-ring, .v4 .pv-pulse { fill: none; stroke: var(--red); stroke-width: 2; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.v4 .pv-ring { transition: opacity 240ms var(--ease-out); }
+.v4 .pv-line[data-red="1"] .pv-ring { opacity: 1; }
+.v4 .pv-badge { fill: var(--amber); opacity: 0; }
+.v4 .pv-line[data-alarm="1"] .pv-badge { opacity: 1; }
+.v4 .pv-pring { fill: none; stroke-width: 3; opacity: 0; transition: opacity 240ms var(--ease-out); }
+.v4 .pv-line[data-k="worn"][data-q="0"] .pv-pring { opacity: 1; }
+.v4 .pv-pbody { fill: var(--bg); stroke: var(--c); stroke-width: 1.6; }
+.v4 .pv-pglyph { fill: var(--c); }
+.v4 .pv-line[data-red="1"] .pv-pbody { stroke: var(--red); }
+.v4 .pv-line[data-red="1"] .pv-pglyph { fill: var(--red); }
+.v4 .pv-line:focus-visible .pv-tbody { stroke: var(--amber); stroke-width: 2.5; }
+.v4 .pv-line:focus-visible .pv-pbody { stroke: var(--amber); stroke-width: 2.5; }
+.v4 .pv-hit polyline { stroke: transparent; stroke-width: 18; pointer-events: stroke; }
+.v4 .pv-tring { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+
+/* HUD */
+.v4 .pv-hud { position: absolute; inset: 0; pointer-events: none; font: 400 9px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.v4 .pv-legend { position: absolute; left: 10px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-1); }
+.v4 .pv-lg { display: inline-flex; align-items: center; gap: 5px; }
+.v4 .pv-sw { display: inline-block; width: 16px; height: 5px; background: var(--n1); }
+.v4 .pv-sw.idle { opacity: 0.4; }
+.v4 .pv-sw.red { background: var(--red); }
+.v4 .pv-sw.hatch { height: 8px; background-color: transparent; background-image: repeating-linear-gradient(135deg, var(--magenta) 0 1.5px, transparent 1.5px 4px); }
+.v4 .pv-sw.dith { background: var(--n1); -webkit-mask-image: var(--dither-mask-50); mask-image: var(--dither-mask-50); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+.v4 .pv-sw.alarm { width: 7px; height: 7px; background: var(--amber); }
+.v4 .pv-zoom { position: absolute; right: 10px; bottom: 8px; display: flex; gap: 4px; pointer-events: auto; }
+.v4 .pv-hint { position: absolute; left: 10px; top: 8px; color: var(--faint); }
+.v4 .pv-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+
+/* Tooltip */
+.v4 .pv-tipwrap { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 3; will-change: transform; }
+.v4 .pv-tipwrap .tip { min-width: 190px; max-width: 320px; padding: 8px 10px; background: var(--raised); border: 1px solid var(--line-2); border-radius: var(--r-2); font: 400 10px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+.v4 .pv-tipwrap .tip[data-instant="true"] { transition: none; }
+.v4 .pv-th { font-weight: 600; font-size: 11px; padding-bottom: 5px; margin-bottom: 4px; border-bottom: 1px solid var(--line); color: var(--c, var(--text)); }
+.v4 .pv-tr { display: flex; justify-content: space-between; gap: 14px; padding: 1px 0; color: var(--muted); }
+.v4 .pv-tr b { font-weight: 500; color: var(--text); text-align: right; }
+.v4 .pv-tr[data-tone="down"] b { color: var(--red); }
+.v4 .pv-tr[data-tone="inspect"] b { color: var(--magenta); }
+.v4 .pv-tr[data-tone="alarm"] b { color: var(--amber); }
+.v4 .pv-band { height: 6px; margin-top: 6px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .pv-tn { margin-top: 3px; color: var(--faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  .v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition-duration: 150ms; }
+  .v4 .pv-tfill { transition: none; }
+}
