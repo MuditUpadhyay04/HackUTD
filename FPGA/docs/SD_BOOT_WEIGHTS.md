@@ -1,126 +1,90 @@
-# SD boot with default weights: change overview for integration agents
+# SD boot with default weights: handoff notes
 
-- **Status:** decided by Lucas, Sun Nov 8 2026; implementation on branch `eog/T2.sd`. Once merged it lands on `FPGA`.
-- **Audience:** every integration agent (board/laptop, server, ingest/replay, ML, web).
-- **Why:** after a power cycle the board should classify with a model straight away, without waiting for a PC to push
-  WEIGHTS. Until now the board came up with no model (`weights_ver` = 0, zero logits, `NO_MODEL`) until UDP 7004
-  delivered a blob.
+Change notes for integration agents. Decided by Lucas, Sun Nov 8 2026. Implemented on branch `eog/T2.sd`, which merges
+into `FPGA`.
 
-## Decisions
+## Summary
 
-1. **The board always boots from the microSD card.** JP5 stays on SD. The card holds `BOOT.BIN` (FSBL + bitstream + ARM
-   app) and a default weights file.
-2. **At boot the ARM loads `weights.eog` from the card into the engine.** It runs the same checks a UDP WEIGHTS COMMIT
-   runs, then swaps the model in before it serves any UDP traffic.
-3. **The card is read-only for the board.** Weights pushed over UDP 7004 at run time replace the SD weights until the
-   next power cycle; they are not written back. To change the boot model, copy a new `weights.eog` onto the card.
+- The board always boots from the microSD card (JP5 on SD).
+- At boot the ARM loads a default model from the card, so classification runs with a model from the first record.
+  Before this change the board ran with no model until a PC pushed WEIGHTS.
+- The card is read-only for the board. UDP 7004 WEIGHTS still replaces the model at run time, until the next power
+  cycle.
+- No change to the RTL, the engine spec, the register map or the wire protocol v1.
 
-## What does NOT change
+## Card contents (FAT32, root directory)
 
-| Area | Status |
+| File | Contents |
 | --- | --- |
-| FPGA RTL, engine spec (`FPGA/spec/`), register map | Unchanged. The ARM writes the same 71-word window + `swap_req` that a WEIGHTS commit already uses |
-| Wire protocol v1 (C2): ports, packet layouts, ACKs | Unchanged. No new packet types or fields |
-| UDP 7004 WEIGHTS path | Unchanged; it stays the live-update path and overrides the SD model at run time |
-| Weight blob format (Mudit's `model_int.pack_blob`) | Unchanged. The SD file wraps it (see below) |
-| CONFIG handling | Unchanged: **the board still needs GLOBAL CONFIG and Facility CONFIG from the PC before DATA** (DATA before GLOBAL counts as a bad packet). Only the weights are on the card |
+| `BOOT.BIN` | FSBL + bitstream + `eog_app.elf`, built with `bootgen` (`FPGA/deploy/eog_boot.bif`, `make_boot_sd.bat`) |
+| `weights.eog` | The default model: a 16-byte header + Mudit's weight blob |
 
-## What changes, by consumer
+## `weights.eog` format
 
-### Server and dashboard
-- **Model from boot:** `weights_ver` in STATS (word "active weights version") and `WVER` in every RESULT are non-zero
-  from the first record after boot, with no WEIGHTS sent. The value is the SD file's version.
-- **Model provenance:** the server can't tell an SD-loaded model from a pushed one by protocol. Use the version number;
-  keep SD versions and pushed versions in the same 1–255 space, and don't reuse a number for a different blob.
-- **Startup:** still sends HEARTBEAT and receives RESULT/ALERT/STATS exactly as before.
-- **Still open, independent of this change:** the server-side acknowledge message (#77).
-
-### Ingest / replay (`hutd_ml.replay`, `hutd_ml.board`, ingest service)
-- **Startup order** becomes: *(board boots from SD with the default model)* → GLOBAL CONFIG → Facility CONFIG (ACKed)
-  → DATA.
-- **Sending WEIGHTS is optional.** If sent, it replaces the SD model (normal ACK/CRC/self-test rules, #67). If the PC
-  wants to know what is loaded, read `weights_ver` from STATS before deciding to push.
-- `hutd_ml.board --golden …` still pushes the golden set's weights. That's fine: the golden run uses its own model,
-  as before.
-
-### ML (Mudit)
-- **The SD file needs a wrapper.** The blob carries no version and no CRC (on the wire they travel in the WEIGHTS header
-  `aux` and the COMMIT chunk). `weights.eog` is a 16-byte header plus the unchanged blob:
+The blob itself has no version or CRC field; on the wire those travel in the WEIGHTS header `aux` and the COMMIT
+chunk. The file therefore wraps the blob:
 
 | Offset | Type | Field |
 | --- | --- | --- |
-| 0 | u32 LE | magic `0x57474F45` (ASCII "EOGW") |
-| 4 | u8 | `weights_ver` (1–255; 0 is rejected) |
+| 0 | u32 LE | magic `0x57474F45` ("EOGW") |
+| 4 | u8 | `weights_ver`, 1–255 (0 is rejected) |
 | 5 | u8 | wrapper format = 1 |
-| 6 | u16 LE | blob length in bytes (≤ 1,024) |
-| 8 | u32 LE | CRC32 (zlib / IEEE) over the blob bytes only |
-| 12 | u32 | reserved = 0 |
-| 16 | — | the blob, byte for byte as `pack_blob` produced it |
+| 6 | u16 LE | blob length (≤ 1,024) |
+| 8 | u32 LE | CRC32 (zlib / IEEE) over the blob bytes |
+| 12 | u32 | reserved, 0 |
+| 16 | — | the blob, unchanged (`model_int.pack_blob` layout) |
 
-- **Tool:** `FPGA/deploy/make_weights_sd.py --blob ml/artifacts/v3/weights.bin --version 3 --out weights.eog`. It
-  verifies the blob header, the CRC and (if Mudit's `hutd_ml` is importable) `model_int.self_test` before writing.
-  `fpga_sync` can call it, or ML can produce the file directly with the same layout.
-- **Self-test vectors:** keep the blob's `n_vectors` self-test vectors in it; the board refuses a file whose self-test
-  fails.
-- **Version numbering:** pick the SD file's `weights_ver` from the same 1–255 sequence as pushed blobs, and never reuse
-  a number for a different blob (#50).
+Generator: `FPGA/deploy/make_weights_sd.py --blob <weights.bin> --version N --out weights.eog`. It checks the blob
+header and the CRC, and runs Mudit's `self_test` when `hutd_ml` is importable.
 
-### Board / laptop (Vivado, Vitis, deploy)
-- **Vivado:** no block-design change; SD0 is already enabled with card detect in `vivado/eclypse_ps7_preset.tcl`.
-- **Vitis:**
-  - add the `xilffs` (FatFs) library to the BSP, with read-only support enough;
-  - create an FSBL application in the platform;
-  - `deploy/vitis_build.py` gets the extra library.
-- **Boot image:** a new `deploy/make_boot_sd.bat` with a `.bif` runs `bootgen` over the FSBL, the bitstream and
-  `eog_app.elf` to make `BOOT.BIN`.
-- **Card layout** (FAT32, root directory): `BOOT.BIN` and `weights.eog`.
-- **Jumper:** JP5 on SD permanently.
-- **Development iterations:** JTAG/xsdb can still download a new bitstream or ELF over a running board for quick
-  tests. The SD image is the reference, and every board report must name which one ran.
-- **Board acceptance test:**
-  1. power-cycle in SD mode;
-  2. read STATS: `weights_ver` must equal the file's version before any WEIGHTS packet is sent;
-  3. run `hutd_ml.board --golden artifacts/v3/golden/g0` and expect a byte-exact pass.
-  Also run the negative cases: missing card, missing file, corrupt CRC.
+## Board behaviour at boot
 
-### FPGA lead (this repo)
-- **New task T2.sd:** the ARM SD loader, the wrapper tool, the boot-image scripts and host tests.
-- **Docs:** `docs/plan/lucas/fpga_hardware_plan.md` gets an updated startup order and power/boot row, and the
-  verification plan's "boot self-test" is defined as this load and self-test (integration updates the plan doc, as in
-  #73).
+- **Load:** after platform and lwIP init, and before any UDP port is opened, the ARM reads `weights.eog`.
+- **Checks**, the same ones as a UDP WEIGHTS COMMIT, in this order:
+  1. magic and wrapper format;
+  2. version ≠ 0;
+  3. length matches the file size;
+  4. CRC32;
+  5. the blob header (`blob_format` 1, `n_heads` 4, `n_features` 31, `feature_set_id` 1);
+  6. the self-test vectors.
+- **On success:** the model is written to the inactive bank (words 0–69 = blob, word 70 = version) and swapped in.
+  UART prints `SD weights v<N> active`.
+- **On any failure:** UART logs the reason and the board runs with no model (`weights_ver` 0, zero logits,
+  `NO_MODEL`). Rules, countdown and rule-driven alarms still run.
+- **Shared code:** the SD path and the UDP COMMIT path share one validation and load function. The UDP WEIGHTS_ACK
+  status codes are unchanged (#67: 1 CRC, 2 length, 3 header or self-test, 4 swapped).
 
-## ARM boot sequence (`FPGA/ps`)
+## What other parts of the system see
 
-1. Platform and lwIP init (as today). The UDP services are not opened yet.
-2. Mount the SD card (FatFs) and read `weights.eog` (≤ 16 + 1,024 B).
-3. Check, in this order. On any failure: log the reason on UART and **continue with no model**, so rules, countdown
-   and rule-driven alarms still run (today's behaviour).
-   1. magic and wrapper format;
-   2. version ≠ 0;
-   3. length ≤ 1,024 and equal to the file size;
-   4. CRC32;
-   5. the blob header (`blob_format` 1, `n_heads` 4, `n_features` 31, `feature_set_id` 1);
-   6. the self-test vectors.
-4. Write blob words 0–69 and word 70 = version into the inactive bank, pulse `swap_req`, and wait for `swap_pending` = 0
-   (bounded timeout, logged).
-5. Log `SD weights v<N> active`, then open the UDP services. From then on everything is unchanged.
+| Area | Effect |
+| --- | --- |
+| Server, dashboard | STATS "active weights version" and every RESULT's `WVER` are non-zero from the first record, set to the SD file's version, with no WEIGHTS sent. There's no protocol flag for "model came from SD"; the version number identifies the model |
+| Ingest, replay | Still must send GLOBAL CONFIG and Facility CONFIG before DATA (the board treats DATA before GLOBAL as a bad packet). Sending WEIGHTS is now optional; if sent, it replaces the SD model as before |
+| `hutd_ml.board --golden` | Unaffected: it pushes the golden set's weights, which replace the SD model for that run |
+| ML (Mudit) | Default models ship as `weights.eog` (same blob, wrapped). Versions share one 1–255 sequence with pushed blobs; a number must not be reused for a different blob (#50). The blob keeps its self-test vectors, because the board refuses a file whose self-test fails |
+| Board build (laptop) | Vivado: none (SD0 with card detect is already in `vivado/eclypse_ps7_preset.tcl`). Vitis: the BSP gains `xilffs` (FatFs); the platform gains an FSBL app (`deploy/vitis_build.py`). Deploy: `BOOT.BIN` via `deploy/make_boot_sd.bat`; JP5 stays on SD. JTAG/xsdb can still load a test bitstream or ELF onto a running board; the SD image is the reference build |
+| FPGA RTL, spec, register map, wire protocol | No change |
 
-The SD path and the UDP COMMIT path share one function in `eog_proto` (validate, then write the bank and swap), so
-both enforce identical checks. The SD and FatFs access sits behind a HAL hook (`hal_read_file`), so host tests cover
-every outcome without hardware.
+## Behaviour by situation
 
-## Failure modes and what consumers see
-
-| Situation | Board behaviour | What the server sees |
+| Situation | Model after boot | `weights_ver` |
 | --- | --- | --- |
-| No card / no `weights.eog` | Boots (if `BOOT.BIN` came from elsewhere; with SD-only boot there's no boot without a card). No model | `weights_ver` = 0, zero logits, `NO_MODEL` until WEIGHTS arrive |
-| File corrupt or failing self-test | Logs on UART; no model | Same as above |
-| Valid file | Model active before the first UDP packet | `weights_ver` = file version from the first RESULT |
-| WEIGHTS pushed later | Replaces the model (normal path) | New `weights_ver` |
-| Power cycle | Back to the SD model | SD version again |
+| Valid `weights.eog` | SD model | File version |
+| File missing, corrupt, or failing self-test | None | 0 |
+| WEIGHTS pushed over UDP later | Pushed model | Pushed version |
+| Power cycle | SD model again | File version |
+
+## Unchanged
+
+- The UDP 7004 WEIGHTS path (chunks, ACKs, CRC, swap).
+- All packet layouts and ports.
+- CONFIG handling.
+- Weight blob layout.
+- The engine's weight window and swap.
 
 ## Open items
 
-- Should GLOBAL/Facility CONFIG also live on the card, so the board needs no PC at all to start classifying? Not in
-  scope; it would need ingest to still be the source of truth for slot rules (C3).
-- A wire-visible "model source" flag in STATS is not added; the version number identifies the model.
+- GLOBAL and Facility CONFIG are not on the card. A board without a PC still needs ingest to send CONFIG before it
+  classifies.
+- There is no write-back: weights pushed over UDP are lost at power-off. To update the boot model, replace
+  `weights.eog` on the card.
