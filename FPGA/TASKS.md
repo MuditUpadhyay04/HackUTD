@@ -192,3 +192,4 @@ Rules: no property is weakened to pass; UNKNOWN is not PASS; deep opt-in tasks t
 | 98 | regs | CONFIG slots ≥ N_FAC when N_FAC < 32 | Unmapped: read 0, writes ignored | T1.regs.fv | Accepted |
 | 99 | regs | Harness environment limits (d_ready = 0 inside a push window; no rec_in during stats_clear/soft reset; a pop on an empty FIFO with an arrival before RVALID) | Documented proof restrictions; covered by the testbench where observable | T1.regs.fv | Noted (list under "not closed" in RTL_DONE_HANDOFF) |
 | 100 | regs | Pulse counting assumes no new AW/W in the same cycle as the previous B handshake | Holds for this RTL (one transaction at a time) | T1.regs.fv | Noted |
+| 101 | regs | Weight-window write with WSTRB = 0 | A no-op: no `wb_we`, nothing changes (the RTL already does this) | integration (regs formal R_wbw) | Accepted (clarification; harness fix by T1.regs.fv) |
