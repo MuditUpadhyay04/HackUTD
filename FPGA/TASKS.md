@@ -44,8 +44,8 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.head.fv` 6b3b218 (v4; integration `eog/integrate-head`: lint ok, sim PASS 134,226 records + 10,336 debug captures on 23 cases; formal running) |
 | T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | DONE | ea519d9, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt`; sim PASS 200,130 records / 1,236 ALERTs (18 v4 cases x 3 modes incl. dropped ALERTs, BTN0 acks) |
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 0cf99c7, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt` (prove, bmc_seq, bmc_ack, bmc_mod, bmc_a8, cover PASS) |
-| T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.pack.rtl` 9e684bc (v4; latency 1, 4 beats/record at 1 beat/cycle; smoke PASS all 19 pack_* cases incl. week/g1; #25 is owned upstream, pack copies) |
-| T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | v4 from the start |
+| T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | DONE | 9e684bc, merged via `eog/integrate-pack`; `reports/formal_pack.txt`; sim PASS 268,536 records / 1,074,144 beats (23 cases x 4 runs incl. a batch-only m_last run: 1,004 BATCH-count m_last) |
+| T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 467327b, merged via `eog/integrate-pack`; `reports/formal_pack.txt` (prove = abc pdr, bmc, cover PASS) |
 | T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.regs.rtl` ac0d183 (v4 full regmap: CTRL/GLOBAL/LEDOVR/DBGSEL, CONFIG table, DATA window, RESULT/ALERT FIFOs, STATS, DBG, 71-word weight window; smoke PASS 447 regs_basic ops + directed; xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36) |
 | T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | CLAIMED | v4 from the start |
 
@@ -127,7 +127,7 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 54 | alarm | Pmod/LED output timing | May lag state by 1 cycle; `hb_toggle` 1–2 cycles after `hb_pulse`; `ms_since_hb`/`autonomous` exact | T1.alarm.fv | Accepted |
 | 55 | alarm | Records open in the stage | At most 2, counting ALERTs not yet pushed (RTL keeps 0/1) | T1.alarm.fv | Accepted |
 | 56 | alarm, countdown, memory | Codes 2/5–7 with HIST_RESET | Per stage: alarm changes no state (#10); countdown (#34) and memory (#44) clear. Never produced by validate; the model does the same | T1.alarm.fv, T0.2b | Accepted |
-| 57 | pack | The vectors never produce a batch-only `m_last` (IN_LAST is set wherever m_last is) | Add a pack case with IN_LAST = 0 on most records (model follow-up); formal K3 covers it meanwhile | T1.pack.rtl | Open (model follow-up) |
+| 57 | pack | The vectors never produce a batch-only `m_last` (IN_LAST is set wherever m_last is) | Add a pack case with IN_LAST = 0 on most records (model follow-up); formal K3 covers it meanwhile | T1.pack.rtl | Covered by the pack testbench's batching run (IN_LAST cleared on most records); model case optional |
 | 58 | pack | `tap_valid` timing | Same cycle as the beat-3 transfer | T1.pack.rtl | Accepted |
 | 59 | regs | STATS 0 "records in" in DMA mode | Counts DATA-window records only (6th beat accepted); regs has no view of DMA input | T1.regs.rtl | **Open for T2.top:** add an input-record tap from `eog_unpack` to regs if DMA-mode counting is wanted |
 | 60 | regs | STATS 10 "alerts raised" vs drops | Word 10 counts alerts pushed into the FIFO; word 11 counts drops (incl. `al_valid` while full) | T1.regs.rtl | Accepted |
@@ -160,3 +160,6 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 87 | countdown | HIST_RESET on DROPPED | Never set (conventions v4); bus contract | T1.countdown.fv | Accepted |
 | 88 | countdown | VALID/HELD with FAC ≥ N_FAC | 3 × 0xFFFF, NOT_FILLING = 0, no state change (#1) | T1.countdown.fv | Accepted |
 | 89 | model | `sat` case description says "signed inflow ring" | Fix wording (vectors already follow #20) | T1.countdown.fv | Sent to the model agent |
+| 90 | pack | `tap_valid` timing (vs #58) | Same cycle as the beat-3 transfer (#58); the harness/tb accept same or next cycle, exactly once | T1.pack.fv | Accepted |
+| 91 | pack | Records held | At most 2 accepted whose last beat has not transferred (RTL holds 1) | T1.pack.fv | Accepted |
+| 92 | pack | "Sustains one beat per cycle" | in_valid = m_ready = 1 for 3 cycles → m_valid = 1 (one bubble at start / after back-pressure; as #27) | T1.pack.fv | Accepted |
