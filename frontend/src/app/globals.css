@@ -233,3 +233,8 @@ html.dark [class~="[&:hover>circle]:fill-[#f2f2f7]"]:hover > circle { fill: #2c2
 @keyframes sim-packet { from { left: -4px; } to { left: 100%; } }
 .sim-packet { animation: sim-packet 0.8s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .sim-packet { animation: none; } }
+
+/* Live wall: records moving along each hop of the data path. */
+@keyframes live-dot { from { left: -12px; } to { left: 100%; } }
+.live-dot { animation-name: live-dot; animation-timing-function: linear; animation-iteration-count: infinite; }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
