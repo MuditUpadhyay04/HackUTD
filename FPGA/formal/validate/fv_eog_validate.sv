@@ -25,6 +25,10 @@
 //        hold_run > hold every held field becomes missing (INVALID, FIELD_LOST, no FIELD_HELD), with NO history
 //        reset: no HIST_RESET, last_valid kept, hold_run not cleared, SINCE_RESET not incremented, PREV kept.
 //        History resets come only from time gaps (missing > hold), the first record and fac_touch.
+//   #71 (proposed, treated as spec) a hold-limit record: INVALID, FIELD_LOST, HIST_RESET = 0, FIELD_HELD = 0,
+//        current SINCE_RESET, PREV unchanged; every following record with a held candidate is INVALID too until
+//        a record with none, a time-gap reset or a touch; OK fields still update last_valid (V6_ovf, V6_held,
+//        V7, V8, V9_prev, HV).
 //
 // Sizes: N_FAC = 2, N_WELL = 2 (so 7 + 2*2 = 11 fields per slot). CONFIG rows are per-slot anyconst
 // (conventions §5: an enabled row never changes; formal keeps every row constant, row rewrites are covered by
