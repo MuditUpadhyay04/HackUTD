@@ -9,8 +9,8 @@ Lucas's rulings on spec questions 20-25 (FPGA/TASKS.md, Sun 01:17) override the 
 differ: ring of max(INFLOW, 0) (#20), NOT_FILLING = 0 at/above shutdown (#21), ALERT SOURCE per kind (#22), reason
 bits 11/13/14 restored (#23), HIST_RESET on a facility's first record (#24), DROPPED RESULTs carry SINCE_RESET 0 and
 WVER 0 (#25). Spec question #70 (R7 option C, Lucas Sun 02:03) replaces numerics.md §3 step 5: a hold run above
-HOLD_MAX makes the record INVALID (FIELD_LOST) with no history reset; Mudit's code gets it in his task T0.5, and
-check_mudit.py reports the difference as the pre-T0.5 gap until then. Other open readings follow the lead's answers
+HOLD_MAX makes the record INVALID (FIELD_LOST) with no history reset; Mudit's code has it since his task T0.5
+(59f3746, hold_policy "C"). Other open readings follow the lead's answers
 (cited as TASKS #n) or Mudit's code; the few the model still had to decide itself are marked `MODEL-Q<n>` and listed
 in model/README.md.
 

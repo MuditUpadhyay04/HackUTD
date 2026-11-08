@@ -478,7 +478,7 @@ def case_sat():
             steps += [("wts", w_random(301, s_out=1)), ("swap",)]
     return Case("sat", "synthetic: extreme CONFIG multipliers (2^32-1, 0, 2^31), N_WELLS 0/1/8/12, wide LO/HI, "
                 "readings at +-32767/-32768 (every channel saturates), level jumps for channel 11, countdown with "
-                "K_CD 2^24-1 / 0, SHUT_LVL 0 / 0xFFFF, signed inflow ring (mean <= 0, clamp to 0xFFFF), saturated "
+                "K_CD 2^24-1 / 0, SHUT_LVL 0 / 0xFFFF, ring of max(INFLOW, 0) (#20: mean 0 -> 0xFFFF), saturated "
                 "logits (S_OUT 1, then 0 after a swap)",
                 global_record(), rows, w_const(32767, (1 << 31) - 1, 1, 2), steps)
 
@@ -632,9 +632,8 @@ def golden_cases(ml=None):
             continue
         man, glb, rows, img, recs = load_golden(d)
         steps = [("hb",)] + [("rec", int.from_bytes(r, "little"), True) for r in recs]
-        out.append(Case(name, "Mudit's golden set %s/golden/%s (%d records, weights_ver %d): his GLOBAL, CONFIG, "
-                        "weight blob and data.bin; top_ out = eog_ref, which equals his expected_results.bin except "
-                        "at hold-limit records (R7, TASKS #70; his sets predate it until his T0.5)"
+        out.append(Case(name, "Mudit's golden set %s/golden/%s (%d records, weights_ver %d): his GLOBAL, CONFIG and "
+                        "weight blob; top_ in/out = his data.bin / expected_results.bin"
                         % (ver, g, len(recs), man.get("weights_version", 0)), glb, rows, img, steps))
     return out
 
