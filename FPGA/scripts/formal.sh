@@ -2,7 +2,8 @@
 # formal.sh <module> — run SymbiYosys for one module; writes reports/formal_<module>.txt
 # Looks for formal/<module>/eog_<module>.sby, then formal/<module>/<module>.sby, then formal/<module>.sby (axi_mul).
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
+EOG_SELF="scripts/$(basename "$0")"; . scripts/env.sh
 m=${1:?usage: formal.sh <module>}
 mkdir -p reports
 for c in "formal/$m/eog_$m.sby" "formal/$m/$m.sby" "formal/$m.sby"; do

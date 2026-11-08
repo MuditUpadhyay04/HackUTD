@@ -5,3 +5,4 @@
 *.py text eol=lf
 *.hex text eol=lf
 *.bat text eol=crlf
+*.f text eol=lf
