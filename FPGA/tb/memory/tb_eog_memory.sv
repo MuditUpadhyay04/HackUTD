@@ -300,13 +300,15 @@ module tb_eog_memory;
 
     // input-side statistics of a case: status mix, resets, running records, longest non-running stretch
     integer cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_invhr, cs_run, cs_oob, cs_nsr64, cs_since64, cs_max_nsr;
+    integer cs_rerun64;   // spec cover: a slot that has run, stopped 64+ records, and runs again
     task automatic case_stats(input integer n);
         integer nsr [0:31];
+        logic   ran [0:31];
         logic [2:0] st;
         logic [4:0] f;
         cs_valid = 0; cs_held = 0; cs_inv = 0; cs_drop = 0; cs_hr = 0; cs_invhr = 0; cs_run = 0; cs_oob = 0;
-        cs_nsr64 = 0; cs_since64 = 0; cs_max_nsr = 0;
-        for (int s = 0; s < 32; s++) nsr[s] = 0;
+        cs_nsr64 = 0; cs_since64 = 0; cs_max_nsr = 0; cs_rerun64 = 0;
+        for (int s = 0; s < 32; s++) begin nsr[s] = 0; ran[s] = 1'b0; end
         for (int k = 0; k < n; k++) begin
             st = vin[k][EOG_BF_STATUS +: 3];
             f  = vin[k][EOG_BF_FAC +: 5];
@@ -321,10 +323,16 @@ module tb_eog_memory;
                 cs_hr = cs_hr + 1;
                 if (!(st == EOG_ST_VALID || st == EOG_ST_HELD)) cs_invhr = cs_invhr + 1;
                 nsr[f] = 0;
+                ran[f] = 1'b0;
             end
             if (st == EOG_ST_VALID || st == EOG_ST_HELD) begin
                 if (f >= EOG_N_FAC) cs_oob = cs_oob + 1;
-                if (vin[k][EOG_BF_PUMP_RUN]) begin cs_run = cs_run + 1; nsr[f] = 0; end
+                if (vin[k][EOG_BF_PUMP_RUN]) begin
+                    cs_run = cs_run + 1;
+                    if (ran[f] && nsr[f] >= 64) cs_rerun64 = cs_rerun64 + 1;
+                    nsr[f] = 0;
+                    ran[f] = 1'b1;
+                end
                 else nsr[f] = nsr[f] + 1;
                 if (nsr[f] > cs_max_nsr) cs_max_nsr = nsr[f];
                 if (vout[k][EOG_BM_FEAT + 16*28 +: 16] == 16'd16384) cs_nsr64 = cs_nsr64 + 1;
@@ -400,8 +408,8 @@ module tb_eog_memory;
             do_reset(1);
             run_pass(n, P_FULL, 0);
 
-            $display("case %-8s %6d records OK (abort/random/full) | VALID %0d HELD %0d INVALID %0d DROPPED %0d, HIST_RESET %0d (on INVALID %0d), running %0d, FAC>=N_FAC %0d | longest non-running run %0d, FEAT28=16384 x%0d, FEAT30=16384 x%0d | full pass: first accept at cycle %0d, max II %0d, max latency %0d",
-                     cs, n, cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_invhr, cs_run, cs_oob, cs_max_nsr, cs_nsr64,
+            $display("case %-8s %6d records OK (abort/random/full) | VALID %0d HELD %0d INVALID %0d DROPPED %0d, HIST_RESET %0d (on INVALID %0d), running %0d, FAC>=N_FAC %0d | longest non-running run %0d, run again after 64+ x%0d, FEAT28=16384 x%0d, FEAT30=16384 x%0d | full pass: first accept at cycle %0d, max II %0d, max latency %0d",
+                     cs, n, cs_valid, cs_held, cs_inv, cs_drop, cs_hr, cs_invhr, cs_run, cs_oob, cs_max_nsr, cs_rerun64, cs_nsr64,
                      cs_since64, st_first_acc, st_max_ii, st_max_lat);
             total  = total + n;
             ncases = ncases + 1;
