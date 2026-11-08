@@ -19,7 +19,7 @@ export interface RuleInputs {
   levelPct: number | null;
   shutdownLvl: number; // 0.01 %
   warningLvl: number; // 0.01 %
-  netInflowBpd: number;
+  netInflowBpd: number | null;
   nWells: number;
 }
 
@@ -37,7 +37,7 @@ export function computeRules(inputs: RuleInputs): {
   for (let i = 0; i < inputs.nWells; i++) {
     const ws = inputs.wellStatus[i];
     const ww = inputs.wellWaterBpd[i];
-    if (ws === null || ww === null) {
+    if (ws == null || ww == null) {
       // Cannot determine; treat as not shut-in until known (never healthy-by-default).
       shutIn = false;
       break;
@@ -55,7 +55,7 @@ export function computeRules(inputs: RuleInputs): {
     levelAtWarning = inputs.levelPct >= inputs.warningLvl / 100;
   }
 
-  const notFilling = inputs.netInflowBpd <= 0;
+  const notFilling = inputs.netInflowBpd !== null && inputs.netInflowBpd <= 0;
 
   return { pumpFault, shutIn, levelAtShutdown, levelAtWarning, notFilling };
 }

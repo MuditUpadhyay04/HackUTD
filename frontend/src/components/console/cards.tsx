@@ -63,9 +63,6 @@ function Countdown({ hours, className }: { hours: number; className?: string }) 
 
 /** Button wording follows what the plan actually asks the operator to do. */
 function actionVerb(plan?: PlanOption) {
-  if (!plan || plan.kind === "do_nothing") return "Review plan";
-  if (plan.trucks > 0) return plan.trucks > 1 ? "Dispatch trucks" : "Dispatch truck";
-  if (plan.shutIns.length) return "Schedule shut-in";
   return "Review plan";
 }
 
@@ -87,13 +84,13 @@ export function PumpCard({
   const tone = cd.kind === "counting" && cd.hours < 3 ? "crit" : "warn";
   const doNothing = a.options?.find((o) => o.kind === "do_nothing");
   const saved = doNothing && a.plan ? doNothing.cost - a.plan.cost : 0;
-  const level = a.levelPct ?? 0;
+  const level = a.levelPct;
   const dq = a.dataQuality && a.dataQuality.quality !== "VALID" ? a.dataQuality : undefined;
 
   return (
     <article className="glass flex flex-col px-5 py-[18px]">
       <button type="button" onClick={onOpen} className="-m-2 flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-black/[0.03]">
-        <Ring pct={level} shutdownPct={limits.shutdownPct} tone={tone} />
+        {level != null ? <Ring pct={level} shutdownPct={limits.shutdownPct} tone={tone} /> : <span className="w-11 text-center text-faint">?</span>}
         <span className="min-w-0">
           <span className="block text-[17px] font-semibold">{facilityName(a.facilityId).replace(" ", ", Facility ")}</span>
           <span className="block text-[13px] text-faint">Pump down since {clockFrom(a.onsetUnix, nowUnix)}</span>
@@ -105,14 +102,14 @@ export function PumpCard({
           <Countdown hours={cd.hours} className={urgent ? "text-crit" : undefined} />
         ) : (
           <span className="font-display text-[44px] leading-none font-semibold tracking-[-0.03em] text-muted-foreground">
-            {cd.kind === "shut_in" ? "Shut in" : cd.kind === "unknown" ? "Unknown" : "Safe"}
+            {cd.kind === "shut_in" ? "At limit" : cd.kind === "not_filling" ? "Not filling" : cd.kind === "repair_first" ? "Repair first" : "Unknown"}
           </span>
         )}
         <p className="mt-1.5 text-[13px] text-muted-foreground">
           {cd.kind === "counting"
             ? `until the tank reaches shutdown at ${clockFrom(cd.at, nowUnix)}`
             : cd.kind === "shut_in"
-              ? "Wells are offline until the repair"
+              ? "Tank is at the shutdown limit"
               : cd.kind === "repair_first"
                 ? `Repair due ${clockFrom(cd.repairAt, nowUnix)}, before the tank fills`
                 : cd.kind === "not_filling"
@@ -120,6 +117,7 @@ export function PumpCard({
                   : "Not enough readings to estimate"}
         </p>
         {dq && <p className="mt-0.5 text-[12.5px] text-faint">{dataQualityLine(dq)}</p>}
+        {a.countdown && <p className="mt-0.5 text-[12.5px] text-faint">Estimate: {a.countdown.source}, {a.countdown.method}, {a.countdown.quality}</p>}
       </div>
 
       {a.plan && (
@@ -138,7 +136,7 @@ export function PumpCard({
       <div className="mt-auto pt-3.5">
         {approvedAt ? (
           <p className="flex items-center justify-center gap-1.5 rounded-[10px] bg-black/[0.04] py-[9px] text-[14px] font-medium text-ok">
-            <Check className="size-4" aria-hidden /> Plan approved at {clockFrom(approvedAt, nowUnix)}
+            <Check className="size-4" aria-hidden /> Advice acknowledged
           </p>
         ) : (
           <button
@@ -176,11 +174,13 @@ export function InspectorRows({
   tickets,
   onOpen,
   onTicket,
+  disabled,
 }: {
   items: Incident[];
   tickets: Record<string, number>;
   onOpen: (a: Incident) => void;
   onTicket: (a: Incident) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="glass overflow-hidden">
@@ -210,7 +210,7 @@ export function InspectorRows({
                 <Check className="size-4" aria-hidden /> Ticket created
               </span>
             ) : (
-              <button type="button" onClick={() => onTicket(a)} aria-label={`Create ticket for ${humanize(a.assetId)}`} className="font-medium text-water hover:underline">
+              <button type="button" disabled={disabled} onClick={() => onTicket(a)} aria-label={`Create ticket for ${humanize(a.assetId)}`} className="font-medium text-water hover:underline disabled:opacity-50">
                 Create ticket
               </button>
             )}
@@ -224,7 +224,7 @@ export function InspectorRows({
 function waterClass(f: FacilityState) {
   if (f.health === "failure") return "bg-[linear-gradient(180deg,#ff9f0a,#ff3b30)]";
   if (f.health === "leak" || f.health === "degradation") return "bg-[linear-gradient(180deg,#ffcc00,#ff9500)]";
-  if (f.health === "shut_in" || f.health === "no_data") return "bg-[linear-gradient(180deg,#c7c7cc,#8e8e93)]";
+  if (f.health === "shut_in" || f.health === "no_data" || f.health === "unknown") return "bg-[linear-gradient(180deg,#c7c7cc,#8e8e93)]";
   return "bg-[linear-gradient(180deg,#5ac8fa,#0a84ff)]";
 }
 
@@ -251,18 +251,19 @@ export function SystemCard({
         <b className="text-[15px] font-semibold whitespace-nowrap">System {systemNum(s.id)}</b>
         <span
           className={cn("flex items-center gap-1 text-[12px] whitespace-nowrap tabular-nums", trucksFree === 0 ? "text-crit" : "text-faint")}
-          title="Emergency trucks free in this system"
+          title="Proposed allocation, not a reservation or dispatch"
         >
           <Truck className="size-3.5" aria-hidden />
-          {trucksFree} of {s.fleetSize} free
+          {s.fleetSize - trucksFree} of {s.fleetSize} proposed
           <span className="sr-only">trucks</span>
         </span>
       </div>
       <div className="mt-3.5 flex items-end gap-2.5">
         {s.facilities.map((f) => {
-          const noData = f.health === "no_data";
-          const known = Number.isFinite(f.tank.levelPct);
-          const pct = known ? Math.round(f.tank.levelPct) : null;
+          const noData = f.health === "no_data" || f.health === "unknown";
+          const level = f.tank.levelPct;
+          const known = level != null && Number.isFinite(level);
+          const pct = known ? Math.round(level) : null;
           const label =
             f.health === "leak" ? "leak" : f.health === "degradation" ? "worn" : f.health === "shut_in" ? "shut in" : "";
           return (
@@ -276,7 +277,7 @@ export function SystemCard({
               <span className="relative block h-[92px] w-full max-w-10 overflow-hidden rounded-xl bg-[rgba(118,118,128,0.12)] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.06)]">
                 <span
                   className={cn("absolute inset-x-0 bottom-0 transition-[height] duration-500 ease-out", waterClass(f))}
-                  style={{ height: `${known ? Math.min(100, Math.max(0, f.tank.levelPct)) : 0}%` }}
+                  style={{ height: `${known ? Math.min(100, Math.max(0, level)) : 0}%` }}
                 />
                 <span className="absolute inset-x-0 h-[1.5px] bg-crit/90" style={{ top: `${100 - limits.shutdownPct}%` }} />
               </span>

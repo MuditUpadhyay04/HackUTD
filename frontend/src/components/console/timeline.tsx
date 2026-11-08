@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { Incident } from "@/lib/engine/types";
 import { categoryLabel, clock, day, facilityName } from "@/lib/format";
@@ -22,6 +22,7 @@ export function Timeline({
   events: Incident[];
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [pending, start] = useTransition();
   const [drag, setDrag] = useState<number | null>(null);
   const shown = drag ?? atUnix;
@@ -31,7 +32,9 @@ export function Timeline({
 
   const commit = (t: number) => {
     const snapped = Math.round(t / step) * step;
-    const q = new URLSearchParams({ dataset });
+    const q = new URLSearchParams(params.toString());
+    q.set("dataset", dataset);
+    q.delete("at");
     if (snapped < endUnix) q.set("at", String(snapped));
     start(() => router.push(`/?${q}`, { scroll: false }));
   };

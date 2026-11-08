@@ -32,7 +32,7 @@ export function LevelChart({
   );
   // With a forecast, keep the past short so the future gets room on the axis.
   const window = projections.length ? 10 * 3600 : Infinity;
-  const keep = history.t.map((t, i) => [t, history.v[i]] as [number, number]).filter(([t, v]) => t >= nowUnix - window && Number.isFinite(v));
+  const keep = history.t.map((t, i) => [t, history.v[i]] as [number, number | null]).filter((entry): entry is [number, number] => entry[0] >= nowUnix - window && entry[1] != null && Number.isFinite(entry[1]));
   const t0 = keep[0]?.[0] ?? nowUnix - 86400;
   const t1 = Math.max(projEnd, nowUnix + 60 * 60);
   const x = (t: number) => padL + ((t - t0) / (t1 - t0)) * (width - padL - padR);
@@ -99,7 +99,7 @@ export function LevelChart({
               strokeDasharray={emphasis === "baseline" ? "5 5" : undefined}
               strokeOpacity={emphasis === "baseline" ? 0.8 : 1}
             />
-            {emphasis === "recommended" &&
+            {emphasis === "recommended" && option.levelCurve.length > 0 &&
               option.truckArrivalsMin.map((m, i) => {
                 const pt = option.levelCurve.reduce((best, c) =>
                   Math.abs(c.min - m) < Math.abs(best.min - m) ? c : best,

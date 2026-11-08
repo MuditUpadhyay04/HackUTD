@@ -3,15 +3,14 @@
  * FPGA memory feature set v1.
  *
  * Channels are the documented float formulas (handoff section 4), then quantized to
- * int16 at scale 1/16384 with round-to-even and saturation to [-2, 2). Memory
+ * int16 at scale 1/16384 with round-half-up and saturation to [-2, 2). Memory
  * features run in the integer domain using arithmetic right shift (>> in JS =
  * sign-propagating = rounds toward -inf), matching the plan's `>>>` semantics.
  *
  * Capability note: features_int.py (the bit-exact integer reference, planned but not
  * written) uses sat16((raw·M + 2^(S-1)) >> S) = round-half-up per channel. This
- * software build quantizes float channels with round-to-even, so results can differ
- * by 1 LSB from the FPGA on exact-half cases. That is a documented gap, not a silent
- * protocol change. We do not claim bit-exact parity.
+ * software build quantizes float channels directly, not via CONFIG multipliers.
+ * We do not claim bit-exact parity.
  */
 
 import type { FacilityConfig, GlobalConfig } from "./types.ts";
@@ -57,7 +56,7 @@ function sat16(v: number): number {
   return Math.trunc(v);
 }
 
-/** Round half to even, then saturate to int16. Scale 1/16384. */
+/** Round half upward, then saturate to int16. Scale 1/16384. */
 export function quantize(x: number): number {
   return sat16(Math.round(x * SCALE));
 }

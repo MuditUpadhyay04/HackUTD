@@ -14,7 +14,7 @@ export function TankGlyph({
   height = 76,
   width = 30,
 }: {
-  level: number;
+  level: number | null;
   tone: TankTone;
   limits: Limits;
   height?: number;
@@ -35,14 +35,14 @@ export function TankGlyph({
         </clipPath>
       </defs>
       <rect x={inset} y={inset} width={width - inset * 2} height={innerH} rx={r - 1} fill="var(--line-soft)" />
-      <rect
+      {level != null && <rect
         x={inset}
         y={y(level)}
         width={width - inset * 2}
         height={height - inset - y(level)}
         fill={fill}
         clipPath={`url(#${id})`}
-      />
+      />}
       <line x1={inset} x2={width - inset} y1={y(limits.warningPct)} y2={y(limits.warningPct)} stroke="var(--warn-fill)" strokeWidth={1} strokeDasharray="2 2" />
       <line x1={0} x2={width} y1={y(limits.shutdownPct)} y2={y(limits.shutdownPct)} stroke="var(--crit)" strokeWidth={1.5} />
       <rect x={inset} y={inset} width={width - inset * 2} height={innerH} rx={r - 1} fill="none" stroke="var(--line)" />
@@ -51,7 +51,7 @@ export function TankGlyph({
 }
 
 export function toneFor(f: FacilityState, limits: Limits): TankTone {
-  if (f.health === "shut_in" || f.health === "no_data") return "idle";
+  if (f.health === "shut_in" || f.health === "no_data" || f.health === "unknown" || f.tank.levelPct == null) return "idle";
   if (f.health === "failure") return f.tank.levelPct >= limits.warningPct ? "crit" : "warn";
   if (f.tank.levelPct >= limits.shutdownPct) return "crit";
   if (f.tank.levelPct >= limits.warningPct) return "warn";

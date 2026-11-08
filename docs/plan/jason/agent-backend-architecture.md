@@ -9,14 +9,14 @@ date: 2026-11-07
 
 ## Steps
 
-- [ ] Establish the workspace, Elysia application contract, and vendor compatibility gate.
-- [ ] Add Tiger Data persistence, browser uploads and immutable dataset imports.
-- [ ] Integrate interchangeable FPGA/software execution and causal replay/recovery.
-- [ ] Build incident projections and countdown estimates.
-- [ ] Implement and validate system-wide response planning.
-- [ ] Add FX operator agents and bounded domain tools.
-- [ ] Connect the existing React frontend through Eden and retire its bundled backend paths.
-- [ ] Verify upload, dataset/time/runtime selection, fallback and the end-to-end demo.
+- [x] Establish the workspace, Elysia application contract, and vendor compatibility gate.
+- [x] Add Tiger Data persistence, browser uploads and immutable dataset imports.
+- [x] Integrate interchangeable FPGA/software execution and causal replay/recovery.
+- [x] Build incident projections and countdown estimates.
+- [x] Implement and validate system-wide response planning.
+- [x] Add FX operator agents and bounded domain tools.
+- [x] Connect the existing React frontend through Eden and retire its bundled backend paths.
+- [x] Verify upload, dataset/time/runtime selection, fallback and the end-to-end demo.
 
 ## Summary
 

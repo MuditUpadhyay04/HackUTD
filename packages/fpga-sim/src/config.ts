@@ -127,8 +127,8 @@ function loadFacility(
     C,
     W,
     P0: 0, // filled in by the system loop
-    shutdownLvl: requireAtLeastOne(shutdownLvl, "tank_limits_pct.shutdown") as number,
-    warningLvl: requireAtLeastOne(warningLvl, "tank_limits_pct.warning") as number,
+    shutdownLvl: requireAtLeastOne(shutdownLvl, "tank_limits_pct.shutdown") * 100,
+    warningLvl: requireAtLeastOne(warningLvl, "tank_limits_pct.warning") * 100,
     lo,
     hi,
     wellLo,

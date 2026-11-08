@@ -28,16 +28,20 @@ export interface CountdownState {
   ring: number[];
   pos: number;
   filled: boolean;
+  inflowRing: number[];
+  inflowPos: number;
+  inflowFilled: boolean;
 }
 
 export function initCountdownState(cdLog2: number): CountdownState {
-  return { ring: new Array(ringSize(cdLog2)).fill(0), pos: 0, filled: false };
+  return { ring: new Array(ringSize(cdLog2)).fill(0), pos: 0, filled: false, inflowRing: new Array(ringSize(cdLog2)).fill(0), inflowPos: 0, inflowFilled: false };
 }
 
 export function resetCountdownState(state: CountdownState, cdLog2: number): void {
   state.ring = new Array(ringSize(cdLog2)).fill(0);
   state.pos = 0;
   state.filled = false;
+  state.inflowRing = new Array(ringSize(cdLog2)).fill(0); state.inflowPos = 0; state.inflowFilled = false;
 }
 
 /** Add a net-inflow value to the ring. */
@@ -47,7 +51,7 @@ export function addNetInflow(state: CountdownState, value: number): void {
   if (state.pos === 0) state.filled = true;
 }
 
-function ringValues(state: CountdownState): number[] {
+function ringValues(state: Pick<CountdownState, 'ring' | 'pos' | 'filled'>): number[] {
   const n = state.ring.length;
   if (!state.filled && state.pos === 0) return [];
   const out: number[] = [];
@@ -93,7 +97,7 @@ function hoursToLimit(
 }
 
 function minutesFromHours(h: number): number {
-  if (!Number.isFinite(h) || h <= 0) return COUNTDOWN_NOT_FILLING;
+  if (!Number.isFinite(h) || h < 0) return COUNTDOWN_NOT_FILLING;
   const m = Math.round(h * 60);
   if (m > MAX_REPRESENTABLE_MINUTES) return MAX_REPRESENTABLE_MINUTES;
   return m;
@@ -119,22 +123,22 @@ export function computeCountdown(
   const C = cfg.C;
   const shutdownLvl = cfg.shutdownLvl / 100;
 
+  addNetInflow(state, inflowBpd - pumpFlowBpd);
+  state.inflowRing[state.inflowPos] = inflowBpd;
+  state.inflowPos = (state.inflowPos + 1) % state.inflowRing.length;
+  if (state.inflowPos === 0) state.inflowFilled = true;
   // Already at limit => 0 for all three (O7 R2), before not-filling.
   if (levelPct >= shutdownLvl) {
     return { p10: 0, p50: 0, p90: 0, notFilling: false };
   }
 
   // Net inflow: O7 host correction - failed pump moves 0 bpd.
-  const netBpd = pumpFault ? inflowBpd : inflowBpd - pumpFlowBpd;
-
   // Only add to the ring when we have a real (non-not-filling) observation to avoid
   // polluting the envelope with sentinel history. Not-filling steps still count as
   // memory depth via the feature pipeline; here we record the raw net value so the
   // ring reflects actual inflow behaviour. A not-filling value (<=0) is still a
   // legitimate ring entry for the min/max/mean envelope.
-  addNetInflow(state, netBpd);
-
-  const vals = ringValues(state);
+  const vals = pumpFault ? ringValues({ring:state.inflowRing,pos:state.inflowPos,filled:state.inflowFilled}) : ringValues(state);
   const remainingBbl = C * Math.max(shutdownLvl - levelPct, 0) / 100;
 
   const p50h = hoursToLimit(cfg, levelPct, remainingBbl, mean(vals));

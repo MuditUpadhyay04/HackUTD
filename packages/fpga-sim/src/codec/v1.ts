@@ -53,10 +53,11 @@ function u8(b: DataView, o: number): number { return b.getUint8(o); }
 function u16(b: DataView, o: number): number { return b.getUint16(o, true); }
 function u32(b: DataView, o: number): number { return b.getUint32(o, true); }
 function i16(b: DataView, o: number): number { return b.getInt16(o, true); }
-function writeU8(b: DataView, o: number, v: number): void { b.setUint8(o, v); }
-function writeU16(b: DataView, o: number, v: number): void { b.setUint16(o, v, true); }
-function writeU32(b: DataView, o: number, v: number): void { b.setUint32(o, v, true); }
-function writeI16(b: DataView, o: number, v: number): void { b.setInt16(o, v, true); }
+function integer(v: number, min: number, max: number): number { if (!Number.isInteger(v) || v < min || v > max) throw new V1CodecError('unrepresentable', `integer ${v} outside ${min}..${max}`); return v; }
+function writeU8(b: DataView, o: number, v: number): void { b.setUint8(o, integer(v,0,255)); }
+function writeU16(b: DataView, o: number, v: number): void { b.setUint16(o, integer(v,0,65535), true); }
+function writeU32(b: DataView, o: number, v: number): void { b.setUint32(o, integer(v,0,4294967295), true); }
+function writeI16(b: DataView, o: number, v: number): void { b.setInt16(o, integer(v,-32768,32767), true); }
 function dv(bytes: Uint8Array): DataView { return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength); }
 
 const LSB = { inflowBpd: 0.5, levelPct: 0.01, pumpFlowBpd: 0.5, receiveFlowBpd: 0.5,
@@ -136,9 +137,11 @@ export function decodeDataRecord(bytes: Uint8Array): DecodedDataRecord {
 export function encodeDataRecord(rec: TelemetryRecord): Uint8Array {
   const buf = new Uint8Array(V1_DATA_RECORD_BYTES);
   const v = dv(buf);
-  const slot = (rec as any).__slotHint ?? 0;
+  const slot = (rec as any).__slotHint;
   if (!Number.isInteger(slot) || slot < 0 || slot > V1_MAX_FACILITY_SLOT) throw new V1CodecError("bad_slot", `fac_id ${slot} outside 0..${V1_MAX_FACILITY_SLOT}`);
   if ([rec.wellStatus.length, rec.wellWaterBpd.length, rec.present.wellStatus.length, rec.present.wellWater.length].some(n => n > 8)) throw new V1CodecError("bad_wells", "v1 supports at most 8 well slots");
+  for (const [present,value] of [[rec.present.inflow,rec.inflowBpd],[rec.present.level,rec.levelPct],[rec.present.pumpStatus,rec.pumpStatus],[rec.present.pumpFlow,rec.pumpFlowBpd],[rec.present.receiveFlow,rec.receiveFlowBpd],[rec.present.discharge,rec.dischargePsi],[rec.present.pipeline,rec.pipelinePsi]] as const) if (present && (value == null || !Number.isFinite(value))) throw new V1CodecError('unrepresentable','present field missing or non-finite');
+  for (let i=0;i<8;i++) if ((rec.present.wellStatus[i] && rec.wellStatus[i] == null) || (rec.present.wellWater[i] && (rec.wellWaterBpd[i] == null || !Number.isFinite(rec.wellWaterBpd[i])))) throw new V1CodecError('unrepresentable', `present well ${i} missing`);
   writeU16(v, 0, slot);
   writeU16(v, 2, 0);
   writeU32(v, 4, rec.tsUnix);
@@ -160,14 +163,14 @@ export function encodeDataRecord(rec: TelemetryRecord): Uint8Array {
   writeI16(v, 20, toI16((rec.dischargePsi ?? 0) / LSB.dischargePsi, "discharge_psi"));
   writeI16(v, 22, toI16((rec.pipelinePsi ?? 0) / LSB.pipelinePsi, "pipeline_psi"));
   const ps = rec.pumpStatus ?? 0;
-  if (ps < 0 || ps > 2) throw new V1CodecError("illegal_enum", `pump_status ${ps} not in {0,1,2}`);
+  if (!Number.isInteger(ps) || ps < 0 || ps > 255) throw new V1CodecError("illegal_enum", `pump_status ${ps} outside u8`);
   writeU8(v, 24, ps);
   writeU8(v, 25, 0);
   let wsPacked = 0;
   for (let i = 0; i < 8; i++) {
     const s = rec.wellStatus[i];
     if (s === null || s === undefined) continue;
-    if (s < 0 || s > 3) throw new V1CodecError("illegal_enum", `well_status[${i}] ${s} not in 0..3`);
+    if (!Number.isInteger(s) || s < 0 || s > 3) throw new V1CodecError("illegal_enum", `well_status[${i}] ${s} not in 0..3`);
     wsPacked |= (s & 3) << (2 * i);
   }
   writeU16(v, 26, wsPacked);
@@ -256,23 +259,23 @@ export interface V1FacilityConfigWire {
 
 export function encodeFacilityConfig(cfg: V1FacilityConfigWire): Uint8Array {
   if (!Number.isInteger(cfg.facId) || cfg.facId < 0 || cfg.facId > V1_MAX_FACILITY_SLOT) throw new V1CodecError("bad_slot", `fac_id ${cfg.facId} outside v1 slots`);
-  if (cfg.nWells < 1 || cfg.nWells > V1_MAX_WELLS_PER_FACILITY) throw new V1CodecError("bad_wells", `n_wells ${cfg.nWells} outside 1..${V1_MAX_WELLS_PER_FACILITY}`);
+  if (!Number.isInteger(cfg.nWells) || cfg.nWells < 1 || cfg.nWells > V1_MAX_WELLS_PER_FACILITY) throw new V1CodecError("bad_wells", `n_wells ${cfg.nWells} outside 1..${V1_MAX_WELLS_PER_FACILITY}`);
   const buf = new Uint8Array(64);
   const v = dv(buf);
   writeU16(v, 0, cfg.facId);
   writeU8(v, 2, cfg.nWells);
   writeU8(v, 3, cfg.enabled ? 1 : 0);
-  writeU32(v, 4, cfg.MInvB >>> 0);
-  writeU32(v, 8, cfg.MInvQ >>> 0);
-  writeU32(v, 12, cfg.MInvW >>> 0);
-  writeU32(v, 16, cfg.MNet >>> 0);
+  writeU32(v, 4, cfg.MInvB);
+  writeU32(v, 8, cfg.MInvQ);
+  writeU32(v, 12, cfg.MInvW);
+  writeU32(v, 16, cfg.MNet);
   // P0 wire field is 0.1 psi; p0 is supplied in actual psi.
   writeI16(v, 20, toI16(cfg.p0 / 0.1, "P0"));
   // shutdown/warning lvl are already in 0.01% units (matching FacilityConfig).
-  writeU16(v, 22, toI16(cfg.shutdownLvl, "shutdown_lvl"));
-  writeU16(v, 24, toI16(cfg.warningLvl, "warning_lvl"));
+  writeU16(v, 22, cfg.shutdownLvl);
+  writeU16(v, 24, cfg.warningLvl);
   writeU16(v, 26, 0);
-  writeU32(v, 28, cfg.kCd >>> 0);
+  writeU32(v, 28, cfg.kCd);
   for (let i = 0; i < 7; i++) writeI16(v, 32 + i * 2, toI16(cfg.lo[i], `lo[${i}]`));
   for (let i = 0; i < 7; i++) writeI16(v, 46 + i * 2, toI16(cfg.hi[i], `hi[${i}]`));
   writeI16(v, 60, toI16(cfg.wellLo, "well_lo"));

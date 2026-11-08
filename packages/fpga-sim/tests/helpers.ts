@@ -72,7 +72,7 @@ export function makeDatasetConfig(
     datasetId: "test-dataset",
     sourceFiles: { network: "", ops: "", telemetry: "" },
     firstTsUnix: 1791186900,
-    lastTsUnix: 1791186900 + (facilityIds.length * 0),
+    lastTsUnix: 1791186900 + 100000,
     stepSeconds: 300,
     systems: [{ systemId: "S1", disposalPsi: 1050, facilities: Array.from(facilityById.values()), emergencyFleetSize: 2, facilityOps: new Map() }],
     facilityById,

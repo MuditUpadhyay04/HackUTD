@@ -6,8 +6,8 @@ const usd0 = new Intl.NumberFormat("en-US", {
 
 export const money = (n: number) => usd0.format(Math.round(n));
 
-export const num = (n: number, digits = 0) =>
-  n.toLocaleString("en-US", {
+export const num = (n: number | null, digits = 0) =>
+  n == null || !Number.isFinite(n) ? "Unknown" : n.toLocaleString("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
@@ -42,11 +42,6 @@ export const day = (unix: number) => dayFmt.format(new Date(unix * 1000));
 
 /** "S13" or "s13" -> "13", for "System 13" labels. */
 export const systemNum = (id: string) => id.replace(/^s/i, "");
-
-/** Default dataset when none is asked for: the judging folder, then the dress rehearsal, then the first. */
-export function defaultDataset<T extends { id: string }>(datasets: T[]): T | undefined {
-  return datasets.find((d) => d.id === "test") ?? datasets.find((d) => d.id.startsWith("mock_test")) ?? datasets[0];
-}
 
 /** "S2_FACILITY_B" -> "S2 B"; "S13_FACILITY_NORTH_RIDGE" -> "S13 NORTH_RIDGE" */
 export function facilityName(id: string) {
@@ -95,10 +90,13 @@ export function clockFrom(unix: number, ref: number) {
 }
 
 /** Interpret a failure's countdown: is the tank really heading for shutdown before the repair? */
-export function countdownState(a: { hoursToLimit?: { p50: number } | null; repairEndsUnix?: number }, nowUnix: number) {
-  const h = a.hoursToLimit?.p50;
+export function countdownState(a: { countdown?: import("@hackutd/contracts").CountdownState; repairEndsUnix?: number }, nowUnix: number) {
+  const status = a.countdown?.status;
+  if (status === "not_filling") return { kind: "not_filling" as const };
+  if (status === "at_limit") return { kind: "shut_in" as const };
+  if (status !== "available") return { kind: "unknown" as const };
+  const h = a.countdown?.hours?.p50;
   if (h == null || !Number.isFinite(h)) return { kind: "unknown" as const };
-  if (h >= 999) return { kind: "not_filling" as const };
   if (h <= 0) return { kind: "shut_in" as const };
   const at = nowUnix + h * 3600;
   if (a.repairEndsUnix && at >= a.repairEndsUnix) return { kind: "repair_first" as const, at, repairAt: a.repairEndsUnix };

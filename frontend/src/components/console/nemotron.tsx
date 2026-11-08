@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Tile } from "./section";
+import type { AnalysisRecord } from "@hackutd/contracts";
+import { api, commandKey, unwrap } from "@/lib/api";
 
 /** A neutral eye glyph in NVIDIA green: marks where Nemotron is speaking. Not the NVIDIA logo. */
 export function NemotronMark({ className }: { className?: string }) {
@@ -14,39 +16,29 @@ export function NemotronMark({ className }: { className?: string }) {
   );
 }
 
-export type AgentStep = { agent: string; model: string; text: string };
-export type Brief = {
-  source: "nemotron" | "draft";
-  model?: string;
-  /** True when Nemotron is configured but its call failed, so this is the solver's draft. */
-  fallback?: boolean;
-  steps: AgentStep[];
-  handoff: string;
-};
-
-/**
- * The shift brief. /api/brief uses NVIDIA Nemotron when NVIDIA_API_KEY is set.
- * Without a key, or when the call fails, it shows the solver's draft and says which.
- * Only the handoff paragraph can come from Nemotron; the steps are always the plan solver's.
- */
-export function NemotronBrief({ dataset, at, expanded }: { dataset: string; at?: number; expanded?: boolean }) {
-  const key = `${dataset}@${at ?? "now"}`;
-  const [result, setResult] = useState<{ key: string; brief?: Brief; error?: string } | null>(null);
-  // A result for an older dataset or time counts as still loading.
-  const brief = result?.key === key ? result.brief : undefined;
-  const error = result?.key === key ? result.error : undefined;
+export function NemotronBrief({ runId, expanded }: { runId: string; expanded?: boolean }) {
+  const [result, setResult] = useState<{ key: string; brief?: AnalysisRecord; error?: string } | null>(null);
+  const brief = result?.key === runId && result.brief?.state === "completed" ? result.brief : undefined;
+  const error = result?.key === runId ? result.error : undefined;
 
   useEffect(() => {
-    let alive = true;
-    const q = new URLSearchParams({ dataset, ...(at ? { at: String(at) } : {}) });
-    fetch(`/api/brief?${q}`)
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`The brief didn't load (${r.status})`))))
-      .then((b: Brief) => alive && setResult({ key, brief: b }))
-      .catch((e: Error) => alive && setResult({ key, error: e.message }));
-    return () => {
-      alive = false;
-    };
-  }, [dataset, at, key]);
+    const abort = new AbortController();
+    async function run() {
+      const keyName = `operator-analysis:${runId}`;
+      let key = sessionStorage.getItem(keyName);
+      if (!key) { key = commandKey(); sessionStorage.setItem(keyName, key); }
+      let analysis = unwrap(await api.api.runs({ id: runId }).analyses.post(undefined, { headers: { "idempotency-key": key }, fetch: { signal: abort.signal } }));
+      while (!abort.signal.aborted && (analysis.state === "pending" || analysis.state === "running")) {
+        setResult({ key: runId, brief: analysis });
+        await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+        if (abort.signal.aborted) return;
+        analysis = unwrap(await api.api.analyses({ id: analysis.id }).get({ fetch: { signal: abort.signal } }));
+      }
+      if (!abort.signal.aborted) setResult(analysis.state === "completed" ? { key: runId, brief: analysis } : { key: runId, error: analysis.error || `Analysis ${analysis.state}` });
+    }
+    run().catch((e: Error) => { if (!abort.signal.aborted) setResult({ key: runId, error: e.message }); });
+    return () => abort.abort();
+  }, [runId]);
 
   return (
     <Tile className="flex flex-col px-6 py-5">
@@ -57,10 +49,8 @@ export function NemotronBrief({ dataset, at, expanded }: { dataset: string; at?:
       <p className="mt-1 text-[13px] text-muted-foreground">
         {brief?.source === "nemotron"
           ? `Written by ${brief.model ?? "Nemotron"}`
-          : brief?.fallback
-            ? "Nemotron didn't answer, so this is the plan solver's draft."
-            : brief
-              ? "Draft from the plan solver until Nemotron is connected."
+          : brief
+              ? "Draft from the plan solver."
               : "Reading the network…"}
       </p>
 

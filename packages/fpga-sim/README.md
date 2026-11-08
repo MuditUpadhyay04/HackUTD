@@ -1,11 +1,9 @@
 # @hackutd/fpga-sim
 
-> **Prototype; not integration-ready.** Existing tests do not establish correctness.
-> Validation may substitute zeros for missing fields and does not fully respect
-> presence masks; rule availability is not represented independently. Checkpoint
-> restore does not verify dataset identity. The countdown ring mixes pre-failure
-> net flow with failure inflow, so it does not fully implement proposed O7 at
-> failure onset. Model arithmetic, scaling and metadata are unconfirmed. The v1
+> **Prototype; not integration-ready.** Rule availability is not represented
+> independently from boolean flags; consult result status. Checkpoints are bound
+> to the configured run and cannot be imported by a different runtime instance.
+> Model arithmetic, scaling and metadata are unconfirmed. The v1
 > codec is incomplete and requires independent byte-level validation before use.
 > Do not use this package as authoritative detection or hardware parity.
 
@@ -29,7 +27,7 @@ plugin framework.
 - `docs/plan/lucas/fpga_hardware_plan.md` (v1 wire I/O contract, engine v2)
 - `docs/plan/lucas/review_notes.md` (R1/R2 countdown findings → host O7 correction)
 - `docs/research/FPGA_CLASSIFIER_HANDOFF.md` (12 channels, output order, int16 scale 1/16384)
-- `docs/research/model-input-v1.json` (transport scale, round-to-even)
+- The superseded `model-input-v1.json` rounding rule is not used.
 - Reference repo `https://github.com/nihaal419/HackUTD-ZeroDay` (README/SPEC schemas)
 
 **Not edited:** `docs/plan/jason/agent-backend-architecture.md`, `global_plan.md`,
@@ -56,13 +54,11 @@ backend is deliberately ignored as authority; it may inform consuming DTOs only.
 
 ## Honesty / capability gaps (documented, not silent)
 
-- **No bit-exact parity claimed.** `features_int.py` (planned, not written) uses
-  round-half-up `sat16`; this build quantizes float channels with round-to-even
-  (per `model-input-v1.json`). Results can differ by 1 LSB on exact-half cases.
-  Reported as a capability gap.
+- **No bit-exact parity claimed.** Float formulas use half-up rounding, but do not
+  implement the unconfirmed CONFIG multiplier arithmetic or streaming golden vectors.
 - **Countdown O7 is a host correction**, not a claimed FPGA fix. The FPGA plan's
   net-inflow ring has a known bug at failure onset (review R1). The software
-  runtime uses inflow-only while `pump_fault` is set and checks already-at-limit
+  runtime maintains a separate inflow history for `pump_fault` and checks already-at-limit
   first (review R2). Method/source/version differences are preserved.
 - **No weights ⇒ `logits` null, `weightsVer` 0, `availability: "degraded"`.** We do
   not apply sigmoid to zeros or invent 0.5 probabilities. Sigmoid/thresholding is

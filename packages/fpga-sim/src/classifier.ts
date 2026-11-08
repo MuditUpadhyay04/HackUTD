@@ -39,6 +39,7 @@ export function validateModel(meta: ModelMetadata): ModelMetadata {
   if (!meta.weights || !meta.biases) {
     throw new Error("[fpga-sim/classifier] model marked loaded but weights/biases missing");
   }
+  if (!Number.isInteger(meta.outputShift) || meta.outputShift < 0 || meta.outputShift > 47 || !Number.isInteger(meta.weightsVer) || meta.weightsVer < 1 || meta.weightsVer > 255) throw new Error('[fpga-sim/classifier] invalid model shift or version');
   if (meta.weights.length !== CLASS_COUNT * FEATURE_COUNT) {
     throw new Error(
       `[fpga-sim/classifier] expected ${CLASS_COUNT * FEATURE_COUNT} weights, got ${meta.weights.length}`,
@@ -63,7 +64,7 @@ export function computeLogits(
   }
 
   const logits = new Int16Array(CLASS_COUNT);
-  const roundBits = 1n << BigInt(model.outputShift - 1); // 2^(S-1); if S=0 this is 0.5-> handled below
+  const roundBits = model.outputShift > 0 ? 1n << BigInt(model.outputShift - 1) : 0n;
   const shift = model.outputShift;
 
   for (let c = 0; c < CLASS_COUNT; c++) {

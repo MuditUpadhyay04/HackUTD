@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import type { DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import type { DatasetInfo, FleetState, Incident, OperatorAction, Snapshot, SystemState } from "@/lib/engine/types";
+import { api, commandKey, unwrap } from "@/lib/api";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
 import { NetworkCard } from "./network";
@@ -23,8 +24,8 @@ function trucksFree(system: SystemState, fleet: FleetState | undefined, nowUnix:
 export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: DatasetInfo[] }) {
   const s = snapshot;
   const live = s.nowUnix >= s.dataset.nowUnix;
-  const at = live ? undefined : s.nowUnix;
   const router = useRouter();
+  const params = useSearchParams();
   const [view, setView] = useState<View>(live ? "overview" : "replay");
   // Browser Back/Forward can move between live and past URLs without remounting: a past
   // snapshot must never sit under the "Now" overview.
@@ -38,12 +39,36 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
   const [approved, setApproved] = useState<Record<string, number>>({});
   const [tickets, setTickets] = useState<Record<string, number>>({});
   const [flash, setFlash] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+  const adviceReady = s.recommendation.state === "ready" && s.recommendation.inputRevision === s.recommendation.currentRevision;
+  useEffect(() => {
+    const abort = new AbortController();
+    api.api.runs({ id: s.runId }).actions.get({ fetch: { signal: abort.signal } }).then(unwrap).then((actions) => {
+      const current = actions.filter((a) => a.revision === s.revision);
+      setApproved(Object.fromEntries(current.filter((a) => a.kind === "acknowledge_advice").map((a) => [a.incidentId, s.nowUnix])));
+      setTickets(Object.fromEntries(current.filter((a) => a.kind === "inspection_ticket").map((a) => [a.incidentId, s.nowUnix])));
+    }).catch((e: Error) => { if (!abort.signal.aborted) setActionError(e.message); });
+    return () => abort.abort();
+  }, [s.runId, s.revision, s.nowUnix]);
+  async function act(a: Incident, kind: OperatorAction["kind"]) {
+    if (!adviceReady || (kind === "acknowledge_advice" && (!a.plan || a.plan.inputRevision !== s.revision))) return;
+    try {
+      const keyName = `operator-action:${s.runId}:${s.revision}:${a.id}:${kind}`;
+      let key = sessionStorage.getItem(keyName);
+      if (!key) { key = commandKey(); sessionStorage.setItem(keyName, key); }
+      unwrap(await api.api.runs({ id: s.runId }).actions.post({ incidentId: a.id, ...(kind === "acknowledge_advice" ? { planId: a.plan!.systemPlanId } : {}), revision: s.revision, kind }, { headers: { "idempotency-key": key } }));
+      if (kind === "acknowledge_advice") setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
+      else setTickets((p) => ({ ...p, [a.id]: s.nowUnix }));
+      setActionError(""); setIncident(null);
+    } catch (e) { setActionError(e instanceof Error ? e.message : "Action failed"); }
+  }
 
   // Approvals and tickets only count at or after the replay time they were made.
   const approvedAt = (id: string) => (approved[id] !== undefined && approved[id] <= s.nowUnix ? approved[id] : undefined);
   const ticketsNow = Object.fromEntries(Object.entries(tickets).filter(([, t]) => t <= s.nowUnix));
 
   const facilities = s.systems.flatMap((x) => x.facilities);
+  const currentIncident = incident ? s.alerts.find((a) => a.id === incident.id) ?? null : null;
   const failures = s.alerts.filter((a) => a.category === "pump_failure");
   const inspections = s.alerts.filter((a) => a.category !== "pump_failure");
 
@@ -52,7 +77,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
       ? "crit"
       : inspections.some((a) => a.systemId === sys.id)
         ? "warn"
-        : sys.facilities.some((f) => f.health === "no_data")
+        : sys.facilities.some((f) => f.health === "no_data" || f.health === "unknown")
           ? "nodata"
           : "ok";
 
@@ -73,9 +98,9 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
   const nothingCost = failures.reduce((t, a) => t + (a.options?.find((o) => o.kind === "do_nothing")?.cost ?? 0), 0);
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
-  const noData = facilities.filter((f) => f.health === "no_data");
+  const noData = facilities.filter((f) => f.health === "no_data" || f.health === "unknown");
   let headline: string;
-  if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
+  if (failures.length === 0) headline = "No pumps are reported down.";
   else if (sysWithFailures.length === 1) {
     const sys = s.systems.find((x) => x.id === sysWithFailures[0]);
     headline =
@@ -91,7 +116,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
     setView(v);
     if (v === "overview" && !live) {
       // Overview always means the latest reading.
-      router.push(`/?dataset=${encodeURIComponent(s.dataset.id)}`);
+      const q = new URLSearchParams(params.toString()); q.set("dataset", s.dataset.id); q.delete("at");
+      router.push(`/?${q}`);
     }
   };
 
@@ -116,6 +142,12 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
       />
 
       <main className="px-4 pt-7 pb-10 sm:px-7">
+        <div className="glass mb-4 px-4 py-3 text-[13px] text-muted-foreground" role="status">
+          Runtime: requested {s.runtime.requested}, effective {s.runtime.effective}, {s.runtime.state}. {s.runtime.scoresAvailable ? `Model scores available${s.runtime.modelVersion ? ` (${s.runtime.modelVersion})` : ""}.` : "Model scores unavailable."} Coverage: {s.coverage.received} of {s.coverage.expected}. Recommendation: {s.recommendation.state}.
+          {s.runtime.reasons.length > 0 && <span> {s.runtime.reasons.join("; ")}</span>}
+          {!adviceReady && <span> Advice is not current; actions are disabled.</span>}
+        </div>
+        {actionError && <p role="alert" className="mb-3 text-crit">{actionError}</p>}
         <header>
           <h1 className="tracking-display font-display text-[30px] leading-tight font-bold sm:text-[34px]">
             {view === "handoff" ? "Shift handoff" : "Avon water network"}
@@ -140,9 +172,9 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
 
         {view === "handoff" ? (
           <div className="mt-6 grid max-w-[760px] gap-4">
-            <NemotronBrief dataset={s.dataset.id} at={at} expanded />
+            <NemotronBrief runId={s.runId} expanded />
             <a
-              href={`/api/events?dataset=${encodeURIComponent(s.dataset.id)}${at ? `&at=${at}` : ""}`}
+              href={`/api/backend/api/runs/${encodeURIComponent(s.runId)}/export`}
               className="w-fit text-[14px] font-medium text-water hover:underline"
             >
               Download events.json
@@ -154,11 +186,11 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
               <StatCard label="Pumps down" value={String(failures.length)} tone={failures.length ? "crit" : undefined} />
               <StatCard
                 label="First shutdown"
-                value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None"}
+                value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "At limit" : failures.length ? "Unknown" : "None"}
                 tone={next || allShut ? "crit" : undefined}
               />
-              <StatCard label="Recommended plan" value={money(planCost)} />
-              <StatCard label="If nobody acts" value={money(nothingCost)} />
+              <StatCard label="Recommended plan" value={failures.some((a) => !a.plan) || !adviceReady ? "Unavailable" : money(planCost)} />
+              <StatCard label="If nobody acts" value={failures.some((a) => !a.options?.some((o) => o.kind === "do_nothing")) || !adviceReady ? "Unavailable" : money(nothingCost)} />
             </div>
 
             <SectionTitle title="Pumps down" note={failures.length > 1 ? "Soonest shutdown first" : undefined} />
@@ -169,7 +201,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
                 ))}
               </div>
             ) : (
-              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">{noData.length ? "No pumps are reported down. Some facilities have no recent readings; see Check sensors." : "No pumps are down. Every tank is cycling normally."}</div>
+              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">No pumps are reported down.{noData.length ? " Some facilities have unknown or missing readings; see Check sensors." : ""}</div>
             )}
 
             {noData.length > 0 && (
@@ -185,8 +217,9 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
                 <InspectorRows
                   items={inspections}
                   tickets={ticketsNow}
+                  disabled={!adviceReady}
                   onOpen={setIncident}
-                  onTicket={(a) => setTickets((t) => ({ ...t, [a.id]: s.nowUnix }))}
+                  onTicket={(a) => void act(a, "inspection_ticket")}
                 />
               </>
             )}
@@ -212,15 +245,13 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
       </main>
 
       <IncidentSheet
-        incident={incident}
-        facility={facilities.find((f) => f.id === incident?.facilityId)}
+        incident={currentIncident}
+        facility={facilities.find((f) => f.id === currentIncident?.facilityId)}
         nowUnix={s.nowUnix}
         limits={s.limits}
-        approvedAt={incident ? approvedAt(incident.id) : undefined}
-        onApprove={(a) => {
-          setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
-          setIncident(null);
-        }}
+        approvedAt={currentIncident ? approvedAt(currentIncident.id) : undefined}
+        disabled={!adviceReady || (!!currentIncident?.plan && currentIncident.plan.inputRevision !== s.revision)}
+        onApprove={(a) => void act(a, "acknowledge_advice")}
         onClose={() => setIncident(null)}
       />
       <FacilitySheet

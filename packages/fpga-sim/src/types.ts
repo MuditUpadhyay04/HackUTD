@@ -184,6 +184,7 @@ export interface Capabilities {
 /** Snapshot for checkpoint / restore (rebuild state to a cutoff). */
 export interface RunSnapshot {
   runId: string;
+  configIdentity: string;
   cutoffTsUnix: number | null;
   facilities: Map<FacilityId, FacilityRunState>;
   globalResultNo: number;
@@ -196,6 +197,7 @@ export interface FacilityRunState {
   slot: number;
   lastTs: number | null;
   holdCount: number;
+  fieldAges: Record<string, number>;
   sinceReset: number;
   // Last valid raw values (unscaled) for held fields.
   lastValid: {
@@ -222,6 +224,9 @@ export interface FacilityRunState {
   netInflowRing: number[];
   ringPos: number;
   ringFilled: boolean;
+  inflowRing: number[];
+  inflowPos: number;
+  inflowFilled: boolean;
   // Alarm persistence.
   persistCounters: number[]; // one per rule
   nightShiftLatched: boolean;

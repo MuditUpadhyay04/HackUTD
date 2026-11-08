@@ -33,7 +33,7 @@ import {
   resetMemory,
   updateMemoryFeatures,
 } from "./features.ts";
-import { computeLogits, scoresAvailable } from "./classifier.ts";
+import { computeLogits, scoresAvailable, validateModel } from "./classifier.ts";
 import { computeCountdown, initCountdownState } from "./countdown.ts";
 import { computeRules } from "./rules.ts";
 import { emptyReason, validateRecord } from "./validation.ts";
@@ -100,6 +100,8 @@ export class SoftwareRuntime implements Runtime {
   private readonly stepSeconds: number;
   private readonly states = new Map<string, FacilityRunState>();
   private globalResultNo = 0;
+  private runId = "";
+  private configIdentity = "";
 
   constructor(id: string = "software-runtime", options: SoftwareRuntimeOptions = {}) {
     this.id = id;
@@ -110,7 +112,11 @@ export class SoftwareRuntime implements Runtime {
   /* ---- Lifecycle ---- */
 
   configure(config: DatasetConfig): void {
-    this.config = config;
+    const copy = structuredClone(config);
+    copy.model = validateModel(copy.model);
+    this.config = copy;
+    this.runId = crypto.randomUUID();
+    this.configIdentity = JSON.stringify(this.config, (_key, value) => value instanceof Map ? [...value.entries()] : ArrayBuffer.isView(value) ? Array.from(value as any) : value);
     this.globalResultNo = 0;
     this.states.clear();
     for (const f of config.facilityById.values()) {
@@ -126,6 +132,7 @@ export class SoftwareRuntime implements Runtime {
       slot: f.slot,
       lastTs: null,
       holdCount: 0,
+      fieldAges: {},
       sinceReset: 0,
       lastValid: {
         inflowBpd: null,
@@ -148,6 +155,7 @@ export class SoftwareRuntime implements Runtime {
       netInflowRing: cd.ring,
       ringPos: cd.pos,
       ringFilled: cd.filled,
+      inflowRing: [...cd.ring], inflowPos: 0, inflowFilled: false,
       persistCounters: new Array(5).fill(0),
       nightShiftLatched: false,
       eStopLatched: false,
@@ -161,12 +169,14 @@ export class SoftwareRuntime implements Runtime {
     } else {
       for (const st of this.states.values()) this.resetFacilityState(st);
       this.globalResultNo = 0;
+      this.runId = crypto.randomUUID();
     }
   }
 
   private resetFacilityState(st: FacilityRunState): void {
     st.lastTs = null;
     st.holdCount = 0;
+    st.fieldAges = {};
     st.sinceReset = 0;
     st.lastValid = {
       inflowBpd: null,
@@ -184,6 +194,7 @@ export class SoftwareRuntime implements Runtime {
     st.netInflowRing = cd.ring;
     st.ringPos = cd.pos;
     st.ringFilled = cd.filled;
+    st.inflowRing = [...cd.ring]; st.inflowPos = 0; st.inflowFilled = false;
     st.persistCounters = new Array(5).fill(0);
     st.nightShiftLatched = false;
     st.eStopLatched = false;
@@ -228,7 +239,7 @@ export class SoftwareRuntime implements Runtime {
       }
     }
 
-    const val = validateRecord(record, fac, cfg.global, prevTs, st.lastValid);
+    const val = validateRecord(record, fac, cfg.global, prevTs, st.lastValid, st.fieldAges, cfg.stepSeconds);
 
     if (val.status === STATUS.DROPPED) {
       return droppedResult(record.facilityId, record.tsUnix, val.reason, resultNo);
@@ -237,51 +248,42 @@ export class SoftwareRuntime implements Runtime {
     // Hold / reset decision.
     // Each missing/gap step counts toward the hold window; exceeding holdMax resets history.
     let status = val.status;
-    let holdSteps = 0;
-    if (val.gapSteps > 1) {
-      // Missing steps between last record and this one.
-      holdSteps += val.gapSteps - 1;
-    } else if (val.hold) {
-      // Incomplete record with no gap (missing / out-of-range / illegal field).
-      holdSteps += 1;
+    if (val.reset || status === STATUS.INVALID) {
+      // Reset feature history, but retain independently valid/held fields and ages.
+      resetMemory(st);
+      st.sinceReset = 0;
+      const cd = initCountdownState(cfg.global.cdLog2);
+      st.netInflowRing = cd.ring; st.ringPos = 0; st.ringFilled = false;
+      st.inflowRing = [...cd.ring]; st.inflowPos = 0; st.inflowFilled = false;
+      val.reason.historyReset = true;
     }
-    if (holdSteps > 0) {
-      st.holdCount += holdSteps;
-      if (st.holdCount > cfg.global.holdMax) {
-        // Exceeded hold window: reset history, then process this record fresh.
-        this.resetFacilityState(st);
-        st.holdCount = 0;
-        status = STATUS.HELD;
-        val.reason.historyReset = true;
-        // After reset, treat level as having no predecessor => channel 11 = 0.
-      } else {
-        status = STATUS.HELD;
-      }
-    } else {
-      st.holdCount = 0;
+    st.fieldAges = val.nextAges;
+
+    if (status === STATUS.INVALID) {
+      const u = val.used;
+      const rules = computeRules({ pumpStatus:u.pumpStatus, wellStatus:u.wellStatus, wellWaterBpd:u.wellWaterBpd, levelPct:u.levelPct, shutdownLvl:fac.shutdownLvl, warningLvl:fac.warningLvl, netInflowBpd:u.inflowBpd == null || u.pumpFlowBpd == null ? null : u.inflowBpd-u.pumpFlowBpd, nWells:fac.nWells });
+      st.lastTs = record.tsUnix;
+      st.lastValid = structuredClone(u);
+      const countdown = u.levelPct != null && u.levelPct >= fac.shutdownLvl / 100 ? {p10:0,p50:0,p90:0,notFilling:false} : {p10:RESULT_NOT_FILLING,p50:RESULT_NOT_FILLING,p90:RESULT_NOT_FILLING,notFilling:false};
+      return { ...droppedResult(record.facilityId, record.tsUnix, val.reason, resultNo), status, rules, countdown, availability:'unavailable', gapNote:'incomplete input: inference unavailable' };
     }
+    // All values are known for VALID/HELD records.
+    const used = val.used as { inflowBpd:number; levelPct:number; pumpStatus:number; pumpFlowBpd:number; receiveFlowBpd:number; dischargePsi:number; pipelinePsi:number; wellStatus:number[]; wellWaterBpd:number[] };
 
     // sinceReset increments on every accepted (non-dropped) record.
     st.sinceReset = Math.min(st.sinceReset + 1, SINCE_RESET_MAX);
-    const isFirstAfterReset = st.sinceReset === 1 && st.lastTs === null;
+    const isFirstAfterReset = st.sinceReset === 1;
 
     // Channel 11 needs level delta vs previous level. First record after reset => 0.
     let deltaLevelPct = 0;
-    if (!isFirstAfterReset && st.lastValid.levelPct !== null && val.used.levelPct !== null) {
-      deltaLevelPct = val.used.levelPct - st.lastValid.levelPct;
+    if (!isFirstAfterReset && !val.reset && st.lastValid.levelPct !== null) {
+      deltaLevelPct = used.levelPct - st.lastValid.levelPct;
     }
 
     // 12 channels.
     const ch = computeChannels(
-      val.used.inflowBpd,
-      val.used.levelPct,
-      val.used.pumpStatus,
-      val.used.pumpFlowBpd,
-      val.used.receiveFlowBpd,
-      val.used.dischargePsi,
-      val.used.pipelinePsi,
-      val.used.wellStatus,
-      val.used.wellWaterBpd,
+      used.inflowBpd, used.levelPct, used.pumpStatus, used.pumpFlowBpd,
+      used.receiveFlowBpd, used.dischargePsi, used.pipelinePsi, used.wellStatus, used.wellWaterBpd,
       fac,
     );
     ch[CH.TANK_NET_FLOW_NORM] = computeChannel11(deltaLevelPct, fac);
@@ -299,19 +301,19 @@ export class SoftwareRuntime implements Runtime {
     }
 
     // 19 memory features (full 31 vector).
-    const running = val.used.pumpStatus === 1;
+    const running = used.pumpStatus === 1;
     const mem = updateMemoryFeatures(ch, running, st, st.sinceReset);
 
     // Classifier (null when no weights).
     const logits = scoresAvailable(model) ? computeLogits(mem, model) : null;
 
     // Rules.
-    const netInflowBpd = val.used.inflowBpd - val.used.pumpFlowBpd;
+    const netInflowBpd = used.inflowBpd - used.pumpFlowBpd;
     const rules = computeRules({
-      pumpStatus: val.used.pumpStatus,
-      wellStatus: val.used.wellStatus,
-      wellWaterBpd: val.used.wellWaterBpd,
-      levelPct: val.used.levelPct,
+      pumpStatus: used.pumpStatus,
+      wellStatus: used.wellStatus,
+      wellWaterBpd: used.wellWaterBpd,
+      levelPct: used.levelPct,
       shutdownLvl: fac.shutdownLvl,
       warningLvl: fac.warningLvl,
       netInflowBpd,
@@ -341,34 +343,25 @@ export class SoftwareRuntime implements Runtime {
 
     // Countdown with O7 host correction (uses pump_fault).
     // computeCountdown expects {ring, pos, filled}; map from facility state.
-    const cdState = { ring: st.netInflowRing, pos: st.ringPos, filled: st.ringFilled };
+    const cdState = { ring: st.netInflowRing, pos: st.ringPos, filled: st.ringFilled, inflowRing: st.inflowRing, inflowPos: st.inflowPos, inflowFilled: st.inflowFilled };
     const countdown = computeCountdown(
       fac,
       cfg.global,
       cdState,
-      val.used.inflowBpd,
-      val.used.pumpFlowBpd,
-      val.used.levelPct,
+      used.inflowBpd,
+      used.pumpFlowBpd,
+      used.levelPct,
       rules.pumpFault,
     );
     // Persist ring mutation back (ring is a reference; pos/filled need reassignment).
     st.netInflowRing = cdState.ring;
     st.ringPos = cdState.pos;
     st.ringFilled = cdState.filled;
+    st.inflowRing = cdState.inflowRing; st.inflowPos = cdState.inflowPos; st.inflowFilled = cdState.inflowFilled;
 
     // Update lastTs / lastValid for accepted record.
     st.lastTs = record.tsUnix;
-    st.lastValid = {
-      inflowBpd: val.used.inflowBpd,
-      levelPct: val.used.levelPct,
-      pumpStatus: val.used.pumpStatus,
-      pumpFlowBpd: val.used.pumpFlowBpd,
-      receiveFlowBpd: val.used.receiveFlowBpd,
-      dischargePsi: val.used.dischargePsi,
-      pipelinePsi: val.used.pipelinePsi,
-      wellStatus: [...val.used.wellStatus],
-      wellWaterBpd: [...val.used.wellWaterBpd],
-    };
+    st.lastValid = structuredClone(used);
 
     const availability = model.loaded ? "available" : "degraded";
     const gapNote = model.loaded
@@ -399,6 +392,7 @@ export class SoftwareRuntime implements Runtime {
 
   snapshot(): {
     runId: string;
+    configIdentity: string;
     cutoffTsUnix: number | null;
     facilities: Map<string, FacilityRunState>;
     globalResultNo: number;
@@ -413,7 +407,8 @@ export class SoftwareRuntime implements Runtime {
       if (st.lastTs !== null && (cutoff === null || st.lastTs > cutoff)) cutoff = st.lastTs;
     }
     return {
-      runId: this.config.datasetId,
+      runId: this.runId,
+      configIdentity: this.configIdentity,
       cutoffTsUnix: cutoff,
       facilities,
       globalResultNo: this.globalResultNo,
@@ -421,16 +416,20 @@ export class SoftwareRuntime implements Runtime {
     };
   }
 
-  restore(snapshot: {
-    facilities: Map<string, FacilityRunState>;
-    globalResultNo?: number;
-    provenance?: Provenance;
-  }): void {
-    this.states.clear();
+  restore(snapshot: import('./types.ts').RunSnapshot): void {
+    if (snapshot.runId !== this.runId || snapshot.configIdentity !== this.configIdentity || snapshot.provenance !== 'software' || !(snapshot.facilities instanceof Map) || snapshot.facilities.size !== this.config.facilityById.size || !Number.isSafeInteger(snapshot.globalResultNo) || snapshot.globalResultNo < 0) throw new Error('incompatible checkpoint');
+    let cutoff: number | null = null;
+    const restored = new Map<string, FacilityRunState>();
     for (const [k, v] of snapshot.facilities) {
-      this.states.set(k, this.cloneFacilityState(v));
+      const fac = this.config.facilityById.get(k);
+      if (!fac || v.facilityId !== k || v.slot !== fac.slot || v.lastValid.wellStatus.length !== fac.nWells || v.lastValid.wellWaterBpd.length !== fac.nWells || (v.lastTs !== null && (!Number.isSafeInteger(v.lastTs) || v.lastTs < this.config.firstTsUnix || v.lastTs > this.config.lastTsUnix))) throw new Error('invalid checkpoint state');
+      if (v.lastTs !== null && (cutoff === null || v.lastTs > cutoff)) cutoff = v.lastTs;
+      restored.set(k, this.cloneFacilityState(v));
     }
-    if (snapshot.globalResultNo !== undefined) this.globalResultNo = snapshot.globalResultNo;
+    if (cutoff !== snapshot.cutoffTsUnix) throw new Error('invalid checkpoint cutoff');
+    this.states.clear();
+    for (const [k,v] of restored) this.states.set(k,v);
+    this.globalResultNo = snapshot.globalResultNo;
   }
 
   private cloneFacilityState(st: FacilityRunState): FacilityRunState {
@@ -439,6 +438,7 @@ export class SoftwareRuntime implements Runtime {
       slot: st.slot,
       lastTs: st.lastTs,
       holdCount: st.holdCount,
+      fieldAges: {...st.fieldAges},
       sinceReset: st.sinceReset,
       lastValid: {
         inflowBpd: st.lastValid.inflowBpd,
@@ -461,6 +461,7 @@ export class SoftwareRuntime implements Runtime {
       netInflowRing: [...st.netInflowRing],
       ringPos: st.ringPos,
       ringFilled: st.ringFilled,
+      inflowRing: [...st.inflowRing], inflowPos: st.inflowPos, inflowFilled: st.inflowFilled,
       persistCounters: [...st.persistCounters],
       nightShiftLatched: st.nightShiftLatched,
       eStopLatched: st.eStopLatched,
@@ -484,7 +485,7 @@ export class SoftwareRuntime implements Runtime {
     if (!this.config.model.loaded) {
       gaps.push("no weights loaded: classifier scores unavailable (rules/countdown only)");
     }
-    gaps.push("channel quantization uses round-to-even; FPGA uses round-half-up sat16 (possible 1 LSB difference)");
+    gaps.push("float feature formulas do not reproduce unconfirmed fixed-point multipliers or golden vectors");
     gaps.push("countdown uses host O7 inflow-only correction; not a claimed FPGA parity fix");
     gaps.push("v1 packed adapters support at most 32 facilities / 8 wells per facility");
     return {

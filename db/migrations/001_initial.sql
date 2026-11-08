@@ -1,0 +1,12 @@
+CREATE TABLE IF NOT EXISTS datasets (id text PRIMARY KEY, body jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS telemetry_samples (dataset_id text NOT NULL REFERENCES datasets(id), event_time timestamptz NOT NULL, asset_id text NOT NULL, metric text NOT NULL, value double precision, PRIMARY KEY (dataset_id, event_time, asset_id, metric));
+CREATE TABLE IF NOT EXISTS runs (id text PRIMARY KEY, body jsonb NOT NULL, cursor bigint NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS inference_receipts (run_id text NOT NULL REFERENCES runs(id), epoch_id text NOT NULL, result_no bigint NOT NULL, observation jsonb NOT NULL, PRIMARY KEY (run_id, epoch_id, result_no));
+CREATE TABLE IF NOT EXISTS inference_results (run_id text NOT NULL REFERENCES runs(id), epoch_id text NOT NULL, result_no bigint NOT NULL, event_time timestamptz NOT NULL, facility_id text NOT NULL, provenance text NOT NULL, status integer NOT NULL, body jsonb NOT NULL, PRIMARY KEY (run_id, epoch_id, result_no, event_time), FOREIGN KEY (run_id, epoch_id, result_no) REFERENCES inference_receipts(run_id, epoch_id, result_no));
+CREATE TABLE IF NOT EXISTS analyses (id text PRIMARY KEY, run_id text NOT NULL REFERENCES runs(id), body jsonb NOT NULL);
+CREATE TABLE IF NOT EXISTS operator_actions (id text PRIMARY KEY, run_id text NOT NULL REFERENCES runs(id), idempotency_key text NOT NULL, request jsonb NOT NULL, body jsonb NOT NULL, UNIQUE(run_id,idempotency_key));
+CREATE TABLE IF NOT EXISTS scenarios (id text PRIMARY KEY, run_id text NOT NULL REFERENCES runs(id), idempotency_key text NOT NULL, request jsonb NOT NULL, body jsonb NOT NULL, UNIQUE(run_id,idempotency_key));
+CREATE TABLE IF NOT EXISTS jobs (id text PRIMARY KEY, key text UNIQUE NOT NULL, kind text NOT NULL, payload jsonb NOT NULL, state text NOT NULL, fence bigint NOT NULL DEFAULT 0, lease_until bigint NOT NULL DEFAULT 0, attempts integer NOT NULL DEFAULT 0, error text);
+CREATE TABLE IF NOT EXISTS live_events (run_id text NOT NULL REFERENCES runs(id), cursor bigint NOT NULL, revision integer NOT NULL, type text NOT NULL, body jsonb NOT NULL, created_at timestamptz NOT NULL, PRIMARY KEY(run_id,cursor));
+CREATE TABLE IF NOT EXISTS storage_metadata (key text PRIMARY KEY, value text NOT NULL);
+CREATE INDEX IF NOT EXISTS jobs_claim_idx ON jobs (state, lease_until);

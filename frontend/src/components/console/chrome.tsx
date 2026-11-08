@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTransition, type ReactNode } from "react";
 import type { DatasetInfo, SystemState } from "@/lib/engine/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -140,6 +140,7 @@ export function Toolbar({
   onReplay: (on: boolean) => void;
 }) {
   const router = useRouter();
+  const params = useSearchParams();
   const [pending, start] = useTransition();
   return (
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-line bg-white/55 px-4 py-3.5 backdrop-blur-[30px] backdrop-saturate-[1.8] sm:px-7">
@@ -172,7 +173,7 @@ export function Toolbar({
         })}
       </div>
 
-      <Select value={current.id} onValueChange={(v) => start(() => router.push(`/?dataset=${encodeURIComponent(String(v))}`))}>
+      <Select value={current.id} onValueChange={(v) => start(() => { const q = new URLSearchParams(params.toString()); q.set("dataset", String(v)); q.delete("at"); router.push(`/?${q}`); })}>
         <SelectTrigger
           aria-label="Dataset"
           className="h-auto rounded-lg border-0 bg-white py-[5px] pr-2.5 pl-3 text-[13px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"

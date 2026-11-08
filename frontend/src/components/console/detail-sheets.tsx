@@ -19,6 +19,7 @@ export function IncidentSheet({
   approvedAt,
   onApprove,
   onClose,
+  disabled,
 }: {
   incident: Incident | null;
   facility?: FacilityState;
@@ -27,12 +28,13 @@ export function IncidentSheet({
   approvedAt?: number;
   onApprove: (a: Incident) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Sheet open={!!incident} onOpenChange={(o) => !o && onClose()}>
       <SheetContent className={sheetClass}>
         {incident && (incident.category === "pump_failure" ? (
-          <FailureDetail incident={incident} facility={facility} nowUnix={nowUnix} limits={limits} approvedAt={approvedAt} onApprove={() => onApprove(incident)} />
+          <FailureDetail incident={incident} facility={facility} nowUnix={nowUnix} limits={limits} approvedAt={approvedAt} disabled={disabled} onApprove={() => onApprove(incident)} />
         ) : (
           <InspectionDetail incident={incident} facility={facility} nowUnix={nowUnix} />
         ))}
@@ -48,6 +50,7 @@ function FailureDetail({
   limits,
   approvedAt,
   onApprove,
+  disabled,
 }: {
   incident: Incident;
   facility?: FacilityState;
@@ -55,6 +58,7 @@ function FailureDetail({
   limits: Limits;
   approvedAt?: number;
   onApprove: () => void;
+  disabled?: boolean;
 }) {
   const cd = countdownState(a, nowUnix);
   const doNothing = a.options?.find((o) => o.kind === "do_nothing");
@@ -70,7 +74,7 @@ function FailureDetail({
               {facilityName(a.facilityId)} reaches shutdown in <span className="num text-crit">{duration(cd.hours)}</span> unless we act
             </>
           ) : cd.kind === "shut_in" ? (
-            `${facilityName(a.facilityId)} is shut in until the repair`
+            `${facilityName(a.facilityId)} is at the shutdown limit`
           ) : cd.kind === "repair_first" ? (
             `${facilityName(a.facilityId)} should be repaired before the tank fills`
           ) : (
@@ -125,7 +129,7 @@ function FailureDetail({
             <li key={e} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-faint" aria-hidden />{humanize(e)}</li>
           ))}
         </ul>
-        <p className="mt-3 text-[13px] text-faint">Confidence {Math.round(a.confidence * 100)}%</p>
+        <p className="mt-3 text-[13px] text-faint">Confidence {a.confidence == null ? "unavailable" : `${Math.round(a.confidence * 100)}%`}</p>
         {doNothing && a.plan && doNothing.cost > a.plan.cost && (
           <p className="mt-4 text-[14px] text-muted-foreground">
             Doing nothing would cost <span className="num text-text">{money(doNothing.cost)}</span> in lost production.
@@ -140,15 +144,16 @@ function FailureDetail({
           </p>
           {approvedAt ? (
             <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[14px] font-medium text-ok">
-              <Check className="size-4" aria-hidden /> Approved at {clockFrom(approvedAt, nowUnix)}
+              <Check className="size-4" aria-hidden /> Advice acknowledged
             </span>
           ) : (
             <button
               type="button"
+              disabled={disabled}
               onClick={onApprove}
               className="ml-auto shrink-0 rounded-[10px] bg-water px-5 py-[9px] text-[14px] font-semibold text-white shadow-[inset_0_0.5px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(10,132,255,0.35)] transition-[transform,background-color] duration-100 hover:bg-water-deep active:scale-[0.98]"
             >
-              Approve plan
+              Acknowledge advice
             </button>
           )}
         </div>
@@ -235,7 +240,7 @@ function InspectionDetail({ incident: a, facility, nowUnix }: { incident: Incide
       <section className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:px-8">
         {a.estLeakBblPerDay != null && <Stat label="Estimated water lost" value={`${num(a.estLeakBblPerDay)} bbl/day`} />}
         {a.capacityLossPct != null && <Stat label="Pumping capacity lost" value={`${num(a.capacityLossPct, 1)}%`} />}
-        <Stat label="Confidence" value={`${Math.round(a.confidence * 100)}%`} />
+        <Stat label="Confidence" value={a.confidence == null ? "Unavailable" : `${Math.round(a.confidence * 100)}%`} />
       </section>
       {facility && (
         <section className="px-5 sm:px-8 pt-6">
@@ -257,7 +262,7 @@ function InspectionDetail({ incident: a, facility, nowUnix }: { incident: Incide
   );
 }
 
-const bpd = (n: number) => (Number.isFinite(n) ? `${num(n)} bpd` : "No data");
+const bpd = (n: number | null) => (n != null && Number.isFinite(n) ? `${num(n)} bpd` : "No data");
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -338,7 +343,7 @@ function MiniChart({
 function LeakChart({ facility: f, onsetUnix, nowUnix }: { facility: FacilityState; onsetUnix: number; nowUnix: number }) {
   const { t, v: sent } = f.series.pumpFlow;
   const got = f.series.receiveFlow.v;
-  const gap = sent.map((s, i) => (s > 50 ? Math.max(0, s - (got[i] ?? s)) : null));
+  const gap = sent.map((s, i) => (s != null && s > 50 && got[i] != null ? Math.max(0, s - got[i]!) : null));
   return (
     <>
       <MiniChart t={t} bars={gap} onsetUnix={onsetUnix} nowUnix={nowUnix} unit="bbl/day" />
@@ -351,7 +356,7 @@ function LeakChart({ facility: f, onsetUnix, nowUnix }: { facility: FacilityStat
 
 function WearChart({ facility: f, onsetUnix, nowUnix }: { facility: FacilityState; onsetUnix: number; nowUnix: number }) {
   const { t, v } = f.series.pumpFlow;
-  const running = v.map((x) => (x > 50 ? x : null));
+  const running = v.map((x) => (x != null && x > 50 ? x : null));
   return (
     <>
       <MiniChart t={t} line={running} target={{ value: f.pump.maxFlowBpd, label: `Rated ${num(f.pump.maxFlowBpd)} bpd` }} onsetUnix={onsetUnix} nowUnix={nowUnix} unit="bpd" />
@@ -376,8 +381,8 @@ export function FacilitySheet({
   onOpenIncident: (incident: Incident) => void;
 }) {
   const f = facility;
-  const pumpText = f ? (["Stopped", "Running", "Fault"][f.pump.status] ?? "status unknown") : "";
-  const level = f && Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct) : null;
+  const pumpText = f && f.pump.status != null ? (["Stopped", "Running", "Fault"][f.pump.status] ?? "status unknown") : "status unknown";
+  const level = f?.tank.levelPct != null && Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct) : null;
   const dq = f && f.dataQuality && f.dataQuality.quality !== "VALID" ? f.dataQuality : undefined;
   return (
     <Sheet open={!!f} onOpenChange={(o) => !o && onClose()}>
@@ -389,15 +394,15 @@ export function FacilitySheet({
               <div className="flex flex-col gap-1">
                 <SheetDescription className="text-[14px]">System {systemNum(f.systemId)}, {num(f.tank.capacityBbl)} bbl tank</SheetDescription>
                 <SheetTitle className="font-display text-[28px] leading-tight font-semibold text-text">
-                  {f.health === "no_data" && level == null ? (
+                  {level == null ? (
                     `${facilityName(f.id)} has no data`
                   ) : (
                     <>
-                      {facilityName(f.id)} is <span className="num">{level ?? 0}%</span> full
+                      {facilityName(f.id)} is <span className="num">{level}%</span> full
                     </>
                   )}
                 </SheetTitle>
-                {Number.isFinite(f.fillPctPerHour) && (
+                {f.fillPctPerHour != null && Number.isFinite(f.fillPctPerHour) && (
                   <p className="text-[14px] text-muted-foreground">
                     {f.fillPctPerHour >= 0 ? "Rising" : "Falling"} <span className="num text-text">{num(Math.abs(f.fillPctPerHour), 1)}%</span> per hour. Pump {pumpText.toLowerCase()}.
                   </p>

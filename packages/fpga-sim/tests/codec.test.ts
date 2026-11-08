@@ -161,9 +161,9 @@ describe("v1 codec — explicit rejection of unrepresentable values", () => {
     expect(() => encodeDataRecord(rec)).toThrow(V1CodecError);
   });
 
-  it("rejects illegal pump_status enum", () => {
+  it("preserves illegal but representable pump_status for FPGA validation", () => {
     const rec = withSlot({ ...baseRecord(), pumpStatus: 9 }, 1);
-    expect(() => encodeDataRecord(rec)).toThrow(V1CodecError);
+    expect(encodeDataRecord(rec)[24]).toBe(9);
   });
 
   it("decode rejects fac_id above v1 limit", () => {

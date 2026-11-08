@@ -12,7 +12,7 @@ const X = { wells: 34, tank: 156, pump: 240, pipeStart: 256, manifold: 700, disp
 type Status = "flowing" | "idle" | "down" | "leak" | "worn" | "nodata" | "shut";
 
 function pipeStatus(f: FacilityState): Status {
-  if (f.health === "no_data") return "nodata";
+  if (f.health === "no_data" || f.health === "unknown" || f.pump.flowBpd == null) return "nodata";
   if (f.health === "failure") return "down";
   if (f.health === "shut_in") return "shut";
   if (f.health === "leak") return "leak";
@@ -58,7 +58,7 @@ export function NetworkCard({
   const h = Math.max(1, rows.length) * ROW + 24;
   const midY = (i: number) => 12 + i * ROW + ROW / 2;
   const maxFlow = Math.max(1, ...rows.map((f) => f.pump.maxFlowBpd));
-  const totalIn = rows.reduce((t, f) => t + (Number.isFinite(f.pipeline.receiveFlowBpd) ? f.pipeline.receiveFlowBpd : 0), 0);
+  const totalIn = rows.every((f) => f.pipeline.receiveFlowBpd != null) ? rows.reduce((t, f) => t + (f.pipeline.receiveFlowBpd ?? 0), 0) : null;
   const trunkY = h / 2;
 
   return (
@@ -102,8 +102,8 @@ export function NetworkCard({
           {rows.length > 1 && (
             <line x1={X.manifold} x2={X.manifold} y1={midY(0)} y2={midY(rows.length - 1)} stroke="rgba(60,60,67,0.22)" strokeWidth={6} strokeLinecap="round" />
           )}
-          <line x1={X.manifold} x2={X.disposal - 34} y1={trunkY} y2={trunkY} stroke={totalIn > 1 ? "#0a84ff" : "rgba(60,60,67,0.22)"} strokeWidth={8} strokeLinecap="round" />
-          {totalIn > 1 && <line className="pipe-flow" x1={X.manifold} x2={X.disposal - 34} y1={trunkY} y2={trunkY} stroke="#fff" strokeOpacity={0.75} strokeWidth={2} />}
+          <line x1={X.manifold} x2={X.disposal - 34} y1={trunkY} y2={trunkY} stroke={totalIn != null && totalIn > 1 ? "#0a84ff" : "rgba(60,60,67,0.22)"} strokeWidth={8} strokeLinecap="round" />
+          {totalIn != null && totalIn > 1 && <line className="pipe-flow" x1={X.manifold} x2={X.disposal - 34} y1={trunkY} y2={trunkY} stroke="#fff" strokeOpacity={0.75} strokeWidth={2} />}
           <g transform={`translate(${X.disposal - 30},${trunkY - 30})`}>
             <rect width={170} height={60} rx={14} fill="#fff" stroke="rgba(60,60,67,0.18)" />
             <text x={14} y={24} className="fill-[var(--text)] text-[14px] font-semibold">Disposal site</text>
@@ -135,12 +135,12 @@ function FacilityRow({
 }) {
   const st = pipeStatus(f);
   const color = statusColor[st];
-  const flow = Number.isFinite(f.pump.flowBpd) ? f.pump.flowBpd : 0;
-  const recv = Number.isFinite(f.pipeline.receiveFlowBpd) ? f.pipeline.receiveFlowBpd : 0;
+  const flow = f.pump.flowBpd ?? 0;
+  const recv = f.pipeline.receiveFlowBpd;
   const width = st === "flowing" || st === "leak" || st === "worn" ? 3 + 7 * Math.min(1, flow / maxFlow) : 4;
   const moving = flow > 1 && st !== "down" && st !== "nodata";
-  const lost = Math.max(0, flow - recv);
-  const level = Number.isFinite(f.tank.levelPct) ? Math.max(0, Math.min(100, f.tank.levelPct)) : 0;
+  const lost = recv == null ? 0 : Math.max(0, flow - recv);
+  const level = f.tank.levelPct == null ? null : Math.max(0, Math.min(100, f.tank.levelPct));
   const wells = f.wells.slice(0, 6);
   const tankH = 46;
   const leakX = X.pipeStart + (X.manifold - X.pipeStart) * 0.62;
@@ -196,17 +196,17 @@ function FacilityRow({
           </circle>
         );
       })}
-      <text x={X.wells - 22} y={y + 22} className="fill-[var(--faint)] text-[11px]">{num(f.inflowBpd)} bpd in</text>
+      <text x={X.wells - 22} y={y + 22} className="fill-[var(--faint)] text-[11px]">{f.inflowBpd == null ? "Inflow unknown" : `${num(f.inflowBpd)} bpd in`}</text>
       <line x1={X.wells + wells.length * 13} x2={X.tank - 16} y1={y + 2} y2={y + 2} stroke="rgba(60,60,67,0.3)" strokeWidth={2} strokeLinecap="round" />
 
       {/* tank */}
       <g transform={`translate(${X.tank - 14},${y - tankH / 2})`}>
         <rect width={28} height={tankH} rx={8} fill="rgba(118,118,128,0.14)" />
-        <rect y={tankH * (1 - level / 100)} width={28} height={(tankH * level) / 100} rx={level > 90 ? 8 : 0} fill={st === "down" ? "#ff3b30" : st === "nodata" || st === "shut" ? "#8e8e93" : "#0a84ff"} opacity={0.9} />
+        {level != null && <rect y={tankH * (1 - level / 100)} width={28} height={(tankH * level) / 100} rx={level > 90 ? 8 : 0} fill={st === "down" ? "#ff3b30" : st === "nodata" || st === "shut" ? "#8e8e93" : "#0a84ff"} opacity={0.9} />}
         <rect width={28} height={tankH} rx={8} fill="none" stroke="rgba(0,0,0,0.08)" />
       </g>
       <text x={X.tank + 20} y={y - 8} className="fill-[var(--text)] text-[12px] font-semibold">
-        {st === "nodata" ? "?" : `${Math.round(level)}%`}
+        {level == null ? "?" : `${Math.round(level)}%`}
       </text>
 
       {/* tank -> pump */}
