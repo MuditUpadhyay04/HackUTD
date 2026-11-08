@@ -143,7 +143,7 @@ flowchart LR
 
 | Area | Owner | Plan / detail | Current focus |
 | --- | --- | --- | --- |
-| FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state), `FPGA/reports/` (board bring-up, lead response) | Board bring-up: B1–B3 PASS on hardware (50 MHz); B4 (O16) and the clock decision (O17); SD boot; live runs with `board_suite` / `win_live*.bat` |
+| FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state), **`FPGA/docs/BOARD_SESSION.md`** (board machine: paths, `.bat` scripts, results, gotchas), `FPGA/LAPTOP_WORKORDER.md`, `FPGA/reports/` (board bring-up, board suite, lead response, RTL sign-off) | Board suite 12/12 PASS on hardware (50 MHz, rev B); B4 (O16); SD boot with v4 (`win_make_sd.bat`); the FPGA → `main` PR |
 | Model, features, ingest, board tooling | Mudit | `docs/plan/mudit/ml_architecture.md` (frozen), `ml/README.md`, `ml/INTEGRATION.md` | Weights v4 deployed; board run with Lucas on the v4 golden sets; ingest via `listen.py` with Jason / Gurneal |
 | Operator API (Jason); agents and Nemotron (Mudit + Jason) | Jason; Mudit + Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, **`agent-loop-plan.md`** (closed-loop agents, Mudit), `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Agent loop POC (Mudit): board ingest into runs (I-1 / plan P2), handoff acceptance (I-17), Postgres learning store (I-16); ownership O18 |
 | Web console | Gurneal (Jimmy), with Jason | `frontend/`, `frontend/docs/live-api.md` | Board view from the operator API's snapshot (I-2) |
@@ -180,11 +180,12 @@ flowchart LR
 
 ## 7. Path to the demo (in this order)
 
-**Status (Sun 08:05, Mudit): Nemotron + FPGA + v4 is integrated end to end but not yet validated on the board.**
+**Status (Sun 08:35, Mudit): Nemotron + FPGA + v4 is integrated end to end. The board half is validated on hardware
+(the v4 board suite, 12/12); the agents on real board results (the combined suite) are next.**
 
 | Area | State | What closes it |
 | --- | --- | --- |
-| FPGA engine (Lucas) | Every module signed off. **On the board (50 MHz build, Sun 08:05) the whole v4 board suite passes:** golden B1–B3, B5, B6; the live demo path over the full week (L1); the live v3 → v4 swap (L2); the mock test and 3 snapshots (L3). Every RESULT and ALERT is bit-exact. T1: 29,941 records/s end to end (PC-sender-bound) | Lucas's FPGA → `main` PR after T2.top; O16 (B4 replay), O17 (clock) |
+| FPGA engine (Lucas) | Every module signed off; final `check_all` ALL PASS at FPGA `3560bda`; T2.top in REVIEW (top-level sim bit-exact, top formal not closed). **On the board (50 MHz build, rev B, Sun 08:05) the whole v4 board suite passes, 12/12** (`FPGA/reports/board_suite_v4_20261108.md`): golden B1–B3, B5, B6; the live demo path over the full week (L1); the live v3 → v4 swap (L2); the mock test and 3 snapshots (L3). Every RESULT and ALERT is bit-exact. T1: 29,941 records/s end to end (PC-sender-bound). Clock decided: 50 MHz (O17 resolved) | Lucas's FPGA → `main` PR; O16 (B4 replay; the demo skips server-down) |
 | ML, weights v4 (Mudit) | Deployed; bit-exact on the board; SD-card default model (`weights.eog`) | — |
 | Board → API → Nemotron agents (Mudit + Jason) | Integrated: v4's board detections become incidents, the agents explain them, fallbacks are never blank; the combined suite passes 6/6 on the software board with live Nemotron | **Validation:** the combined suite on real board results: Lucas runs `ml/COMBINED_TEST.md`, or sends his board-suite L1 / L3 JSONL for store and forward. Quality refinements in I-16 … I-19 don't block it |
 | **Front end** (Gurneal, with Jason) | **Open** | I-2 (board view from `Snapshot.board`), I-7 (`SIMULATE_BOARD` dev-only), I-11 review, I-12 (console `/api/events` link), I-13 (approvals persisted), I-14 (shared contracts) |
@@ -196,9 +197,10 @@ flowchart LR
 - `features_int.py` ≡ `eog_ref.py` bit for bit on the full practice week (v2, v3, v4; v4 with R7 option C at FPGA
   `10be393`) and the edge cases; the FPGA side's `check_mudit.py` passes on all 8 golden sets.
 - **Every FPGA module is signed off** under Lucas's three-tier standard (lint, sim, formal; FPGA `3560bda`).
-- **The engine runs on the board** (50 MHz bring-up build, Sun ~04:40): golden B1–B3 are bit-exact on hardware: 4 bad
-  weight blobs refused, the 41 edge cases, and the full week (30,240 RESULTs, 71 ALERTs). B4 (results buffered during
-  a heartbeat gap) has 10 corrupted RESULTs: O16.
+- **The engine runs on the board** (50 MHz build, rev B): the v4 board suite passes 12/12 on hardware (Sun 08:05):
+  4 bad weight blobs refused, the 41 edge cases, the full week (30,240 RESULTs, 71 ALERTs), the live demo path, the
+  live swap and every other dataset folder, all bit-exact. B4 (results buffered during a heartbeat gap) still corrupts
+  4–19 RESULTs per run: O16.
 - The full board suite (`python -m hutd_ml.board_suite`, `ml/BOARD_CHECKLIST.md`) passes on the software board,
   including the live demo path (`replay.py` → board → `listen.py`) checked field by field against the reference.
 - replay → software board → listen → HTTP: 4,500 / 4,500 results delivered.
@@ -220,14 +222,15 @@ flowchart LR
    | Step | What | Where | Time (estimate) |
    | --- | --- | --- | --- |
    | 0 | ~~Countdown, head and regs signed off~~ **Done** (every T1 module, `3560bda`) | FPGA agents | — |
-   | a | T2.top: `eog_top`, top-level proof, full-week sim bit for bit against the model and weights v4 G0 / G1 / G2 | other machine | — |
-   | b | T2.bd1: block design, LED / BTN0 / Pmod constraints, Vivado build | Lucas's PC | 30–60 min |
-   | c | ARM app (`eog_app`, already host-tested): Vitis build, program the board | Lucas's PC | ~10 min |
-   | d | **B1–B3 PASS on hardware (Sun ~04:40); B4: O16.** T2.board1: `board.py --golden ml/artifacts/v4/golden/g0 --weights-negative`, then g2, then g1, then `--heartbeat-test 6`; each byte-identical (RESULTs and ALERTs) before the next. Compare ALERTs on a freshly started board (latches survive CONFIG writes). Step-by-step checks, pass criteria and fault finding: [`ml/BOARD_CHECKLIST.md`](ml/BOARD_CHECKLIST.md). | board | 15–30 min |
-   | e | First live run: `replay.py` with weights v4 + its `global_config.json` over the full week → board → `listen.py` → Jason's server; then the live weight swap (`--swap-at-step … --swap-config`, checklist L4) | board PC → server | — |
+   | a | **REVIEW:** T2.top (`eog_top`) merged into `FPGA` for the board; top-level sim bit-exact (full week, G0 / G1 / G2); the top formal proof isn't closed | other machine | — |
+   | b | **Done:** T2.bd1: block design, constraints (board rev B), Vivado build at 50 MHz (WNS +0.548 ns; 14.4k LUT, 12.2k FF, 8 BRAM, 28 DSP) | Lucas's PC | — |
+   | c | **Done:** ARM app with SD boot: Vitis build, program the board (`win_vitis_build_eog.bat`, `win_deploy_eog.bat`) | Lucas's PC | — |
+   | d | **Done: the board suite passes 12/12 on hardware (Sun 08:05); B4: O16.** T2.board1: `board.py --golden ml/artifacts/v4/golden/g0 --weights-negative`, then g2, then g1, then `--heartbeat-test 6`; each byte-identical (RESULTs and ALERTs) before the next. Compare ALERTs on a freshly started board (latches survive CONFIG writes). Step-by-step checks, pass criteria and fault finding: [`ml/BOARD_CHECKLIST.md`](ml/BOARD_CHECKLIST.md). | board | 15–30 min |
+   | e | **Board part done** (board suite L1 / L2): `replay.py` with weights v4 + its `global_config.json` over the full week → board → `listen.py`, then the live weight swap (`--swap-at-step … --swap-config`). **Left:** → the operator API and the agents: the combined suite (step 3) | board PC → server | — |
 
-   No clock times until regs and T2.top land; Lucas pings Mudit when T2.bd1 starts. Until step e, steps 2–3 below
-   run against `fakeboard.py` (same JSON), so they don't wait on the board.
+   Board-machine sessions start from [`FPGA/docs/BOARD_SESSION.md`](FPGA/docs/BOARD_SESSION.md): machine paths, the
+   double-click `.bat` scripts, results and gotchas. For the demo the board boots from SD with v4 as the default model
+   (`win_make_sd.bat`); `replay.py` still sends the CONFIG and pushes v4.
 2. **Board → console** (Jason, Gurneal, Mudit):
    - `listen.py --post` into the operator API's ingest (I-1);
    - board RESULTs attached to a run;
@@ -240,7 +243,9 @@ flowchart LR
    **The combined Nemotron + v4 + FPGA test** comes right after the v4 board suite: one command,
    `python -m hutd_ml.combined_suite` ([`ml/COMBINED_TEST.md`](ml/COMBINED_TEST.md), the brief for Lucas's Claude;
    plan and results in [`docs/plan/mudit/nemotron_v4_fpga_test.md`](docs/plan/mudit/nemotron_v4_fpga_test.md)).
-   v4's board detections now open the API's incidents. It passes 6/6 on the software board with live Nemotron.
+   v4's board detections now open the API's incidents. It passes 6/6 on the software board with live Nemotron. On
+   Lucas's laptop it runs by double-click (`ml\win_agents_setup.bat`, then `ml\win_combined_suite.bat`, from a
+   snapshot of `main`); store and forward instead: `ml\win_combined_suite_board.bat`, and Mudit runs the agent stages.
 4. **Judging dry run:**
    - `mock_test_*` end to end;
    - then a fresh folder;
@@ -305,11 +310,12 @@ Mudit's integration branch; `main` receives merges from them.
 | O11 | Server → web app API | Jason + Gurneal | Proposed resolution: C10 (implemented in PR #4) |
 | O12 | Nemotron agent scope and inputs | Jason | Proposed resolution: C12 + C13 (implemented: PR #4 and the agent loop POC); Jason to confirm |
 | O15 | With **no model** loaded (`weights_ver` 0) the logits are 0, and v4's leak / degradation thresholds are negative (−128 / −64), so the board's alarm stage would count every record as a hit. Spec v4 as written (the FPGA is fixed). **Guarded:** `replay.py` refuses to stream unless the board confirms the pushed weights, and `listen.py` reports no detections at `weights_ver` 0. **SD boot** (Lucas, `FPGA/docs/SD_BOOT_WEIGHTS.md`) now loads a default model at power-on: put `ml/artifacts/v4/weights.eog` on the card. GLOBAL / Facility CONFIG are not on the card, so after a reset `replay.py` must run again. | Lucas (informational) + Mudit | Found Sun 03:40; SD boot Sun ~04:20 |
-| O16 | **B4 on the board:** after a 6 s heartbeat gap, 10 of 30,240 buffered-and-replayed RESULTs come back with 8-byte words overwritten by old data; ALERTs are fine (71 / 71). The FPGA lead rules out the RTL and the ARM protocol logic; the suspect is the board's PS memory system (cache / DMA / lwIP) or the PC's receive path. Experiments E0–E5 proposed (`FPGA/reports/LEAD_board_response.md`). Normal streaming (B1–B3, the demo path) is bit-exact. Until fixed, don't demo the server-down replay. | Lucas | Board run Sun ~04:40 |
-| O17 | **Clock:** 100 MHz misses timing by 8.1 ns (validate); the demo build runs at 50 MHz, which still handles more records/s than 1 GbE delivers. Lead recommends 50 MHz plus a validate pipelining fix for margin (decision D2); about a dozen doc lines name 100 MHz. Any rebuild: re-run `board_suite`. | Lucas | Lead response D2 / D5 |
+| O16 | **B4 on the board:** after a 6 s heartbeat gap, 4–19 buffered-and-replayed RESULTs per run carry a stale 16-byte pattern across a record boundary; every ALERT is right. Ruled out: the RTL, the protocol logic, the cache (E5a), the RX-reset workaround (E5b), a TX pbuf hold, flushing 16 packets per poll. A scratch debug build (per-record checksums, 32 RESULT pbufs held) passes 5/5, which points at timing in the lwIP / GEM TX path. Evidence: `FPGA/docs/BOARD_SESSION.md`. Normal streaming (the board suite, the demo path) is bit-exact. **The demo skips the server-down segment.** | Lucas | Board runs Sun ~04:40–08:05 |
 
 Resolved since the last version:
 
+- **O17:** the clock. Lucas chose **50 MHz** (WNS +0.548 ns) and skipped the validate fix (D2); a rebuild that fails
+  timing goes to 48 MHz. 100 MHz missed by 8.1 ns. Any rebuild: re-run `board_suite` (Sun ~08:15).
 - **O18:** agents and Nemotron are owned by Mudit + Jason jointly (Sun 07:25; PR #9 had proposed Mudit alone).
 - **O2:** values = v4 (C8).
 - **O13:** leak false alarms with missing readings under R7 C: fixed by weights v4 (0.21 → 0.03 per facility-day at
@@ -329,7 +335,7 @@ Resolved since the last version:
 | `apps/encoder/` | TS DATA encoder (see I-3) | Jason |
 | `frontend/` | Web console | Gurneal, Jason |
 | `Photon/` | Test bot (Gurneal) | Gurneal |
-| `FPGA/` | On `main`: spec v4, task board, kickoff, docs (Lucas's PR #5). RTL, proofs, testbenches, model, ARM app and build scripts stay on branch `FPGA` until Lucas's FPGA → `main` PR after T2.top | Lucas |
+| `FPGA/` | On `main`: spec v4, task board, kickoff, docs (Lucas's PR #5), the board-machine docs (`docs/BOARD_SESSION.md`, `LAPTOP_WORKORDER.md`, `docs/SD_BOOT_WEIGHTS.md`) and reports (bring-up, board suite 12/12, lead response, RTL sign-off). RTL, proofs, testbenches, model, ARM app and build scripts stay on branch `FPGA` until Lucas's FPGA → `main` PR | Lucas |
 | `HANDOFF.md` | FPGA lead session state | Lucas |
 | `ml/` | Ingest, `features_int.py`, training, weights, golden sets, board / fakeboard / listen / replay, sync tools | Mudit |
 | `docs/plan/<owner>/` | Owner plans | each owner |
@@ -339,6 +345,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 08:40 | **Lucas's board-session docs on `main`** (from `eog/T2.bd1` @ `9cf0841`, docs only, as with PR #5): `FPGA/docs/BOARD_SESSION.md` (read first on the board machine; `CLAUDE.md` points there), `LAPTOP_WORKORDER.md`, `SD_BOOT_WEIGHTS.md`, `HANDOFF.md`, `TASKS.md` (every T1 module DONE, T2.top REVIEW, T2.sd DONE), reports (bring-up, board suite 12/12, lead response, RTL sign-off, summary). **O17 resolved:** 50 MHz, D2 skipped. **O16 updated:** a debug build passes 5/5, so the lwIP / GEM TX path is the suspect; the demo skips server-down. **Combined suite by double-click** on Lucas's laptop: `ml\win_agents_setup.bat`, `ml\win_combined_suite.bat`, `ml\win_combined_suite_board.bat` (store and forward, no Bun needed). Lucas: merge `main` back into `FPGA` so the later FPGA → `main` PR stays clean. |
 | Sun Nov 8 08:20 | **The v4 board suite passes on hardware** (Lucas, Sun 08:05, 50 MHz build): B1–B3, B5, B6, L1 (the demo path, full week), L2 (live swap v3 → v4), L3 (mock test + 3 snapshots), every RESULT and ALERT bit-exact; T1 29,941 records/s end to end (PC-sender-bound). Both suites now use UTF-8 for all text I/O, since Windows' default encoding would break on Nemotron's prose. Next: the combined suite on real board results. |
 | Sun Nov 8 08:05 | **Status set (Mudit):** with PR #12 merged, Nemotron + FPGA + v4 is integrated end to end, **not yet validated on the board** (Lucas runs `ml/COMBINED_TEST.md`). The only open areas are the **front end** and **Photon** (§7 status table). Jason's PR #9 closed (ownership recorded, O18). |
 | Sun Nov 8 07:55 | **Combined Nemotron + v4 + FPGA test ready** (`ml/COMBINED_TEST.md`): board results carry their source (`listen.py --source`), model version and staleness; v4's board detections become API incidents (I-1 mostly done; I-8 done); the orchestrator names where detections came from, writes a deterministic handoff for an empty shift, and never-blank fallbacks for triage / handoff. `python -m hutd_ml.combined_suite`: board stages bit-exact → agents at 4 cutoffs → API path → stale drill. 6/6 PASS on the software board with live Nemotron (key stored for this session's environment, never in the repo); the quality gaps it measured are in I-17. API 130 pass / 1 skip / 0 fail. |
