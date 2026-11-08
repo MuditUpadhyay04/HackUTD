@@ -59,7 +59,7 @@ module tb_eog_regs;
     logic [63:0] r_data = 0;
     logic        al_valid = 0, al_full, al_drop = 0;
     logic [127:0] al_data = 0;
-    logic        tap_valid = 0, stall = 0;
+    logic        tap_valid = 0, stall = 0, rec_in = 0;
     logic [2:0]  tap_status = 0;
     logic [15:0] tap_reason = 0;
 
@@ -82,7 +82,7 @@ module tb_eog_regs;
         .d_valid(d_valid), .d_ready(d_ready), .d_data(d_data), .d_last(d_last),
         .r_valid(r_valid), .r_ready(r_ready), .r_data(r_data), .r_last(r_last),
         .al_valid(al_valid), .al_data(al_data), .al_full(al_full), .al_drop(al_drop),
-        .tap_valid(tap_valid), .tap_status(tap_status), .tap_reason(tap_reason), .stall(stall)
+        .tap_valid(tap_valid), .tap_status(tap_status), .tap_reason(tap_reason), .stall(stall), .rec_in(rec_in)
     );
 
     // ------------------------------------------------------------------------------------------- bookkeeping
@@ -413,7 +413,10 @@ module tb_eog_regs;
         chk(n_beats == b0 && !d_valid, "G6: push with src_dma = 1 produced beats");
         wr_chk(16'h0008, 32'h0, 4'hF, -1, "CTRL 0");
         rd_chk(16'h0130, 1, "G6: overrun count after src_dma push");
-        rd_chk(16'h0100, 3, "STATS 0 records in (DATA window, #59): 3 accepted pushes");
+        rd_chk(16'h0100, 0, "STATS 0: DATA pushes alone do not count (#59)");
+        for (int i = 0; i < 5; i++) begin rec_in <= 1; @(posedge clk); rec_in <= 0; repeat (i) @(posedge clk); end
+        @(posedge clk);
+        rd_chk(16'h0100, 5, "STATS 0 records in = rec_in pulses (#59)");
         wr_chk(16'h0008, 32'h40, 4'hF, -1, "stats_clear");
         rd_chk(16'h0130, 0, "G7: stats_clear clears STATS 12");
         d_rand = 0; d_ready <= 1;

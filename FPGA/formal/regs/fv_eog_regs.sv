@@ -27,12 +27,13 @@
 //       plus word-aligned addresses.
 //   G2  G2 (direct): while FLAGS[0] of slot f_slot is 1, cfg_row changes only right after a cycle in which the
 //       current write is a word-0 write to that slot with WSTRB[3] = 1 and WDATA[24] = 0.
-//       G2_row: cfg_row_v word 0 / word f_word (anyconst slot and word) equal a shadow built from the regmap rules
-//       (WSTRB merge, enabled-slot protection); FAC_ID bits excluded. G2_port: the f/c read ports agree with v.
-//       G2_rd: AXI readback of those words (FAC_ID reads as the slot). G2_zero: the table is 0 when AXI service
-//       starts after a hard reset (ruling #63).
+//       G2_row / G2_port / G2_port_c: the rows on all three read ports (v, f free; c = f_slot) equal a full shadow
+//       of the NF-slot table built from the regmap rules (WSTRB merge, enabled-slot protection), starting at 0
+//       when AXI service starts after a hard reset (ruling #63: zero sweep); FAC_ID bits excluded on the ports.
+//       G2_rd: AXI readback of any CONFIG word (FAC_ID reads as the slot). (A full shadow is stronger than the
+//       spec's anyconst slot/word and is far easier for PDR than an anyconst-indexed word.)
 //   G3  G3 (direct): glb unchanged in any cycle after a cycle with stream_en = 1. G3_const: glb byte 0 = 17,
-//       byte 2 = 4. G3_glb / G3_rd: GLOBAL word f_gw (anyconst) equals its shadow (writes ignored while
+//       byte 2 = 4. G3_glb / G3_rd: the whole GLOBAL record equals its shadow (writes ignored while
 //       stream_en = 1) on the port and on readback.
 //   G4  G4_cnt: fac_touch[f_slot] pulses exactly once per accepted write to slot f_slot, none for a rejected one.
 //       G4_only: no fac_touch bit pulses outside the window of a CONFIG write to that slot.
@@ -57,7 +58,8 @@
 //       dbg_fac follow CTRL / LEDOVR (32 bits) / DBGSEL ([4:0]); reset value 0 as in the model), R_rw (LEDOVR /
 //       DBGSEL readback), R_wb (weight readback through wb_raddr/wb_rdata, 1-cycle latency), R_wbw (wb_we once per
 //       weight write, word address and data; partial strobes merge with wb_rdata, ruling #62), R_unm (unmapped
-//       addresses read 0), R_status (STATUS bits 0-2, 31:24).
+//       addresses read 0), R_status (STATUS bits 0-2, 31:24), R_rec (STATS 0 = rec_in pulses, ruling #59; a
+//       DATA push alone does not change it).
 //   Covers: C_main (the spec's: CONFIG row written, slot enabled, a DATA record pushed, a RESULT read back and
 //       popped), plus C_ovr, C_rfull, C_afull, C_sr, C_wb.
 //
@@ -79,8 +81,8 @@ module fv_eog_regs (
     input  logic [15:0]  s_axi_araddr,
     input  logic         s_axi_arvalid,
     input  logic         s_axi_rready,
+    input  logic [4:0]   cfg_fac_v,
     input  logic [4:0]   cfg_fac_f,
-    input  logic [4:0]   cfg_fac_c,
     input  logic         dbg_valid,
     input  logic [495:0] dbg_feat,
     input  logic [63:0]  dbg_logits,
@@ -102,6 +104,7 @@ module fv_eog_regs (
     input  logic [2:0]   tap_status,
     input  logic [15:0]  tap_reason,
     input  logic         stall,
+    input  logic         rec_in,        // ruling #59: 1-cycle pulse per record leaving eog_unpack -> STATS 0
     input  logic         res_pick,      // G5: picks the tracked RESULT beat (free, like an anyconst entry number)
     input  logic         al_pick        // G5: picks the tracked ALERT
 );
@@ -131,9 +134,7 @@ module fv_eog_regs (
     logic [63:0] d_data;
     logic        r_ready, al_full;
 
-    (* anyconst *) logic [4:0] f_slot;   // G2/G4 tracked CONFIG slot
-    (* anyconst *) logic [3:0] f_word;   // G2 tracked CONFIG word
-    (* anyconst *) logic [2:0] f_gw;     // G3 tracked GLOBAL word
+    (* anyconst *) logic [4:0] f_slot;   // G2 (direct) / G4 tracked CONFIG slot
     (* anyconst *) logic [3:0] f_dw;     // G6 tracked DATA word
     (* anyconst *) logic [1:0] f_rb;     // G5 tracked beat position in a RESULT record
     (* anyconst *) logic [1:0] f_aw;     // G5 tracked ALERT word
@@ -154,7 +155,7 @@ module fv_eog_regs (
         .s_axi_rdata(s_axi_rdata), .s_axi_rresp(s_axi_rresp), .s_axi_rvalid(s_axi_rvalid), .s_axi_rready(s_axi_rready),
         .stream_en(stream_en), .src_dma(src_dma), .soft_rst(soft_rst), .hb_pulse(hb_pulse), .swap_req(swap_req),
         .ack_srv(ack_srv), .glb(glb), .ledovr(ledovr),
-        .cfg_fac_v(f_slot), .cfg_fac_f(cfg_fac_f), .cfg_fac_c(cfg_fac_c),
+        .cfg_fac_v(cfg_fac_v), .cfg_fac_f(cfg_fac_f), .cfg_fac_c(f_slot),
         .cfg_row_v(cfg_row_v), .cfg_row_f(cfg_row_f), .cfg_row_c(cfg_row_c), .fac_touch(fac_touch),
         .wb_we(wb_we), .wb_addr(wb_addr), .wb_wdata(wb_wdata), .wb_raddr(wb_raddr), .wb_rdata(wb_rdata),
         .dbg_fac(dbg_fac), .dbg_valid(dbg_valid), .dbg_feat(dbg_feat), .dbg_logits(dbg_logits),
@@ -164,8 +165,16 @@ module fv_eog_regs (
         .d_valid(d_valid), .d_ready(d_ready), .d_data(d_data), .d_last(d_last),
         .r_valid(r_valid), .r_ready(r_ready), .r_data(r_data), .r_last(r_last),
         .al_valid(al_valid), .al_data(al_data), .al_full(al_full), .al_drop(al_drop),
-        .tap_valid(tap_valid), .tap_status(tap_status), .tap_reason(tap_reason), .stall(stall)
+        .tap_valid(tap_valid), .tap_status(tap_status), .tap_reason(tap_reason), .stall(stall), .rec_in(rec_in)
     );
+
+`ifdef FV_QUIET
+    // prove task only: the inputs that feed nothing but STATS 1-11/13-15 and the DBG window (no G property; the
+    // testbench checks them) are held quiet, which keeps that state constant and the PDR cone small.
+    always_comb begin
+        assume (!tap_valid && !stall && !dbg_valid && !al_drop && ms_since_hb == 16'd0);
+    end
+`endif
 
     logic f_past_valid;
     eog_fv_init u_init (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid));
@@ -173,9 +182,6 @@ module fv_eog_regs (
     function automatic [31:0] mrg(input [31:0] o, input [31:0] d, input [3:0] s);
         mrg = {s[3] ? d[31:24] : o[31:24], s[2] ? d[23:16] : o[23:16],
                s[1] ? d[15:8]  : o[15:8],  s[0] ? d[7:0]   : o[7:0]};
-    endfunction
-    function automatic [31:0] gforce(input [2:0] wi, input [31:0] w);   // GLOBAL bytes 0 (S) and 2 (CD_LOG2)
-        gforce = (wi == 3'd0) ? {w[31:24], 8'd4, w[15:8], 8'd17} : w;
     endfunction
     function automatic logic unmapped(input [15:0] a);
         unmapped = !(a <= 16'h002C || (a >= 16'h0040 && a <= 16'h004C) || a == 16'h0060 || a == 16'h0064
@@ -326,65 +332,84 @@ module fv_eog_regs (
         R_dsel: assert (pend ? (dbg_fac == f_dsel || dbg_fac == f_dsel_o) : dbg_fac == f_dsel);
     end
 
-    // GLOBAL word f_gw (no reset value in the spec: synced from the port at the first cycle after reset)
-    logic        f_gk;
-    logic [31:0] f_gs, f_gs_o;
-    wire  [31:0] g_port = glb[32 * f_gw +: 32];
-    wire  [31:0] g_base = f_gk ? f_gs : g_port;
-    wire         g_hit  = H && c_glb && c_gi4[2:0] == f_gw && !f_sen;
+    // GLOBAL: full 8-word shadow (no reset value in the spec: synced from the port in the first cycle after reset).
+    // Only the word being written can differ inside a window: f_gow / f_goi keep its old value.
+    function automatic [255:0] gforce_all(input [255:0] v);
+        gforce_all = {v[255:24], 8'd4, v[15:8], 8'd17};
+    endfunction
+    logic         f_gk;
+    logic [255:0] f_g;
+    logic [31:0]  f_gow;
+    logic [2:0]   f_goi;
+    wire  [2:0]   c_gi   = c_gi4[2:0];
+    wire  [255:0] g_base = f_gk ? f_g : glb;
+    wire          g_hit  = H && c_glb && !f_sen;
     always_ff @(posedge clk)
         if (!rst_n) f_gk <= 1'b0;
         else begin
             f_gk <= 1'b1;
-            f_gs <= g_hit ? mrg(g_base, c_d, c_s) : g_base;
-            if (H) f_gs_o <= g_base;
+            f_g  <= g_base;
+            if (g_hit) f_g[32 * c_gi +: 32] <= mrg(g_base[32 * c_gi +: 32], c_d, c_s);
+            if (H) begin f_gow <= g_base[32 * c_gi +: 32]; f_goi <= c_gi; end
         end
+    logic [255:0] g_old;
+    always_comb begin
+        g_old = f_g;
+        g_old[32 * f_goi +: 32] = f_gow;
+    end
     always_comb if (rst_n) begin
         G3_const: assert (glb[7:0] == 8'd17 && glb[23:16] == 8'd4);
-        if (f_gk) G3_glb: assert (pend ? (g_port == gforce(f_gw, f_gs) || g_port == gforce(f_gw, f_gs_o))
-                                       : g_port == gforce(f_gw, f_gs));
+        if (f_gk) G3_glb: assert (glb == gforce_all(f_g) || (pend && glb == gforce_all(g_old)));
     end
     always_ff @(posedge clk)
         if (f_past_valid && $past(rst_n) && rst_n && $past(stream_en)) G3: assert (glb == $past(glb));
 
-    // CONFIG slot f_slot: word 0 and word f_word. Zero after the hard-reset sweep (#63): the shadow starts when
-    // AXI service starts (first READY after reset), and G2_zero checks the table is 0 then.
-    logic        f_ck;
-    logic [31:0] f_c0, f_cw, f_c0_o, f_cw_o;
-    wire  [31:0] row0 = cfg_row_v[31:0];
-    wire  [31:0] rowW = cfg_row_v[32 * f_word +: 32];
-    wire         served = s_axi_awready || s_axi_wready || s_axi_arready;
-    wire         c_load = !f_ck && served;
-    wire  [31:0] c0b = f_ck ? f_c0 : row0;
-    wire  [31:0] cwb = f_ck ? f_cw : rowW;
-    wire         c_en  = c0b[24];
-    wire         c_hitf = c_cfg && c_slot == f_slot;
-    wire         c_acc  = c_hitf && (!c_en || (c_cw == 4'd0 && c_s[3] && !c_d[24]));
+    // CONFIG: full shadow of all NF slots, zero after the hard-reset sweep (#63). Checked from the first cycle AXI is
+    // served after reset (f_ck), on all three read ports (cfg_fac_v / _f free, cfg_fac_c = the anyconst slot f_slot)
+    // and on readback. FAC_ID bits [15:0] of word 0 are not compared on the ports (spec: AXI readback shows f).
+    localparam integer SW = (NF <= 2) ? 1 : $clog2(NF);
+    logic              f_ck;
+    logic [NF*512-1:0] f_c;
+    logic [31:0]       f_cow;
+    logic [SW+3:0]     f_coi;
+    wire  [SW-1:0]     c_sl   = c_slot[SW-1:0];
+    wire  [SW+3:0]     c_wix  = {c_sl, c_cw};
+    wire  [31:0]       c_w0   = f_c[512 * c_sl +: 32];
+    wire               c_acc  = c_cfg && (!c_w0[24] || (c_cw == 4'd0 && c_s[3] && !c_d[24]));
+    wire               served = s_axi_awready || s_axi_wready || s_axi_arready;
     always_ff @(posedge clk)
-        if (!rst_n) f_ck <= 1'b0;
-        else if (f_ck || c_load) begin
-            f_ck <= 1'b1;
-            f_c0 <= (H && c_acc && c_cw == 4'd0) ? mrg(c0b, c_d, c_s) : c0b;
-            f_cw <= (H && c_acc && c_cw == f_word) ? mrg(cwb, c_d, c_s) : cwb;
-            if (H) begin f_c0_o <= c0b; f_cw_o <= cwb; end
+        if (!rst_n) begin
+            f_ck <= 1'b0; f_c <= '0;
+        end else begin
+            if (served) f_ck <= 1'b1;
+            if (H && c_acc) f_c[32 * c_wix +: 32] <= mrg(f_c[32 * c_wix +: 32], c_d, c_s);
+            if (H) begin f_cow <= f_c[32 * c_wix +: 32]; f_coi <= c_wix; end
         end
-    wire [31:0] fid_m = (f_word == 4'd0) ? 32'hFFFF0000 : 32'hFFFFFFFF;
-    always_comb if (rst_n) begin
-        if (c_load) G2_zero: assert (row0[31:16] == 16'd0 && (rowW & fid_m) == 32'd0);
-        if (f_ck) begin
-            G2_row: assert (pend ? ((row0[31:16] == f_c0[31:16] || row0[31:16] == f_c0_o[31:16])
-                                    && ((rowW & fid_m) == (f_cw & fid_m) || (rowW & fid_m) == (f_cw_o & fid_m)))
-                                 : (row0[31:16] == f_c0[31:16] && (rowW & fid_m) == (f_cw & fid_m)));
-        end
-        if (cfg_fac_f == f_slot) G2_port: assert (cfg_row_f == cfg_row_v);
-        if (cfg_fac_c == f_slot) G2_port_c: assert (cfg_row_c == cfg_row_v);
+    logic [NF*512-1:0] c_old;
+    always_comb begin
+        c_old = f_c;
+        c_old[32 * f_coi +: 32] = f_cow;
+    end
+    function automatic [511:0] fidm(input [511:0] r);   // FAC_ID bits masked
+        fidm = {r[511:16], 16'd0};
+    endfunction
+    function automatic logic rowok(input [4:0] fac, input [511:0] row);
+        logic [SW-1:0] sl;
+        sl = fac[SW-1:0];
+        rowok = (fac >= NF) || fidm(row) == fidm(f_c[512 * sl +: 512])
+                || (pend && fidm(row) == fidm(c_old[512 * sl +: 512]));
+    endfunction
+    always_comb if (rst_n && f_ck) begin
+        G2_row:    assert (rowok(cfg_fac_v, cfg_row_v));
+        G2_port:   assert (rowok(cfg_fac_f, cfg_row_f));
+        G2_port_c: assert (rowok(f_slot, cfg_row_c));
     end
     always_ff @(posedge clk)
-        if (f_past_valid && $past(rst_n) && rst_n && $past(f_ck) && $past(cfg_row_v[24]) && cfg_row_v != $past(cfg_row_v))
+        if (f_past_valid && $past(rst_n) && rst_n && $past(f_ck) && $past(cfg_row_c[24]) && cfg_row_c != $past(cfg_row_c))
             G2: assert ($past(cur_v && c_cfg && c_slot == f_slot && c_cw == 4'd0 && c_s[3] && !c_d[24]));
 
     // ------------------------------------------------------------------------------------------------ pulses (G4, G7, R_wbw)
-    logic e_tc, e_hb, e_sw, e_ack, e_sr, e_wt, e_cfg, e_cw0;
+    logic e_tc, e_acc, e_hb, e_sw, e_ack, e_sr, e_wt, e_cfg, e_cw0;
     logic [4:0]  e_slot;
     logic [6:0]  e_wi;
     logic [31:0] e_wd;
@@ -394,7 +419,8 @@ module fv_eog_regs (
     wire sr_rise = soft_rst && !f_srq;
     always_ff @(posedge clk)
         if (H) begin
-            e_tc  <= c_acc;
+            e_tc  <= c_acc && c_slot == f_slot;
+            e_acc <= c_acc;
             e_cfg <= c_cfg; e_slot <= c_slot; e_cw0 <= c_cw == 4'd0;
             e_hb  <= c_ctrl && c_s[0] && c_d[2];
             e_sw  <= c_ctrl && c_s[0] && c_d[3];
@@ -416,8 +442,7 @@ module fv_eog_regs (
     wire a_wbn = H && c_wt && wb_addr == c_wi
                  && (!((c_s == 4'hF) || c_wi == f_wa) || wb_wdata == ((c_s == 4'hF) ? c_d : mrg(f_wv, c_d, c_s)));
     wire [NF-1:0] one = {{(NF-1){1'b0}}, 1'b1};
-    wire [NF-1:0] tc_ok = ((oldw && e_cfg && e_slot < NF) ? (one << e_slot) : '0)
-                        | ((H && c_cfg && c_slot < NF) ? (one << c_slot) : '0);
+    wire [NF-1:0] tc_ok = ((oldw && e_acc) ? (one << e_slot) : '0) | ((H && c_acc) ? (one << c_slot) : '0);
 
     logic [1:0] n_tc, n_hb, n_sw, n_ack, n_sr, n_wb;
     wire [NF-1:0] tc_sh = fac_touch >> f_slot;
@@ -500,6 +525,23 @@ module fv_eog_regs (
             if (sclr) f_ovr <= 32'd0;
             else if (push_ovr && f_ovr != 32'hFFFFFFFF) f_ovr <= f_ovr + 32'd1;
         end
+    // STATS 0 (ruling #59): rec_in pulses, saturating, cleared by stats_clear / soft reset. A pulse inside the window
+    // of a clearing CTRL write could land on either side of the clear, so the environment avoids that one case.
+    logic [31:0] f_rec;
+    logic        e_sclr;
+    always_ff @(posedge clk) if (H) e_sclr <= c_ctrl && c_s[0] && (c_d[6] || c_d[1]);
+    always_comb if (rst_n && ((win && (H ? (c_ctrl && c_s[0] && (c_d[6] || c_d[1])) : e_sclr)) || soft_rst)) assume (!rec_in);
+    always_ff @(posedge clk)
+        if (!rst_n) f_rec <= 32'd0;
+        else if (sclr) f_rec <= 32'd0;
+        else if (rec_in && f_rec != 32'hFFFFFFFF) f_rec <= f_rec + 32'd1;
+`ifdef FV_QUIET
+    // prove only: STATS 0 / 12 counted up to 15 (two equal 32-bit counters are hard for PDR); saturation unproven
+    always_comb if (rst_n) begin
+        assume (!(rec_in && f_rec == 32'd15));
+        assume (!(push && busy && f_ovr == 32'd15));
+    end
+`endif
     logic [2:0] c_dw8;
     always_ff @(posedge clk)
         if (!rst_n) c_dw8 <= 0;
@@ -597,7 +639,7 @@ module fv_eog_regs (
     // static expectation at the AR handshake
     logic [3:0]  x_cls;    // 0 none, 1 ID/VERSION, 2 CTRL, 3 GLOBAL, 4 LEDOVR/DBGSEL, 5 CONFIG, 6 weight,
                            // 7 STATS 12, 8 unmapped, 9 STATUS, 10 RESULT tracked, 11 RESULT empty,
-                           // 12 ALERT tracked, 13 ALERT empty
+                           // 12 ALERT tracked, 13 ALERT empty, 14 STATS 0
     logic [31:0] x_val;
     wire  [15:0] ra = s_axi_araddr;
     always_comb begin
@@ -606,14 +648,18 @@ module fv_eog_regs (
         else if (ra == 16'h0004) begin x_cls = 4'd1; x_val = {8'd0, 8'd8, NF8, SV8}; end
         else if (ra == 16'h0008) begin x_cls = 4'd2; x_val = {26'd0, f_src, 4'd0, f_sen}; end
         else if (ra == 16'h000C) x_cls = 4'd9;
-        else if (ra == 16'h0010 + {11'd0, f_gw, 2'b00}) begin x_cls = f_gk ? 4'd3 : 4'd0; x_val = gforce(f_gw, f_gs); end
+        else if (ra >= 16'h0010 && ra <= 16'h002C) begin
+            x_cls = f_gk ? 4'd3 : 4'd0; x_val = gforce_all(f_g) >> (32 * (ra[4:2] - 3'd4)); end
         else if (ra == 16'h0060) begin x_cls = 4'd4; x_val = f_led; end
         else if (ra == 16'h0064) begin x_cls = 4'd4; x_val = {27'd0, f_dsel}; end
-        else if (ra == 16'h1000 + {5'd0, f_slot, 6'd0}) begin
-            x_cls = f_ck ? 4'd5 : 4'd0; x_val = {f_c0[31:16], 11'd0, f_slot}; end
-        else if (ra == 16'h1000 + {5'd0, f_slot, f_word, 2'b00}) begin x_cls = f_ck ? 4'd5 : 4'd0; x_val = f_cw; end
+        else if (ra >= 16'h1000 && ra < 16'h1000 + 64 * NF) begin
+            x_cls = f_ck ? 4'd5 : 4'd0;
+            x_val = f_c >> (32 * {ra[6 + SW - 1:6], ra[5:2]});
+            if (ra[5:2] == 4'd0) x_val[15:0] = {11'd0, ra[10:6]};
+        end
         else if (ra == 16'h4000 + {7'd0, f_wa, 2'b00}) begin x_cls = 4'd6; x_val = f_wv; end
         else if (ra == 16'h0130) begin x_cls = 4'd7; x_val = f_ovr; end
+        else if (ra == 16'h0100) begin x_cls = 4'd14; x_val = f_rec; end
         else if (ra >= 16'h0300 && ra <= 16'h031C) begin
             if (rtk_now && f_rtc && rtp_now == 3'd0 && ra[4:3] == f_rb) begin
                 x_cls = 4'd10; x_val = f_rtd[32 * ra[2] +: 32]; end
@@ -660,6 +706,8 @@ module fv_eog_regs (
             if (f_xc == 4'd4) R_rw:  assert (rd == f_xv);
             if (f_xc == 4'd5) G2_rd: assert (rd == f_xv);
             if (f_xc == 4'd7 && !f_xg && !g_off) G6_ovr: assert (rd == f_xv);
+            // rec_in pulses may arrive during the read: the value lies between the counts at AR and at RVALID
+            if (f_xc == 4'd14) R_rec: assert (rd >= f_xv && rd <= f_rec);
         end
         if (f_xc == 4'd6) R_wb:  assert (rd == f_xv);
         if (f_xc == 4'd8) R_unm: assert (rd == 32'd0);
@@ -686,7 +734,7 @@ module fv_eog_regs (
         if (!rst_n) begin cv_cfg <= 0; cv_en <= 0; cv_push <= 0; cv_ovr <= 0; end
         else begin
             if (bfirst && e_tc && !e_cw0 && f_ck) cv_cfg <= 1'b1;                    // a row word written
-            if (cv_cfg && bfirst && e_tc && e_cw0 && f_c0[24]) cv_en <= 1'b1;        // then the slot enabled
+            if (cv_cfg && bfirst && e_tc && e_cw0 && f_c[512 * f_slot[SW-1:0] + 24]) cv_en <= 1'b1;        // then the slot enabled
             if (cv_en && d_hs && d_last) cv_push <= 1'b1;
             if (push_ovr) cv_ovr <= 1'b1;
         end

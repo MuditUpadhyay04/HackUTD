@@ -8,22 +8,30 @@
 #         DATA beat counter are invisible at the ports, so port-level properties are not inductive without internal
 #         invariants (the independence rule keeps the RTL's internals out of the harness).
 # bmc   : abc bmc3 (smtbmc/boolector took > 10 min to reach step 10 on this design), every assertion from reset,
-#         depth 30 (reset + sweep + ~5 AXI transactions or a full DATA push and a
-#         RESULT record). Quick counterexamples for the RTL author.
+#         depth 20 (reset + sweep + 3-4 AXI transactions, or a push with its 6 beats plus a RESULT record and its
+#         pop). Each step costs ~1 min at depth 15-20, so deeper runs belong to `prove`.
 # cover : the spec's cover (CONFIG row written, slot enabled, DATA record pushed, RESULT read back) and sanity
 #         covers; depth 40.
 #
 # Run times: see the end of this header (filled in from the stub shake-out).
 
 [tasks]
-prove
+prove_axi prove
+prove_ctl prove
+prove_rd prove
+prove_puls prove
+prove_cfg prove
+prove_glb prove
+prove_fifo prove
+prove_data prove
 bmc
 cover
 
 [options]
 prove: mode prove
+prove: timeout 1800
 bmc:   mode bmc
-bmc:   depth 30
+bmc:   depth 20
 cover: mode cover
 cover: depth 40
 
@@ -35,7 +43,8 @@ cover: smtbmc boolector
 [script]
 read_verilog -formal -sv eog_fv_props.sv
 read_verilog -formal -sv -I . eog_regs.sv
-read_verilog -formal -sv -I . fv_eog_regs.sv
+prove: read_verilog -formal -sv -I . -DFV_QUIET fv_eog_regs.sv
+~prove: read_verilog -formal -sv -I . fv_eog_regs.sv
 prep -top fv_eog_regs
 memory -nomap
 memory_map
@@ -46,6 +55,15 @@ techmap
 opt -fast
 setundef -undriven -anyseq
 setundef -anyseq
+# prove_*: keep only that group's assertions (one PDR run per group keeps the cones small)
+prove_axi: chformal -assert -remove c:* c:G1_* c:*ax_* %u %d
+prove_ctl: chformal -assert -remove c:* c:R_ctrl c:R_led c:R_dsel c:R_id c:R_unm c:R_status %u %u %u %u %u %d
+prove_rd: chformal -assert -remove c:* c:R_rw c:G7_rd c:R_wb %u %u %d
+prove_puls: chformal -assert -remove c:* c:G4_* c:G7_* c:R_wbw* %u %u c:G7_rd %d %d
+prove_cfg: chformal -assert -remove c:* c:G2* %d
+prove_glb: chformal -assert -remove c:* c:G3* %d
+prove_fifo: chformal -assert -remove c:* c:G5_* %d
+prove_data: chformal -assert -remove c:* c:G6_* c:R_rec %u %d
 
 [files]
 ../common/eog_fv_props.sv
