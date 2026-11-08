@@ -1,0 +1,64 @@
+# FPGA task board
+
+Claim a task by writing your agent/session name in **Owner** and setting **Status** to CLAIMED, in the same
+commit as your first work. Statuses: TODO · CLAIMED · BLOCKED · REVIEW · DONE. A task can start only when every
+task in **Needs** is DONE (a Verify task may start writing properties before its vectors exist; it needs T0.2 only
+to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v1).
+
+## Wave 0 — lead
+
+| ID | Task | Needs | Owner | Status | Output |
+| --- | --- | --- | --- | --- | --- |
+| T0.1 | Freeze the spec (decisions D1–D5, conventions, numerics, regmap, 12 module specs, `rtl/eog_defs.svh`) | — | Claude (Lucas's session) | DONE | `spec/` v1 |
+| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | | TODO | `model/`, `tb/vectors/` |
+| T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | | TODO | `formal/common/` |
+
+## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
+
+| ID | Module (spec) | Role | Needs | Owner | Status | Report |
+| --- | --- | --- | --- | --- | --- | --- |
+| T1.mul.rtl | `eog_mul` | RTL | T0.1 | | TODO | |
+| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | | TODO | |
+| T1.div.rtl | `eog_div` | RTL | T0.1 | | TODO | |
+| T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | | TODO | |
+| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
+| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
+| T1.validate.rtl | `eog_validate` | RTL | T0.1 | | TODO | |
+| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | | TODO | |
+| T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.memory.rtl | `eog_memory` | RTL | T0.1 | | TODO | |
+| T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | | TODO | |
+| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | | TODO | |
+| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | | TODO | |
+| T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.pack.rtl | `eog_pack` | RTL | T0.1 | | TODO | |
+| T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | | TODO | |
+| T1.regs.rtl | `eog_regs` | RTL | T0.1 | | TODO | |
+| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3 | | TODO | |
+
+Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
+
+## Wave 2 — integration
+
+| ID | Task | Needs | Owner | Status | Output |
+| --- | --- | --- | --- | --- | --- |
+| T2.top | `rtl/eog_top.sv` + bounded top proof + full-practice-week sim vs `model/` (`spec/modules/eog_top.md`) | all T1 DONE | | TODO | |
+| T2.ps1 | ARM app v1 (`ps/eog_app.c`): UDP 7000/7003/7004/heartbeat → AXI-Lite windows, RESULT/ALERT/STATS packets back; keep `udp_mul.c` on 7777 | T0.1 | | TODO | `ps/` |
+| T2.bd1 | Vivado block design v1: `eog_top` on GP0 at `0x43C1_0000` next to `axi_mul`; XDC for LEDs/BTN0/Pmods (O4); timing at 100 MHz | T2.top | | TODO | `vivado/` — **board machine only** |
+| T2.board1 | Board bring-up v1: practice data end to end, RESULTs match `model/` | T2.ps1, T2.bd1 | | TODO | report — **board machine only** |
+
+## Wave 3 — line rate (board machine only)
+
+| ID | Task | Needs | Owner | Status | Output |
+| --- | --- | --- | --- | --- | --- |
+| T3.dma | AXI DMA (MM2S/S2MM, scatter-gather) + zero-copy ARM path + drop-before-starve rule | T2.board1 | | TODO | |
+| T3.perf | Re-measure end to end at line rate; record in reports | T3.dma | | TODO | |
+
+## Spec questions
+
+| # | Module | Question | Proposed answer | Raised by | Answer (lead) |
+| --- | --- | --- | --- | --- | --- |

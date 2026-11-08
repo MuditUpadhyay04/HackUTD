@@ -1,0 +1,7 @@
+*.sh text eol=lf
+*.sv text eol=lf
+*.svh text eol=lf
+*.sby text eol=lf
+*.py text eol=lf
+*.hex text eol=lf
+*.bat text eol=crlf

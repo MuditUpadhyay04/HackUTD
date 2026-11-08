@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FPGA Link</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1c1d1f; --muted: #6b6e74; --line: #e3e1da;
+    --accent: #0f6e5a; --accent-ink: #ffffff; --ok: #1d7a3e; --bad: #b3261e; --warn: #9a6200;
+    --code: #f0eee8;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121315; --panel: #1b1c1f; --ink: #e9e8e4; --muted: #9a9ca1; --line: #2c2e32;
+      --accent: #3fbf9b; --accent-ink: #08130f; --ok: #5fd08a; --bad: #ff8a80; --warn: #e3b25a;
+      --code: #232529;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 var(--sans); }
+  main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -0.01em; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; font-weight: 600; }
+  .target { font: 13px var(--mono); color: var(--muted); }
+  .badge { font: 600 11px var(--sans); padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .badge.mock { color: var(--warn); border-color: currentColor; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+  .span2 { grid-column: 1 / -1; }
+  .row { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); flex: 1; min-width: 120px; }
+  input, select { font: 15px var(--mono); padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); width: 100%; }
+  input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  button { font: 600 14px var(--sans); padding: 9px 16px; border-radius: 6px; border: 0; background: var(--accent); color: var(--accent-ink); cursor: pointer; }
+  button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .op { font: 20px var(--mono); color: var(--muted); padding-bottom: 6px; }
+  .product { font: 600 26px var(--mono); margin: 14px 0 4px; word-break: break-all; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+  .pill { font: 600 12px var(--sans); padding: 1px 8px; border-radius: 999px; }
+  .pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+  .pill.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 14%, transparent); }
+  pre { font: 12px/1.5 var(--mono); background: var(--code); padding: 8px 10px; border-radius: 6px; margin: 10px 0 0; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 12px; }
+  .stat { background: var(--code); border-radius: 6px; padding: 8px 10px; }
+  .stat b { display: block; font: 600 18px var(--mono); }
+  .stat span { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  table { width: 100%; border-collapse: collapse; font: 13px var(--mono); }
+  th { text-align: left; font: 600 11px var(--sans); text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .tablewrap { overflow-x: auto; }
+  .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Eclypse Z7 link</h1>
+    <span class="target" id="target">connecting…</span>
+    <span class="badge" id="mode"></span>
+  </header>
+
+  <div class="grid">
+    <section class="panel span2">
+      <h2>Multiply on the FPGA</h2>
+      <form class="row" id="mulForm">
+        <label>A (int32)<input id="a" value="123456" autocomplete="off" inputmode="numeric"></label>
+        <div class="op">×</div>
+        <label>B (int32)<input id="b" value="-789" autocomplete="off" inputmode="numeric"></label>
+        <button id="mulBtn" type="submit">Send</button>
+        <button class="ghost" type="button" id="randBtn">Random</button>
+      </form>
+      <div id="mulOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Burst test</h2>
+      <div class="row">
+        <label>Packets<input id="n" value="1000" inputmode="numeric"></label>
+        <label>Operands<select id="bmode"><option value="random">random int32</option><option value="edge">edge cases (225)</option></select></label>
+        <button id="burstBtn" type="button">Run</button>
+      </div>
+      <div id="burstOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Raw packet</h2>
+      <div class="row">
+        <label>Hex payload<input id="raw" value="4d554c31 00000001 00000007 00000006" autocomplete="off"></label>
+        <button id="rawBtn" type="button">Send</button>
+      </div>
+      <div class="hint">16 B request: magic | seq | a | b. Try a short or bad-magic packet to see status codes.</div>
+      <div id="rawOut"></div>
+    </section>
+
+    <section class="panel span2">
+      <h2>History</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>seq</th><th>a</th><th>b</th><th>FPGA product</th><th>check</th><th>RTT ms</th></tr></thead>
+          <tbody id="hist"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const INT32_MIN = -2147483648, INT32_MAX = 2147483647;
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} :
+    { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+async function loadConfig() {
+  try {
+    const c = await api("/api/config");
+    $("target").textContent = `udp://${c.board_ip}:${c.board_port}`;
+    $("mode").textContent = c.mock ? "mock board" : "hardware";
+    $("mode").className = "badge" + (c.mock ? " mock" : "");
+  } catch (e) { $("target").textContent = "server unreachable"; }
+}
+
+function addHistory(r) {
+  const tr = document.createElement("tr");
+  const check = r.error ? `<span class="pill bad">${esc(r.error.split(" ")[0] === "no" ? "timeout" : "error")}</span>`
+              : r.match ? `<span class="pill ok">match</span>` : `<span class="pill bad">MISMATCH</span>`;
+  tr.innerHTML = `<td>${r.seq}</td><td>${esc(r.a)}</td><td>${esc(r.b)}</td>
+    <td>${esc(r.product ?? "—")}</td><td>${check}</td><td>${r.rtt_ms ?? "—"}</td>`;
+  const body = $("hist");
+  body.prepend(tr);
+  while (body.children.length > 25) body.lastChild.remove();
+}
+
+$("mulForm").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const btn = $("mulBtn"); btn.disabled = true;
+  try {
+    const r = await api("/api/multiply", { a: $("a").value, b: $("b").value });
+    let html;
+    if (r.error) {
+      html = `<div class="err">${esc(r.error)}</div><pre>tx  ${esc(r.tx_hex)}</pre>`;
+    } else {
+      const pill = r.match ? `<span class="pill ok">matches host ${esc(r.expected)}</span>`
+                           : `<span class="pill bad">MISMATCH — host expects ${esc(r.expected)}</span>`;
+      html = `<div class="product">${esc(r.product)}</div>
+        <div class="meta">${pill}<span>status ${esc(r.status)}</span><span>RTT ${r.rtt_ms} ms</span>
+        <span>seq ${r.seq}</span>${r.tries > 1 ? `<span>tries ${r.tries}</span>` : ""}</div>
+        <pre>tx  ${esc(r.tx_hex)}\nrx  ${esc(r.rx_hex)}</pre>`;
+    }
+    $("mulOut").innerHTML = html;
+    addHistory(r);
+  } catch (e) {
+    $("mulOut").innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally { btn.disabled = false; }
+});
+
+$("randBtn").addEventListener("click", () => {
+  const r = () => Math.floor(Math.random() * 2 ** 32) + INT32_MIN;
+  $("a").value = r(); $("b").value = r();
+  $("mulForm").requestSubmit();
+});
+
+$("burstBtn").addEventListener("click", async () => {
+  const btn = $("burstBtn"); btn.disabled = true;
+  $("burstOut").innerHTML = `<div class="hint">running…</div>`;
+  try {
+    const r = await api("/api/burst", { n: $("n").value, mode: $("bmode").value });
+    const t = r.rtt_ms || {};
+    const pass = r.mismatches === 0 && r.timeouts === 0;
+    let html = `<div class="stats">
+      <div class="stat"><b style="color:var(${pass ? "--ok" : "--bad"})">${r.passed}/${r.n}</b><span>passed</span></div>
+      <div class="stat"><b>${r.mismatches}</b><span>mismatches</span></div>
+      <div class="stat"><b>${r.timeouts}</b><span>timeouts</span></div>
+      <div class="stat"><b>${r.ops_per_s ?? "—"}</b><span>ops / s</span></div>
+      <div class="stat"><b>${t.median ?? "—"}</b><span>median RTT ms</span></div>
+      <div class="stat"><b>${t.p99 ?? "—"}</b><span>p99 RTT ms</span></div>
+    </div>`;
+    if (r.failures.length) {
+      html += `<pre>${r.failures.map(f => esc(`seq ${f.seq}: ${f.a} × ${f.b} -> ${f.product ?? f.error} (expected ${f.expected})`)).join("\n")}</pre>`;
+    }
+    $("burstOut").innerHTML = html;
+  } catch (e) {
+    $("burstOut").innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally { btn.disabled = false; }
+});
+
+$("rawBtn").addEventListener("click", async () => {
+  const btn = $("rawBtn"); btn.disabled = true;
+  try {
+    const r = await api("/api/raw", { hex: $("raw").value });
+    let s = `tx  ${r.tx_hex}\n`;
+    s += r.error ? `rx  (${r.error})` : `rx  ${r.rx_hex}\n${r.decoded ? JSON.stringify(r.decoded) : r.decode_error}`;
+    $("rawOut").innerHTML = `<pre>${esc(s)}</pre>`;
+  } catch (e) {
+    $("rawOut").innerHTML = `<div class="err">${esc(e.message)}</div>`;
+  } finally { btn.disabled = false; }
+});
+
+loadConfig();
+</script>
+</body>
+</html>
