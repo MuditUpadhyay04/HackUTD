@@ -33,8 +33,8 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.memory.rtl | `eog_memory` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) |
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
-| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | fpga-rtl agent | CLAIMED | |
-| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | | TODO | |
+| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | fpga-rtl agent | REVIEW | `eog/T1.countdown.rtl` 2723d23 (lint/iverilog/yosys clean; latency 57, accept gap ≤ 9 at defaults, up to 8 in flight; smoke PASS all 12 countdown vector cases incl. onsets/R1; ~18.5k flops in generic synth, estimate) |
+| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | fpga-rtl agent | CLAIMED | |
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) |
