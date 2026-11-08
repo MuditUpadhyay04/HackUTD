@@ -3,7 +3,7 @@ import type { App } from "@hackutd/api";
 
 // Eden appends its typed /api routes to this prefix. No upstream credentials
 // or server implementation are included in the browser bundle.
-export const api = treaty<App>(`${typeof window === "undefined" ? "http://localhost" : window.location.origin}/api/backend`, { parseDate: false });
+export const api = treaty<App>(`${typeof window === "undefined" ? "http://localhost:3000" : window.location.origin}/api/backend`, { parseDate: false });
 
 export function unwrap<T>(result: { data: T | null; error: unknown }): Exclude<T, Response | { error: string; code: string }> {
   if (result.error) {

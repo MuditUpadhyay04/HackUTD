@@ -6,6 +6,10 @@ function equal(a: string, b: string) {
 }
 
 export function proxy(request: NextRequest) {
+  // Never require auth for Next.js internal assets (_next/*, favicon, etc.).
+  // The browser loads these without sending Basic Auth credentials.
+  if (request.nextUrl.pathname.startsWith("/_next/")) return NextResponse.next();
+
   // Host alone is client-controlled. Require an explicit loopback server bind as
   // well; never use this opt-out on a shared or reverse-proxied listener.
   const loopback = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
