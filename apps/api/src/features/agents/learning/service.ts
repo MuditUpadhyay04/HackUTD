@@ -9,10 +9,11 @@ import type { BoardFact } from "../orchestration/facts";
 import type { Role } from "../orchestration/roles";
 import { champions, MemoryLearningStore, PostgresLearningStore, type LearningStore } from "./store";
 import { decisionsFor } from "./outcomes";
+import type { AgentTrigger } from "../auto";
 import { cycleTrend, planOutcomes, versionTable } from "./rollup";
 
 export interface AgentLoopOptions { provider?: Provider; databaseUrl?: string; memory: boolean; learningFile?: string; boardJsonl?: string; boardSource?: "fpga" | "fakeboard" }
-export interface LiveAgentRun { id: string; runId: string; status: "running" | "done" | "failed"; error: string | null; nodes: TaskNode[]; trace: AgentRunTrace | null; startedAt: string }
+export interface LiveAgentRun { id: string; runId: string; status: "running" | "done" | "failed"; error: string | null; nodes: TaskNode[]; trace: AgentRunTrace | null; startedAt: string; trigger: AgentTrigger | null }
 
 /**
  * Runs the deterministic orchestrator for an operator run using the learning store's champion prompts and strategy.
@@ -21,6 +22,7 @@ export interface LiveAgentRun { id: string; runId: string; status: "running" | "
 export class AgentLoopService {
   readonly learning: LearningStore;
   private readonly live = new Map<string, LiveAgentRun>();
+  private readonly finished = new Map<string, Promise<void>>();
   private readonly model;
   private readonly controller = new AbortController();
   private sql?: SQL;
@@ -33,13 +35,16 @@ export class AgentLoopService {
   init() { return (this.ready ??= this.learning.init()); }
   board(): BoardFact[] { return this.o.boardJsonl ? readBoardJsonl(this.o.boardJsonl, this.o.boardSource) : []; }
 
-  async start(snapshot: Snapshot, actions: OperatorAction[], test?: { model: NonNullable<AgentLoopService["model"]> }): Promise<LiveAgentRun> {
+  /** True when a model provider is configured, so `start` can run. */
+  get available() { return this.model !== null; }
+
+  async start(snapshot: Snapshot, actions: OperatorAction[], test?: { model: NonNullable<AgentLoopService["model"]> }, trigger: AgentTrigger | null = null): Promise<LiveAgentRun> {
     const model = test?.model ?? this.model;
     if (!model) throw new DomainError("AGENTS_UNAVAILABLE", "Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY, or OPENROUTER_API_KEYS, to run the agent orchestrator", 409);
     await this.init();
     const champ = await champions(this.learning);
     const prompts = Object.fromEntries(Object.entries(champ.prompts).map(([r, p]) => [r, { version: p!.version, template: p!.template }])) as Partial<Record<Role, PromptChoice>>;
-    const run: LiveAgentRun = { id: `agents-${randomUUID()}`, runId: snapshot.runId, status: "running", error: null, nodes: [], trace: null, startedAt: new Date().toISOString() };
+    const run: LiveAgentRun = { id: `agents-${randomUUID()}`, runId: snapshot.runId, status: "running", error: null, nodes: [], trace: null, startedAt: new Date().toISOString(), trigger };
     this.live.set(run.id, run);
     // Operators acknowledge a system plan ID (I-13); map it to the incident option it belongs to.
     const approvals = new Map<string, string>();
@@ -48,15 +53,21 @@ export class AgentLoopService {
       const option = snapshot.alerts.find((i) => i.id === a.incidentId)?.options?.find((p) => p.systemPlanId === a.planId || p.id === a.planId);
       if (option) approvals.set(a.incidentId, option.id);
     }
-    void orchestrate({ model, snapshot, board: this.board(), prompts, strategy: champ.strategy, signal: this.controller.signal, cycle: "live", caseId: run.id, onNode: (n) => { if (!run.nodes.includes(n)) run.nodes.push(n); } })
+    const done = orchestrate({ model, snapshot, board: this.board(), prompts, strategy: champ.strategy, signal: this.controller.signal, cycle: "live", caseId: run.id, onNode: (n) => { if (!run.nodes.includes(n)) run.nodes.push(n); } })
       .then(async (trace) => {
         trace.id = run.id;
+        if (trigger) trace.trigger = trigger;
         run.trace = trace; run.nodes = trace.nodes; run.status = "done";
         await this.learning.saveTrace(trace);
         await this.learning.addDecisions(decisionsFor(trace, snapshot, "live", run.id, approvals));
       })
       .catch((e: unknown) => { run.status = "failed"; run.error = e instanceof Error ? e.message : String(e); });
+    this.finished.set(run.id, done);
+    void done.finally(() => this.finished.delete(run.id));
     return run;
+  }
+  /** Settles when the agent run finishes, either way (immediately for unknown or finished runs). */
+  settled(id: string): Promise<void> { return this.finished.get(id) ?? Promise.resolve();
   }
   async get(id: string): Promise<LiveAgentRun> {
     const live = this.live.get(id);
@@ -64,13 +75,13 @@ export class AgentLoopService {
     await this.init();
     const trace = await this.learning.getTrace(id);
     if (!trace) throw new DomainError("NOT_FOUND", "Agent run not found", 404);
-    return { id, runId: trace.runId, status: "done", error: null, nodes: trace.nodes, trace, startedAt: trace.startedAt };
+    return { id, runId: trace.runId, status: "done", error: null, nodes: trace.nodes, trace, startedAt: trace.startedAt, trigger: trace.trigger ?? null };
   }
   async listForRun(runId: string) {
     await this.init();
     const saved = await this.learning.listTraces(runId);
-    const running = [...this.live.values()].filter((r) => r.runId === runId && r.status === "running").map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, score: null }));
-    return [...running, ...saved.map((t) => ({ id: t.id, status: "done" as const, startedAt: t.startedAt, score: t.score }))];
+    const running = [...this.live.values()].filter((r) => r.runId === runId && r.status === "running").map((r) => ({ id: r.id, status: r.status, startedAt: r.startedAt, score: null, trigger: r.trigger }));
+    return [...running, ...saved.map((t) => ({ id: t.id, status: "done" as const, startedAt: t.startedAt, score: t.score, trigger: t.trigger ?? null }))];
   }
   /** Prompt versions, scores per version, the weekly trend and plan outcomes (no answer key anywhere). */
   async summary() {

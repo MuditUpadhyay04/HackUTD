@@ -34,6 +34,8 @@ export interface AgentRunTrace {
   fallbacks: ("triage" | "handoff")[];
   totals: { nodes: number; modelCalls: number; inputTokens: number; outputTokens: number; latencyMs: number; accepted: number; denied: number; maxDepth: number };
   score: number;
+  /** Why a live run started (set by the agent loop service; absent on learning-loop traces). */
+  trigger?: { kind: "auto" | "manual"; reason: string };
 }
 
 export interface OrchestrateOptions {
