@@ -475,10 +475,12 @@ module fv_eog_alarm #(
                 if (m_upd) for (fu = 0; fu < N_FAC; fu = fu + 1) if (i_fac == fu) begin
                     m_cnt[fu*32 +: 32] <= m_ncnt;
                     m_leak[fu*8 +: 8]  <= m_nleak;
-                    m_nsl[fu] <= m_nsl[fu] | m_nsc_new;
-                    m_esl[fu] <= m_esl[fu] | m_esc_new;
-                    m_nsc[fu] <= m_nsc_new;
-                    m_esc[fu] <= m_esc_new;
+                    if (m_vh) begin     // INVALID: counters only (D7)
+                        m_nsl[fu] <= m_nsl[fu] | m_nsc_new;
+                        m_esl[fu] <= m_esl[fu] | m_esc_new;
+                        m_nsc[fu] <= m_nsc_new;
+                        m_esc[fu] <= m_esc_new;
+                    end
                 end
                 if (i_slot) begin
                     rs_rec[255 +: 255] <= in_data; rs_ca[7:4] <= m_ca; rs_fl[7:4] <= m_fl;

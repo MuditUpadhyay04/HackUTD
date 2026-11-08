@@ -1,7 +1,8 @@
 // tb_eog_alarm.sv — self-checking simulation of eog_alarm against the golden vectors (Verify role, T1.alarm.fv).
 //
-// Written from spec/modules/eog_alarm.md, numerics.md §9, conventions.md (spec v2) and TASKS.md answers #1, #3-#11;
-// `bash scripts/sim.sh alarm`. Vectors: tb/vectors/alarm_<case>.{in,out}.hex (bus L in, bus A out), .al.txt (ALERTs
+// Written from spec/modules/eog_alarm.md, numerics.md §9, conventions.md (spec v4) and TASKS.md answers #1, #3-#11;
+// `bash scripts/sim.sh alarm`. The bus A / ALERT expectations come entirely from the vectors (model/, spec v4 golden
+// vectors are generated with HB_TIMEOUT_MS = 0, so SOURCE bit 2 is 0); the bench's own checks are model-free. Vectors: tb/vectors/alarm_<case>.{in,out}.hex (bus L in, bus A out), .al.txt (ALERTs
 // in push order with record index and cause), .cfg.hex (line 0 = GLOBAL), .events.txt (hb / hb_expire / ack between
 // records). The case list comes from tb/vectors/INDEX.txt ("case <name> ..." lines); a case runs when its
 // alarm_<case>.in.hex exists (the *_week files are git-ignored: regenerate with model/gen_vectors.py).
