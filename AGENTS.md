@@ -19,7 +19,7 @@ Always read this file before working here and use the key resources below as ref
 - **Gurneal (also called Jimmy):** web interface and full stack, with Jason helping.
 - **Jason:** primary owner of agents; additional contributors may join.
 - Coordinate model/tensor/weight-format changes with Mudit and Lucas, and agent/dashboard API changes with Jason and Gurneal.
-- **The FPGA is the fixed point:** FPGA spec v4 is locked and the RTL is built to it (a few modules still finishing review); neither changes for anyone else's convenience. Make every other part (ingest, ML, server, agents, console) adapt to them; never propose an FPGA/RTL change unless something is broken, and then Lucas decides (`global_plan.md`, "How this file works").
+- **The FPGA is the fixed point:** FPGA spec v4 is locked and the RTL is built to it (every module signed off, running on the board); neither changes for anyone else's convenience. Make every other part (ingest, ML, server, agents, console) adapt to them; never propose an FPGA/RTL change unless something is broken, and then Lucas decides (`global_plan.md`, "How this file works").
 - **Final say when owners disagree:** spec, FPGA and RTL → **Lucas**; ML (model, features, weights, ingest, board tooling) → **Mudit**; server, agents and Nemotron → **Jason** (`global_plan.md`, "How this file works").
 
 ## Working architecture

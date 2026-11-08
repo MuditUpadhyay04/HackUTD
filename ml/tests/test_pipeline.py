@@ -96,6 +96,30 @@ def test_listen_active_mirrors_board_persistence():
     assert out["above_threshold"] == [] and out["active"] == []
 
 
+@needs_data
+def test_board_suite_checker(tmp_path):
+    """The suite's live checker accepts listen.py JSON made from the engine's own output and catches one wrong logit."""
+    from hutd_ml import board_suite as bs
+    from hutd_ml.listen import Decoder
+    cfg = json.loads((ART / "v4" / "global_config.json").read_text())
+    exp, classes, alerts, _ = bs.engine_expected(DATA, ART / "v4" / "global_config.json", ART / "v4" / "weights.bin",
+                                                 4, 0, 400)
+    assert alerts  # the window holds alarms, so the ALERT comparison is exercised too
+    dec = Decoder([], None, cfg["logit_thr"], cfg["persist_k_per_class"])
+    lines = [json.dumps(dec.result({**r, "result_no": r["result_no"] + 1000})) for r in exp]
+    lines += [json.dumps({**dec.alert({**a, "result_no": a["result_no"] + 1000})}) for a in alerts]
+    good = tmp_path / "good.jsonl"
+    good.write_text("\n".join(lines) + "\n")
+    ok, out = bs.check_live(good, exp, classes, alerts, fresh=True)
+    assert ok, out
+    bad_rec = json.loads(lines[123])
+    bad_rec["logits"]["pipeline_leak"] += 1 / 256
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text("\n".join(lines[:123] + [json.dumps(bad_rec)] + lines[124:]) + "\n")
+    ok, out = bs.check_live(bad, exp, classes, alerts, fresh=True)
+    assert not ok and any("logits" in ln for ln in out)
+
+
 def test_quantize_close_to_float():
     rng = np.random.default_rng(0)
     w = rng.normal(0, 5, size=(4, 31))
