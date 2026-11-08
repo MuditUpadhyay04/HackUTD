@@ -15,6 +15,11 @@ describe("shared prose grounding", () => {
     expect(() => checkProse(ground, "The plan was approved.")).toThrow("Completed-action claim");
     expect(() => checkProse(ground, "A leak is likely.")).toThrow("Ungrounded incident category");
     expect(() => checkProse(ground, "x".repeat(50), { maxLength: 40, field: "note" })).toThrow("Invalid note prose");
+    expect(() => checkProse(ground, `S4 plan option:${"a".repeat(40)} ${"x".repeat(40)}`, { maxLength: 40 })).toThrow("IDs go in the ID fields");
+  });
+  test("a hyphenated compound is a description, not a completed action", () => {
+    expect(checkProse(ground, "The Truck haul option is the solver-approved choice.")).toContain("solver-approved");
+    expect(() => checkProse(ground, "The plan approved by S4.")).toThrow("Completed-action claim");
   });
   test("lint counts raw unix times, long IDs and snake_case labels without rejecting", () => {
     expect(lintProse("Since 1791450000 use option:aca9d5291644598d (do_nothing) for pump_failure.")).toEqual({ rawTimes: 1, ids: 1, snakeLabels: 2, chars: 75 });

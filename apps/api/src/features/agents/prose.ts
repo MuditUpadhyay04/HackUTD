@@ -15,7 +15,8 @@ export interface Grounding {
 }
 
 // "Shut-in" is also a plan kind, so only a claim that something was or has been shut in or down is rejected.
-const COMPLETED_ACTION = /\b(?:dispatched|deployed|sent|completed|repaired|fixed|resolved|activated|approved|executed)\b|\b(?:was|were|been|is|are|got|has|have|had)\s+(?:\w+\s+)?shut[\s-]+(?:down|in)\b/i;
+// A hyphenated compound ("solver-approved") describes the plan, not an action someone took.
+const COMPLETED_ACTION = /(?<!\w[-\u2011])\b(?:dispatched|deployed|sent|completed|repaired|fixed|resolved|activated|approved|executed)\b|\b(?:was|were|been|is|are|got|has|have|had)\s+(?:\w+\s+)?shut[\s-]+(?:down|in)\b/i;
 /** Short all-caps words (FPGA, ID) are allowed mid-sentence; longer capitalized words must be snapshot names. */
 const ACRONYM = /^[A-Z]{2,5}s?$/;
 const TOKEN = /[\p{L}\p{N}]+(?:[_-][\p{L}\p{N}]+)*/gu;
@@ -52,10 +53,11 @@ function groundedNumber(token: string, numbers: number[]): boolean {
 export function checkProse(ground: Grounding, input: unknown, options: { field?: string; maxLength?: number } = {}): string {
   const field = options.field ?? "text", max = options.maxLength ?? 1200;
   if (typeof input !== "string" || !input.trim()) throw new Error(`Invalid ${field} prose: write one plain paragraph`);
-  if (input.length > max) throw new Error(`Invalid ${field} prose: ${input.length} characters, limit ${max}; shorten it`);
+  const pastedIds = /\boption:[0-9a-f]{8,}|:(?:pump_failure|pipeline_leak|pump_degradation|well_shut_in)[:_]|:evidence:\d/.test(input);
+  if (input.length > max) throw new Error(`Invalid ${field} prose: ${input.length} characters, limit ${max}; shorten it${pastedIds ? ". IDs go in the ID fields, not in the prose: name facilities as the tools' short labels (for example S2 B)" : ""}`);
   if (/[\r\n<>`]/.test(input)) throw new Error(`Invalid ${field} prose: one paragraph, no line breaks, markdown, angle brackets or backticks`);
   const claim = COMPLETED_ACTION.exec(input);
-  if (claim) throw new Error(`Completed-action claim "${claim[0]}" in ${field}: remove that word; plans are advice and the operator decides (for an incident whose status is resolved, write "no longer active")`);
+  if (claim) throw new Error(`Completed-action claim "${claim[0]}" in ${field}: remove that word and say "recommended" or "validated" instead; plans are advice and the operator decides (for an incident whose status is resolved, write "no longer active")`);
   const entities = new Set(ground.entities.filter(Boolean));
   const labels = new Set(ground.labels.filter(Boolean).map((l) => l.toLowerCase()));
   const { numbers, tokens } = collect(ground.data);
