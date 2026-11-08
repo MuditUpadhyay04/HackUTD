@@ -46,7 +46,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 0cf99c7, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt` (prove, bmc_seq, bmc_ack, bmc_mod, bmc_a8, cover PASS) |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | DONE | 9e684bc, merged via `eog/integrate-pack`; `reports/formal_pack.txt`; sim PASS 268,536 records / 1,074,144 beats (23 cases x 4 runs incl. a batch-only m_last run: 1,004 BATCH-count m_last) |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 467327b, merged via `eog/integrate-pack`; `reports/formal_pack.txt` (prove = abc pdr, bmc, cover PASS) |
-| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.regs.rtl` ac0d183 (v4 full regmap: CTRL/GLOBAL/LEDOVR/DBGSEL, CONFIG table, DATA window, RESULT/ALERT FIFOs, STATS, DBG, 71-word weight window; smoke PASS 447 regs_basic ops + directed; xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36) |
+| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.regs.rtl` bfd6b44 (adds `rec_in`, ruling #59; previous ac0d183). v4 full regmap; smoke PASS 447 regs_basic ops + directed (incl. rec_in → STATS 0); xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36 |
 | T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | CLAIMED | v4 from the start |
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
