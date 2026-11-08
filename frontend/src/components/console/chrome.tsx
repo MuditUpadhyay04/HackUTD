@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { systemNum } from "@/lib/format";
 import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
+import { DemoModeSwitch } from "./demo-mode";
 import { NemotronMark } from "./nemotron";
 
 export type View = "overview" | "replay" | "simulation" | "handoff" | "agents";
@@ -122,7 +123,6 @@ export function Sidebar({
     { id: "replay", label: "Replay week" },
     { id: "simulation", label: "Simulation" },
     { id: "handoff", label: "Shift handoff" },
-    { id: "agents", label: "Agents" },
   ];
   return (
     <aside className="border-b-[0.5px] border-line bg-[rgba(236,238,242,0.72)] px-3 pt-4 pb-3 backdrop-blur-[50px] backdrop-saturate-[1.8] lg:border-r-[0.5px] lg:border-b-0 lg:pb-4">
@@ -285,6 +285,8 @@ export function Toolbar({
           );
         })}
       </div>
+
+      <DemoModeSwitch />
 
       <Select value={current.id} onValueChange={(v) => start(() => router.push(`/?dataset=${encodeURIComponent(String(v))}`))}>
         <SelectTrigger

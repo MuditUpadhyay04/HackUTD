@@ -15,6 +15,7 @@ import { SimulationPanel } from "./simulation";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
 import { AgentsPanel, agentLines, useAgentRun } from "./agents";
+import { DemoBatchLog } from "./demo-mode";
 import { Timeline } from "./timeline";
 import { Rearrange } from "./rearrange";
 
@@ -51,6 +52,7 @@ export function Console({
   const at = s.nowUnix < s.dataset.nowUnix ? s.nowUnix : undefined;
   const router = useRouter();
   const [view, setView] = useState<View>(live ? "overview" : "replay");
+  const [mapsOpen, setMapsOpen] = useState(true);
   // Browser Back/Forward can move between live and past URLs without remounting: a past
   // snapshot must never sit under the "Now" overview.
   const [prevLive, setPrevLive] = useState(live);
@@ -134,6 +136,12 @@ export function Console({
   const sumKnown = (xs: (number | undefined)[]) => (xs.some((x) => x == null) ? undefined : xs.reduce<number>((t, x) => t + (x as number), 0));
   const planCost = sumKnown(failures.map((a) => a.plan?.cost));
   const nothingCost = sumKnown(failures.map((a) => a.options?.find((o) => o.kind === "do_nothing")?.cost));
+  const kpis = [
+    { label: "Pumps down", value: String(failures.length), tone: failures.length ? "crit" as const : undefined },
+    { label: "First shutdown", value: next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None", tone: next || allShut ? "crit" as const : undefined },
+    { label: "Recommended plan", value: planCost == null ? "Unknown" : money(planCost) },
+    { label: "If nobody acts", value: nothingCost == null ? "Unknown" : money(nothingCost) },
+  ];
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
   // "no_data" or bad readings = a sensor problem. "unknown" with good readings = the readings are fine but the
@@ -241,6 +249,7 @@ export function Console({
             {view === "handoff" ? "What the next operator needs to know." : view === "agents" ? "Chip detects. Server plans. Nemotron explains." : view === "simulation" ? "The week as it happens: failures, trucks, money kept, and the data path to the board and back." : headline}
           </p>
         </header>
+        <DemoBatchLog />
         {notice && (
           <p role="status" className="glass mt-4 flex items-center justify-between gap-3 px-4 py-2.5 text-[13.5px]">
             <span>{notice}</span>
@@ -281,6 +290,62 @@ export function Console({
               </a>
             </div>
           </div>
+        ) : view === "overview" ? (
+          <>
+            {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
+            {actionError && (
+              <p role="alert" className="glass mt-4 px-5 py-3 text-[14px] text-crit">
+                {actionError}
+              </p>
+            )}
+            <div className="mt-5 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-x-4">
+              <div className="min-w-0 lg:col-start-1">
+                <KpiStrip items={kpis} />
+              </div>
+              <aside aria-label="Alerts" className="mt-4 min-w-0 lg:sticky lg:top-16 lg:col-start-2 lg:row-span-2 lg:mt-0 lg:max-h-[calc(100vh-5.5rem)] lg:self-start lg:overflow-y-auto">
+                <AlertsTable
+                  layout="panel"
+                  failures={failures}
+                  inspections={inspections}
+                  noData={noData}
+                  nowUnix={s.nowUnix}
+                  approvedAt={approvedAt}
+                  tickets={ticketsNow}
+                  onIncident={setIncident}
+                  onTicket={(a) => void saveAction(a, "inspection_ticket")}
+                  onFacility={(f) => setFacilityId(f.id)}
+                  agentNote={agentNote}
+                />
+              </aside>
+              <div className="mt-4 min-w-0 space-y-4 lg:col-start-1">
+                <section className="glass overflow-hidden">
+                  <button
+                    type="button"
+                    aria-expanded={mapsOpen}
+                    onClick={() => setMapsOpen((open) => !open)}
+                    className={cn("flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 text-left text-[13px] font-semibold text-text", mapsOpen && "border-b border-line")}
+                  >
+                    <svg viewBox="0 0 12 12" aria-hidden className={cn("size-3 shrink-0 text-faint transition-transform", mapsOpen && "rotate-90")}>
+                      <path d="M4 2.5 8 6 4 9.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Network
+                    <span className="font-normal text-muted-foreground">System maps</span>
+                  </button>
+                  {mapsOpen && (
+                    <NetworkGraph
+                      bare
+                      systems={s.systems}
+                      alerts={s.alerts}
+                      nowUnix={s.nowUnix}
+                      trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
+                      onFacility={(f) => setFacilityId(f.id)}
+                    />
+                  )}
+                </section>
+                <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
+              </div>
+            </div>
+          </>
         ) : (
           <>
             {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
@@ -289,46 +354,36 @@ export function Console({
                 {actionError}
               </p>
             )}
-            {/* The overview's widgets: drag the arc in a widget's corner to put them in your own order. */}
             <Rearrange
-              storageKey="bts-overview-order"
+              storageKey="bts-replay-order"
               className="mt-5 grid gap-4"
               widgets={[
-                { id: "summary", label: "the summary", node: (
-              <KpiStrip
-                items={[
-                  { label: "Pumps down", value: String(failures.length), tone: failures.length ? "crit" : undefined },
-                  { label: "First shutdown", value: next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None", tone: next || allShut ? "crit" : undefined },
-                  { label: "Recommended plan", value: planCost == null ? "Unknown" : money(planCost) },
-                  { label: "If nobody acts", value: nothingCost == null ? "Unknown" : money(nothingCost) },
-                ]}
-              />
-                ) },
+                { id: "summary", label: "the summary", node: <KpiStrip items={kpis} /> },
                 { id: "network", label: "the network", node: (
-              <NetworkGraph
-                systems={s.systems}
-                alerts={s.alerts}
-                nowUnix={s.nowUnix}
-                trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
-                onFacility={(f) => setFacilityId(f.id)}
-              />
+                  <NetworkGraph
+                    systems={s.systems}
+                    alerts={s.alerts}
+                    nowUnix={s.nowUnix}
+                    trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
+                    onFacility={(f) => setFacilityId(f.id)}
+                  />
                 ) },
                 { id: "alerts", label: "alerts", node: (
-              <AlertsTable
-                failures={failures}
-                inspections={inspections}
-                noData={noData}
-                nowUnix={s.nowUnix}
-                approvedAt={approvedAt}
-                tickets={ticketsNow}
-                onIncident={setIncident}
-                onTicket={(a) => void saveAction(a, "inspection_ticket")}
-                onFacility={(f) => setFacilityId(f.id)}
-                agentNote={agentNote}
-              />
+                  <AlertsTable
+                    failures={failures}
+                    inspections={inspections}
+                    noData={noData}
+                    nowUnix={s.nowUnix}
+                    approvedAt={approvedAt}
+                    tickets={ticketsNow}
+                    onIncident={setIncident}
+                    onTicket={(a) => void saveAction(a, "inspection_ticket")}
+                    onFacility={(f) => setFacilityId(f.id)}
+                    agentNote={agentNote}
+                  />
                 ) },
                 { id: "pipelines", label: "pipelines", node: (
-              <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
+                  <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
                 ) },
               ]}
             />

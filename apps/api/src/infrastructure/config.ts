@@ -12,6 +12,8 @@ export interface AppConfig {
   agentLearningFile?: string; boardJsonl?: string; boardSource?: "fpga" | "fakeboard";
   /** Folder(s) searched for dataset folders (network.json + ops.json + telemetry.csv), e.g. the reference repo's root. */
   dataRoots?: string[];
+  /** Run the agents by themselves when the open incidents change at the newest moment (AGENTS_AUTO=0 turns it off). */
+  agentsAuto?: boolean;
 }
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const memory = env.STORAGE_MODE === "memory";
@@ -38,6 +40,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     sessionDir: env.FX_SESSIONS_DIR ?? ".data/fx-sessions", modelMetadataPath: env.MODEL_METADATA_PATH, provider, openrouter,
     agentLearningFile: env.AGENT_LEARNING_FILE ?? ".data/agent-learning.json", boardJsonl: env.BOARD_JSONL || undefined,
     boardSource: env.BOARD_SOURCE === "fpga" || env.BOARD_SOURCE === "fakeboard" ? env.BOARD_SOURCE : undefined,
+    agentsAuto: !["0", "off", "false"].includes((env.AGENTS_AUTO ?? "").toLowerCase()),
     dataRoots: (env.DATA_ROOT ?? "").split(process.platform === "win32" ? ";" : ":").map((s) => s.trim()).filter(Boolean) };
 }
 

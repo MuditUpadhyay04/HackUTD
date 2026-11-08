@@ -5,6 +5,7 @@ export async function migrate(sql: SQL): Promise<void> {
   const migrations = [
     {version: "001_initial", url: new URL("../../../../../db/migrations/001_initial.sql", import.meta.url)},
     {version: "002_agent_learning", url: new URL("../../../../../db/migrations/002_agent_learning.sql", import.meta.url)},
+    {version: "003_compact_datasets", url: new URL("../../../../../db/migrations/003_compact_datasets.sql", import.meta.url)},
   ];
   await sql.begin(async tx => {
     await tx`SELECT pg_advisory_xact_lock(774327651094)`;
@@ -29,6 +30,26 @@ export async function migrate(sql: SQL): Promise<void> {
     }
     await tx`INSERT INTO storage_metadata (key,value) VALUES ('timescaledb',${state}) ON CONFLICT (key) DO UPDATE SET value=excluded.value`;
   });
+  await compactDatasets(sql);
+}
+
+/** gzip-compressed JSON for the bulk parts of a dataset (frames, samples, source files). */
+export const packJson = (value: unknown): Buffer => Buffer.from(Bun.gzipSync(Buffer.from(JSON.stringify(value))));
+export const unpackJson = (bytes: Uint8Array): any => JSON.parse(new TextDecoder().decode(Bun.gunzipSync(bytes)));
+
+/** Move frames/samples/sourceFiles of rows written before 003 out of body. One row per transaction; safe to rerun. */
+async function compactDatasets(sql: SQL): Promise<void> {
+  const pending = await sql`SELECT id FROM datasets WHERE frames_gz IS NULL`;
+  for (const { id } of pending) {
+    await sql.begin(async tx => {
+      const rows = await tx`SELECT body FROM datasets WHERE id=${id} AND frames_gz IS NULL FOR UPDATE`;
+      if (!rows.length) return;
+      const body = typeof rows[0].body === "string" ? JSON.parse(rows[0].body) : rows[0].body;
+      const { samples, frames, sourceFiles, ...rest } = body;
+      await tx`UPDATE datasets SET body=${JSON.stringify(rest)}::text::jsonb, frames_gz=${packJson(frames ?? [])}, samples_gz=${packJson(samples ?? [])}, sources_gz=${sourceFiles ? packJson(sourceFiles) : null} WHERE id=${id}`;
+    });
+    console.log(`[db] compacted dataset ${String(id).slice(0, 12)}`);
+  }
 }
 
 export async function migrateDatabase(databaseUrl: string): Promise<void> {

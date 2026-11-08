@@ -32,12 +32,15 @@ export function NetworkGraph({
   nowUnix,
   trucksFree,
   onFacility,
+  bare = false,
 }: {
   systems: SystemState[];
   alerts: Incident[];
   nowUnix: number;
   trucksFree: (s: SystemState) => number;
   onFacility: (f: FacilityState) => void;
+  /** Drop the card chrome when a parent already supplies the title, such as a disclosure. */
+  bare?: boolean;
 }) {
   if (!systems.length) return null;
   const maxFlow = Math.max(1, ...systems.flatMap((s) => s.facilities.map((f) => f.pump.maxFlowBpd)));
@@ -52,9 +55,9 @@ export function NetworkGraph({
   const ordered = systems.map((s, i) => ({ s, i })).sort((a, b) => rank(a.s) - rank(b.s) || a.i - b.i).map((x) => x.s);
 
   return (
-    <div className="glass overflow-hidden">
+    <div className={bare ? undefined : "glass overflow-hidden"}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-4 py-2.5 text-[12.5px] text-muted-foreground">
-        <span className="text-[13px] font-semibold text-text">Network</span>
+        {!bare && <span className="text-[13px] font-semibold text-text">Network</span>}
         <span className="text-faint">Red time = tank shutdown</span>
         <Key color={statusColor.flowing} label="Flowing" />
         <Key color={statusColor.down} dashed label="Pump down" />
@@ -167,6 +170,26 @@ function actionVerb(a: Incident) {
   return "Review plan";
 }
 
+function whenCopy(a: Incident, nowUnix: number): { text: string; detail?: string; crit: boolean } {
+  const cd = countdownState(a, nowUnix);
+  switch (cd.kind) {
+    case "counting":
+      return { text: `Shuts in ${clockFrom(cd.at, nowUnix)}`, detail: `in ${hm(cd.hours)}`, crit: true };
+    case "shut_in":
+      return { text: "Shut in", crit: false };
+    case "repair_first":
+      return { text: `Repair first, ${clockFrom(cd.repairAt, nowUnix)}`, crit: false };
+    case "not_filling":
+      return { text: "Not filling", crit: false };
+    case "unknown":
+      return { text: "Unknown", crit: false };
+    default: {
+      const exhaustive: never = cd;
+      return exhaustive;
+    }
+  }
+}
+
 /** Everything that needs an operator, one row each: pump failures (soonest first), inspections, sensor problems. */
 export function AlertsTable({
   failures,
@@ -179,6 +202,7 @@ export function AlertsTable({
   onTicket,
   onFacility,
   agentNote = {},
+  layout = "table",
 }: {
   agentNote?: Record<string, string>;
   failures: Incident[];
@@ -190,6 +214,8 @@ export function AlertsTable({
   onIncident: (a: Incident) => void;
   onTicket: (a: Incident) => void;
   onFacility: (f: FacilityState) => void;
+  /** Wide table in the page flow, or stacked cards for the overview side panel. */
+  layout?: "table" | "panel";
 }) {
   const empty = !failures.length && !inspections.length && !noData.length;
   return (
@@ -202,6 +228,85 @@ export function AlertsTable({
       </div>
       {empty ? (
         <p className="px-4 py-6 text-[14px] text-muted-foreground">Nothing needs action.</p>
+      ) : layout === "panel" ? (
+        <ul className="text-[13px]">
+          {failures.map((a) => {
+            const when = whenCopy(a, nowUnix);
+            const ok = approvedAt(a.id);
+            return (
+              <li key={a.id} className="border-b border-line-soft px-4 py-3 last:border-0">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <button type="button" onClick={() => onIncident(a)} className="font-semibold hover:underline">{facilityName(a.facilityId)}</button>
+                    <p className="text-[12px] text-muted-foreground"><Dot tone="crit" />Pump down</p>
+                  </div>
+                  {ok != null ? (
+                    <span className="shrink-0 text-[12.5px] font-medium text-[#248a3d]">Approved {clockFrom(ok, nowUnix)}</span>
+                  ) : (
+                    <button type="button" onClick={() => onIncident(a)} className="shrink-0 rounded-md bg-water px-2.5 py-1 text-[12.5px] font-medium whitespace-nowrap text-white">
+                      {actionVerb(a)}
+                    </button>
+                  )}
+                </div>
+                <p className={cn("mt-1.5 tabular-nums", when.crit ? "font-semibold text-crit" : "text-muted-foreground")}>
+                  {when.text}
+                  {when.detail && <span className="block text-[12px] font-normal text-muted-foreground">{when.detail}</span>}
+                </p>
+                <p className="mt-1 text-[12.5px]">
+                  {a.plan ? (
+                    <>
+                      {planText(a.plan.label, nowUnix)}
+                      <span className="block text-faint">{money(a.plan.cost)}</span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">No plan</span>
+                  )}
+                  {agentNote[a.id] && <AgentNote text={planText(agentNote[a.id]!, nowUnix)} />}
+                </p>
+              </li>
+            );
+          })}
+          {inspections.map((a) => (
+            <li key={a.id} className="border-b border-line-soft px-4 py-3 last:border-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <button type="button" onClick={() => onIncident(a)} className="font-semibold hover:underline">{facilityName(a.facilityId)}</button>
+                  <p className="text-[12px] text-muted-foreground">
+                    <Dot tone="warn" />
+                    {categoryLabel[a.category as keyof typeof categoryLabel] ?? humanize(a.category)}
+                  </p>
+                </div>
+                {tickets[a.id] != null ? (
+                  <span className="shrink-0 text-[12.5px] font-medium text-[#248a3d]">Ticket created</span>
+                ) : (
+                  <button type="button" onClick={() => onTicket(a)} className="shrink-0 rounded-md px-2.5 py-1 text-[12.5px] font-medium whitespace-nowrap text-water ring-1 ring-water/40">
+                    Create ticket
+                  </button>
+                )}
+              </div>
+              <p className="mt-1.5 text-muted-foreground tabular-nums">Since {clockFrom(a.onsetUnix, nowUnix)}</p>
+              <p className="mt-1 text-[12.5px]">
+                Send an inspector
+                {agentNote[a.id] && <AgentNote text={planText(agentNote[a.id]!, nowUnix)} />}
+              </p>
+            </li>
+          ))}
+          {noData.map((f) => (
+            <li key={f.id} className="border-b border-line-soft px-4 py-3 last:border-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="font-semibold">{facilityName(f.id)}</span>
+                  <p className="text-[12px] text-muted-foreground"><Dot tone="none" />No data</p>
+                </div>
+                <button type="button" onClick={() => onFacility(f)} className="shrink-0 text-[12.5px] font-medium whitespace-nowrap text-water hover:underline">
+                  See readings
+                </button>
+              </div>
+              <p className="mt-1.5 text-muted-foreground">{humanize(f.dataQuality.reasons[0] ?? "Readings missing")}</p>
+              <p className="mt-1 text-[12.5px]">Check sensors</p>
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-[13px]">
@@ -215,7 +320,7 @@ export function AlertsTable({
             </thead>
             <tbody className="tabular-nums">
               {failures.map((a) => {
-                const cd = countdownState(a, nowUnix);
+                const when = whenCopy(a, nowUnix);
                 const ok = approvedAt(a.id);
                 return (
                   <tr key={a.id} className="border-b border-line-soft align-top last:border-0">
@@ -224,16 +329,9 @@ export function AlertsTable({
                       <button type="button" onClick={() => onIncident(a)} className="font-semibold hover:underline">{facilityName(a.facilityId)}</button>
                       <span className="block pl-4 text-[12px] text-muted-foreground">Pump down</span>
                     </Cell>
-                    <Cell className={cd.kind === "counting" ? "font-semibold text-crit" : "text-muted-foreground"}>
-                      {cd.kind === "counting"
-                        ? <>Shuts in {clockFrom(cd.at, nowUnix)}<span className="block text-[12px] font-normal text-muted-foreground">in {hm(cd.hours)}</span></>
-                        : cd.kind === "shut_in"
-                          ? "Shut in"
-                          : cd.kind === "repair_first"
-                            ? `Repair first, ${clockFrom(cd.repairAt, nowUnix)}`
-                            : cd.kind === "not_filling"
-                              ? "Not filling"
-                              : "Unknown"}
+                    <Cell className={when.crit ? "font-semibold text-crit" : "text-muted-foreground"}>
+                      {when.text}
+                      {when.detail && <span className="block text-[12px] font-normal text-muted-foreground">{when.detail}</span>}
                     </Cell>
                     <Cell>
                       {a.plan ? (

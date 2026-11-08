@@ -1,0 +1,61 @@
+/* Arrangement: 22px tracks, mono 11px labels, 1px hour grid, stronger every 6h. */
+#arr { position: relative; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--line); background: var(--bg); user-select: none; }
+#arr .hdr { display: flex; align-items: center; gap: 6px; width: var(--hdr-w); flex: none; padding: 0 8px; border-right: 1px solid var(--line-2); background: var(--surface);
+  font: 400 10px var(--font-mono); letter-spacing: 0.04em; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+#arr .hdr b { font-weight: 500; color: var(--text); } #arr .hdr em { font-style: normal; color: var(--faint); margin-left: auto; }
+#arr .lane { position: relative; flex: 1; min-width: 0; }
+.ruler { display: flex; flex: none; height: 22px; border-bottom: 1px solid var(--line-2); cursor: ew-resize; }
+.ruler .lane { background: var(--surface); overflow: hidden; }
+.tk { position: absolute; top: 6px; padding-left: 3px; font: 400 9px var(--font-mono); letter-spacing: 0.04em; color: var(--faint); }
+.tk::before { content: ""; position: absolute; left: 0; top: -6px; height: 22px; width: 1px; background: var(--line); }
+.tk.day { color: var(--muted); } .tk.day::before { background: var(--line-2); } .tk.nowtk { color: var(--amber); } .tk.nowtk::before { background: var(--amber); opacity: 0.5; }
+#arr .body { flex: 1; min-height: 0; overflow-y: scroll; scrollbar-width: none; outline: none; }
+#arr .body::-webkit-scrollbar { display: none; }
+.inner { position: relative; }
+.grid { position: absolute; left: var(--hdr-w); top: 0; width: calc(100% - var(--hdr-w)); height: 100%; pointer-events: none; }
+.grid line { vector-effect: non-scaling-stroke; stroke-width: 1; } .grid .g1 { stroke: rgba(255, 238, 214, 0.05); } .grid .g6 { stroke: rgba(255, 238, 214, 0.12); }
+.projband { position: absolute; top: 0; bottom: 0; left: calc(var(--hdr-w) + (100% - var(--hdr-w)) * var(--f)); right: 0; background-image: var(--dither-25); opacity: 0.22; pointer-events: none; }
+.row { position: relative; z-index: 1; display: flex; height: 22px; border-bottom: 1px solid var(--line); }
+.row .lane { overflow: hidden; cursor: ew-resize; }
+.row.group { background: var(--raised); } .row.group .hdr { background: var(--raised); }
+.row.group .hdr b { font-size: 11px; }
+.row.track .hdr { border-left: 3px solid var(--c); padding-left: 5px; }
+.row.track .nm { color: var(--text); font-size: 11px; } .row.track .hdr b { margin-left: auto; font-size: 11px; }
+.hdr b.red { color: var(--red); } .hdr b.unk { background-image: var(--dither-50); padding: 0 3px; }
+.chip { width: 6px; height: 6px; flex: none; }
+.chev { flex: none; position: relative; width: 14px; height: 14px; border: 0; background: none; color: var(--muted); cursor: pointer; }
+.chev::before { content: ""; position: absolute; left: 4px; top: 3px; border: 4px solid transparent; border-left: 6px solid currentColor; border-right: 0; }
+.chev[aria-expanded="true"]::before { transform: rotate(90deg) translate(1px, 0); }
+@media (hover: hover) and (pointer: fine) { .chev:hover { color: var(--text); } .clip.note:hover { background-color: rgba(118, 185, 0, 0.2); } .take:hover { background: var(--surface); } }
+
+.clip { position: absolute; top: 3px; bottom: 3px; display: flex; align-items: center; gap: 5px; padding: 0 4px; overflow: hidden; white-space: nowrap; border-radius: 2px;
+  font: 500 9px var(--font-mono); letter-spacing: 0.04em; color: var(--text); text-transform: uppercase; }
+.clip.fail { background: rgba(255, 59, 48, 0.3); border: 1px solid var(--red); }
+.clip.insp { background-color: rgba(255, 46, 136, 0.08); background-image: var(--hatch-magenta); border: 1px solid var(--magenta); }
+.clip.nodata { background-image: var(--dither-75); border: 1px dashed var(--faint); color: var(--muted); } .clip.q1 { background-image: var(--dither-25); } .clip.q2 { background-image: var(--dither-50); }
+.clip.note { top: 2px; bottom: 2px; width: 250px; max-width: 58%; padding: 0 6px 0 0; background: rgba(118, 185, 0, 0.1); border: 1px solid var(--nv); cursor: help; text-transform: none; font-family: var(--font-ui); font-weight: 400; font-size: 11px; }
+.clip.note.draft { border-style: dashed; } .clip.note b { flex: none; font: 600 9px var(--font-mono); color: var(--nv); letter-spacing: 0.04em; }
+.clip.note span { overflow: hidden; text-overflow: ellipsis; color: var(--muted); } .nvdot { flex: none; align-self: stretch; width: 4px; background: var(--nv); }
+.nvtag { color: var(--nv) !important; font-weight: 600 !important; }
+
+.lanes .row { height: 24px; } .lanes .hdr.sub, .takes .hdr.sub { padding-left: 26px; } .lanes .hdr.sub b { color: var(--c); }
+.lanes .hdr.sub span { flex: 1; } .lanes .hdr.sub b { font-size: 10px; }
+.ln { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ln path, .ln line { vector-effect: non-scaling-stroke; fill: none; }
+.ln .data { stroke-width: 1.2; } .ln .shut { stroke: var(--red); stroke-width: 1; opacity: 0.85; }
+.ln .proj { stroke-width: 1.6; } .ln .proj.dim { stroke-dasharray: 3 3; opacity: 0.5; }
+.ln .trip { stroke: var(--red); stroke-width: 1; stroke-dasharray: 2 2; } .ln .arr-tick { stroke: var(--amber); stroke-width: 1; }
+.takes { background: rgba(255, 238, 214, 0.02); }
+.take-head .lane { display: flex; align-items: center; padding-left: 8px; } .note { font: 400 9px var(--font-mono); color: var(--faint); letter-spacing: 0.04em; }
+.take { height: 32px; cursor: pointer; outline-offset: -1px; }
+.take .lane { cursor: pointer; }
+.take.rec { outline: 1px solid var(--amber); } .take.sel { background: var(--raised); } .take.sel .hdr { background: var(--raised); box-shadow: inset 2px 0 0 var(--amber); }
+.take-h { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; row-gap: 0; align-content: center; line-height: 1.25; }
+.take-h span { overflow: hidden; text-overflow: ellipsis; font: 400 11px var(--font-ui); text-transform: none; color: var(--text); } .take-h b { font-size: 10px !important; }
+.take-h em { grid-column: 1 / -1; margin: 0 !important; font-size: 9px; }
+.btn.approve { margin-left: auto; padding: 2px 8px; border: 1px solid var(--amber); border-radius: var(--r-1); background: none; color: var(--amber); font: 500 9px var(--font-mono); letter-spacing: 0.04em; }
+.btn.approve.done, .btn.approve:disabled { color: var(--muted); border-color: var(--line-2); cursor: default; }
+
+.phwrap { position: absolute; left: var(--hdr-w); right: 0; top: 0; bottom: 0; pointer-events: none; overflow: hidden; z-index: 5; }
+.ph { position: absolute; top: 0; bottom: 0; left: 0; width: 1px; background: var(--amber); will-change: transform; }
+.ph::before { content: ""; position: absolute; top: 0; left: -4px; border: 4px solid transparent; border-top: 6px solid var(--amber); border-bottom: 0; }

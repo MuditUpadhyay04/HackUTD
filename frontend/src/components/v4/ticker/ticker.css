@@ -1,0 +1,35 @@
+/* Ticker (softened): soft stat chips in a calm row, a More chip with a popover. Only motion: digit roll (NumberFlow),
+   amber underline fade 600ms, and the 180ms popover. */
+.v4 .tk { container-type: inline-size; height: 100%; }
+.v4 .tk-row { display: flex; height: 100%; align-items: center; gap: 8px; padding: 0 8px; white-space: nowrap; }
+.v4 .tk-c { position: relative; display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px; border-radius: var(--r-md); background: var(--tint-neutral); flex: none; min-width: 0; }
+.v4 .tk-l { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+.v4 .tk-v { font-family: var(--font-num); font-size: var(--fs-3); font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+.v4 .tk-c[data-hot="true"] { background: var(--tint-red); }
+.v4 .tk-c[data-hot="true"] .tk-v { color: var(--red); }
+.v4 .tk-unknown { display: inline-block; padding: 1px 8px; font-family: var(--font-ui); color: var(--text); background-color: var(--panel-3); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; border-radius: var(--r-pill); font-size: var(--fs-2); }
+/* Projected Now chip: amber tint on a soft dither (a what-if, never recorded telemetry). */
+.v4 .tk-c[data-projected="true"] { background-color: var(--tint-amber); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .tk-proj { color: var(--amber); font-weight: 600; padding: 1px 6px; background: var(--panel); border-radius: var(--r-pill); }
+/* Amber underline: transition on opacity, retriggered from script (instant on, then fade). */
+.v4 .tk-ul { position: absolute; left: 12px; right: 12px; bottom: 3px; height: 2px; border-radius: 1px; background: var(--amber); opacity: 0; transition: opacity 600ms ease-out; pointer-events: none; }
+.v4 .tk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.v4 .tk number-flow-react { --number-flow-char-height: 1em; }
+
+/* More chip and popover */
+.v4 .tk-more { position: relative; margin-left: auto; flex: none; }
+.v4 .tk-chip { cursor: pointer; }
+.v4 .tk-chip[aria-expanded="true"] { background: var(--panel-3); }
+.v4 .tk-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+.v4 .tk-pop { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; min-width: 240px; padding: 6px; border: 1px solid var(--line-2); border-radius: var(--r-lg); background: var(--panel-2); box-shadow: var(--shadow-pop), var(--hi); transform-origin: top right; animation: tk-pop 180ms var(--ease-out) both; }
+.v4 .tk-pop[data-instant="true"] { animation: none; }
+@keyframes tk-pop { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+.v4 .tk-row2 { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 10px; border-radius: var(--r-sm); }
+.v4 .tk-row2 .tk-v { font-size: var(--fs-2); }
+@media (hover: hover) and (pointer: fine) { .v4 .tk-chip:hover { background: var(--panel-3); } .v4 .tk-row2:hover { background: var(--panel-3); } }
+
+/* Narrow widths: lower priority chips hide (never scroll, never marquee). */
+@container (max-width: 980px) { .v4 .tk-c[data-p="2"] { display: none; } }
+@container (max-width: 760px) { .v4 .tk-c[data-p="1"] { display: none; } }
+@container (max-width: 520px) { .v4 .tk-c { padding: 0 8px; gap: 6px; } }
+@media (prefers-reduced-motion: reduce) { .v4 .tk-pop { animation: none; } }

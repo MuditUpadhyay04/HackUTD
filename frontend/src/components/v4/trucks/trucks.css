@@ -1,0 +1,37 @@
+/* Truck road (brief 2.4). Positions: transform translateX only, set from script as a pure function of the playhead. */
+.v4 .rd-stack { max-height: 34vh; overflow-y: auto; border-radius: var(--r-lg); }
+.v4 .rd { display: grid; grid-template-columns: 210px minmax(0, 1fr); height: 56px; }
+.v4 .rd-head { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 4px; padding: 0 6px 0 16px; min-width: 0; overflow: hidden; }
+.v4 .rd-title { display: flex; flex: 0 1 auto; min-width: 0; align-items: baseline; gap: 8px; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-2); color: var(--muted); white-space: nowrap; }
+.v4 .rd-title span { overflow: hidden; text-overflow: ellipsis; }
+.v4 .rd-title b { flex: none; font-weight: 500; color: var(--text); }
+.v4 .rd-title .num { color: var(--text); }
+.v4 .rd-tag { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: var(--r-pill); background: var(--tint-neutral); font-size: var(--fs-1); line-height: 1; color: var(--muted); white-space: nowrap; }
+.v4 .rd-tag i { flex: none; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.v4 .rd-tag[data-kind="plan"] { background: var(--tint-neutral); color: var(--text); }
+.v4 .rd-tag[data-kind="plan"] i { background: none; border: 1px dashed currentColor; }
+.v4 .rd-tag[data-ok="false"] { background: var(--tint-amber); color: var(--amber); }
+.v4 .rd-tag[data-ok="true"] { color: var(--text); }
+.v4 .rd-lane { position: relative; min-width: 0; overflow: hidden; }
+.v4 .rd-road { position: absolute; left: 0; right: 0; top: 40px; height: 2px; border-radius: 1px; background-image: repeating-linear-gradient(90deg, var(--line-2) 0 3px, transparent 3px 8px); }
+.v4 .rd-yard { position: absolute; left: 12px; top: 18px; width: 30px; height: 24px; color: var(--muted); }
+.v4 .rd-yard-l { position: absolute; left: 12px; top: 2px; font-size: var(--fs-1); color: var(--muted); }
+.v4 .rd-stop { position: absolute; top: 0; bottom: 0; width: 0; }
+.v4 .rd-stop::before { content: ""; position: absolute; left: 0; top: 18px; height: 24px; border-left: 1px solid var(--line); }
+.v4 .rd-stop-l { position: absolute; left: 0; top: 2px; transform: translateX(-50%); font-size: var(--fs-1); color: var(--muted); white-space: nowrap; }
+.v4 .rd-stop[data-down="true"] .rd-stop-l { color: var(--red); }
+.v4 .rd-stop[data-down="true"]::before { border-left: 2px solid var(--red); border-radius: 1px; }
+
+.v4 .rd-truck { position: absolute; left: 0; top: 22px; width: 30px; height: 12px; color: var(--muted); will-change: transform; }
+.v4 .rd-sprite { display: block; width: 30px; height: 12px; overflow: visible; shape-rendering: crispEdges; image-rendering: pixelated; transition: opacity 240ms var(--ease-out); }
+.v4 .rd-truck[data-phase="returning"] .rd-sprite { transform: scaleX(-1); }
+.v4 .rd-px { fill: currentColor; }
+.v4 .rd-px[data-d="1"] { opacity: 0.4; }
+.v4 .rd-outline { fill: none; stroke: currentColor; stroke-width: 1; stroke-dasharray: 3 2; opacity: 0; transition: opacity 240ms var(--ease-out); }
+/* Planned (recommended, not approved): dashed-outline ghost at reduced opacity. Approved: solid. */
+.v4 .rd-truck[data-planned="true"] .rd-sprite { opacity: 0.5; }
+.v4 .rd-truck[data-planned="true"] .rd-outline { opacity: 1; }
+/* Unloading: tiny dithered "fill draining" bar above the tank. */
+.v4 .rd-drain { position: absolute; left: 2px; top: -9px; width: 18px; height: 6px; background-color: color-mix(in srgb, currentColor 18%, transparent); background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; border: 1px solid currentColor; border-radius: var(--r-pill); opacity: 0; }
+.v4 .rd-truck[data-phase="unloading"] .rd-drain { opacity: 1; }
+.v4 .rd-tag[data-kind="projected"] { color: var(--amber); background-color: var(--tint-amber); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }

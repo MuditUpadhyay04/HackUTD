@@ -5,7 +5,7 @@
 // asked, what it looked at, which helper it called, what the checker rejected, what it answered. Nothing is invented.
 // Advice only: nothing here approves or dispatches.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NemotronMark } from "./nemotron";
 import { api, unwrap } from "@/lib/api";
 import { facilityName, humanize, planText } from "@/lib/format";
@@ -19,8 +19,14 @@ export type AgentNode = {
   question?: string | null; promptVersion?: number | null; status: string; toolsCalled: string[]; modelCalls?: number; inputTokens?: number; outputTokens?: number;
   latencyMs?: number; rejections?: string[]; output?: unknown; error?: string | null; score?: { total: number } | null; children?: string[];
 };
+export type AgentTrigger = { kind: "auto" | "manual"; reason: string };
 export type AgentRun = {
   id: string; status: "running" | "done" | "failed"; error: string | null; nodes: AgentNode[]; startedAt?: string;
+  /** The operator run the agents looked at; `viewRunId` is the one on screen. They differ when the run on screen
+   * inherited its nearest earlier run's agents (`inheritedFrom`): nothing changed since, so the agents didn't run again. */
+  runId?: string; viewRunId?: string; inheritedFrom?: string; trigger?: AgentTrigger | null;
+  /** The last finished run shown before this one: the dashboard keeps its notes while this one works. */
+  previous?: AgentRun | null;
   trace: {
     score: number; fallbacks?: string[];
     outputs?: { triage: { order: string[]; notes: { incidentId: string; note: string }[] } | null; explanations: { incidentId: string; explanation: string }[]; reviews: { incidentId: string; answer: string }[]; handoff: { handoff: string } | null };
@@ -31,45 +37,71 @@ type Learning = {
   versions: { role: string; version: number; author: string; status: string; trainMean: number | null; trainN: number; heldoutMean: number | null; heldoutN: number; acceptRate: number | null }[];
 };
 
-/** The latest agent run for an operator run, shared by the Agents view and the dashboard. Polls while agents work. */
+/** The latest agent run for an operator run, shared by the Agents view and the dashboard. Polls while agents work,
+ * and looks for newer runs every few seconds: the server starts the agents by itself when problems open or clear. */
 export function useAgentRun(runId: string) {
   const [run, setRun] = useState<AgentRun | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const current = useRef<AgentRun | null>(null);
+  useEffect(() => { current.current = run; }, [run]);
   useEffect(() => {
     let live = true;
-    // The list holds summaries only: take the newest, then load it in full.
-    api.api.runs({ id: runId })["agent-runs"].get().then(async (r) => {
-      const list = (Array.isArray(r.data) ? r.data : []) as unknown as { id: string; startedAt?: string }[];
+    async function look() {
+      // The list holds summaries only: take the newest, then load it in full if it is new to the screen.
+      const r = await api.api.runs({ id: runId })["agent-runs"].get();
+      if (!live || !Array.isArray(r.data)) return;
+      const list = r.data as unknown as { id: string; startedAt?: string; inheritedFrom?: string }[];
       const latest = [...list].sort((a, b) => String(b.startedAt ?? "").localeCompare(String(a.startedAt ?? "")))[0];
-      if (!latest) return;
+      const cur = current.current;
+      if (!latest) { if (cur && cur.viewRunId !== runId) setRun(null); return; }
+      if (cur?.id === latest.id && cur.viewRunId === runId) return; // already shown; the poll below keeps it fresh
       const full = unwrap(await api.api["agent-runs"]({ id: latest.id }).get()) as unknown as AgentRun;
-      if (live) setRun((cur) => cur ?? full);
-    }).catch(() => {});
-    return () => { live = false; };
+      if (live) setRun({ ...full, viewRunId: runId, inheritedFrom: latest.inheritedFrom, previous: lastDone(cur) });
+    }
+    look().catch(() => {});
+    const t = setInterval(() => { if (document.visibilityState === "visible") look().catch(() => {}); }, 4000);
+    return () => { live = false; clearInterval(t); };
   }, [runId]);
   useEffect(() => {
     if (!run || run.status !== "running") return;
     const t = setTimeout(async () => {
-      try { setRun(unwrap(await api.api["agent-runs"]({ id: run.id }).get()) as unknown as AgentRun); }
+      try {
+        const fresh = unwrap(await api.api["agent-runs"]({ id: run.id }).get()) as unknown as AgentRun;
+        setRun((cur) => (cur?.id === fresh.id ? { ...fresh, viewRunId: cur.viewRunId, inheritedFrom: cur.inheritedFrom, previous: cur.previous } : cur));
+      }
       catch (e) { setError((e as Error).message); }
     }, 900);
     return () => clearTimeout(t);
   }, [run]);
   const start = useCallback(async () => {
     setError(null);
-    try { setRun(unwrap(await api.api.runs({ id: runId }).agents.post()) as unknown as AgentRun); }
+    try { const posted = unwrap(await api.api.runs({ id: runId }).agents.post()) as unknown as AgentRun; setRun((cur) => ({ ...posted, viewRunId: runId, previous: lastDone(cur) })); }
     catch (e) { setError((e as Error).message); }
   }, [runId]);
   return { run, error, start };
 }
 
+/** The newest finished run among `run` and what it kept (one level deep: older notes are not worth keeping). */
+function lastDone(run: AgentRun | null | undefined): AgentRun | null {
+  const done = run?.status === "done" ? run : run?.previous?.status === "done" ? run.previous : null;
+  return done ? { ...done, previous: null } : null;
+}
+
+/** An incident ID from the run the agents looked at, as the run on screen names it (incident IDs carry their run). */
+export function viewIncidentId(run: AgentRun | null, id: string) {
+  const from = run?.runId, to = run?.viewRunId;
+  return from && to && from !== to && id.startsWith(`${from}:`) ? `${to}${id.slice(from.length)}` : id;
+}
+
 /** One line per incident from the agents, for the dashboard: the plan explanation, else the triage note. */
-export function agentLines(run: AgentRun | null): Record<string, string> {
+export function agentLines(shown: AgentRun | null): Record<string, string> {
+  // While a new run works, keep the last finished run's notes on screen (as the run on screen names its incidents).
+  const run = shown?.status === "running" && shown.previous ? { ...shown.previous, viewRunId: shown.viewRunId } : shown;
   const o = run?.trace?.outputs;
   if (!o) return {};
   const out: Record<string, string> = {};
-  for (const n of o.triage?.notes ?? []) out[n.incidentId] = n.note;
-  for (const e of o.explanations ?? []) out[e.incidentId] = e.explanation;
+  for (const n of o.triage?.notes ?? []) out[viewIncidentId(run, n.incidentId)] = n.note;
+  for (const e of o.explanations ?? []) out[viewIncidentId(run, e.incidentId)] = e.explanation;
   return out;
 }
 
@@ -194,6 +226,25 @@ function treeOrder(nodes: AgentNode[]) {
 // ---------------------------------------------------------------------------------------------------------------
 // View
 
+/** Why this agent run happened: by itself when the open problems changed, or because someone asked. */
+function TriggerLine({ run }: { run: AgentRun }) {
+  const auto = run.trigger?.kind === "auto";
+  const at = run.startedAt ? new Date(run.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : null;
+  return (
+    <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">
+      <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 font-medium", auto ? "bg-water/10 text-water" : "bg-black/[0.04] text-text")}>
+        <span aria-hidden className={cn("size-1.5 rounded-full", auto ? "bg-water" : "bg-[#8e8e93]", run.status === "running" && "animate-pulse")} />
+        {auto ? "Ran by itself" : "Run by an operator"}
+      </span>
+      <span>
+        {auto ? sentence(run.trigger!.reason) : null}
+        {at && ` Started at ${at}.`}
+        {run.inheritedFrom && " These are the agents' latest notes, from an earlier moment; they run again when problems open or clear."}
+      </span>
+    </p>
+  );
+}
+
 export function AgentsPanel({
   agents,
   nowUnix,
@@ -204,6 +255,7 @@ export function AgentsPanel({
   onOpenIncident: (incidentId: string) => void;
 }) {
   const { run, error, start } = agents;
+  const openIncident = (id: string) => onOpenIncident(viewIncidentId(run, id));
   const [learning, setLearning] = useState<Learning | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [play, setPlay] = useState<number | null>(null); // replay position in tree order
@@ -265,6 +317,7 @@ export function AgentsPanel({
             </button>
           </span>
         </div>
+        {run?.trigger && <TriggerLine run={run} />}
         {handoff ? (
           <>
             <p className="mt-2.5 max-w-[80ch] text-[15px] leading-snug">{planText(handoff, nowUnix)}</p>
@@ -272,14 +325,14 @@ export function AgentsPanel({
           </>
         ) : (
           <p className="mt-2 text-[14px] text-muted-foreground">
-            {running ? "The handoff writer runs last; its summary will appear here." : "Run the agents to see who does what, and why. They advise; they never dispatch or approve."}
+            {running ? "The handoff writer runs last; its summary will appear here." : "The agents run by themselves when problems open or clear. Run them now to see who does what, and why. They advise; they never dispatch or approve."}
           </p>
         )}
         {order.length > 0 && (
           <ol className="mt-2.5 flex flex-wrap gap-2 text-[13px]" aria-label="Priority order from triage">
             {order.map((id, i) => (
               <li key={id}>
-                <button type="button" onClick={() => onOpenIncident(id)} className="rounded-md bg-black/[0.04] px-2 py-0.5 hover:bg-black/[0.07]">
+                <button type="button" onClick={() => openIncident(id)} className="rounded-md bg-black/[0.04] px-2 py-0.5 hover:bg-black/[0.07]">
                   <span className="text-faint tabular-nums">{i + 1}.</span> {incidentLabel(id) ?? "Incident"}
                 </button>
               </li>
@@ -300,7 +353,7 @@ export function AgentsPanel({
               nowUnix={nowUnix}
               animate={play != null || selected.id === newest?.id}
               onPick={(id) => { setPlay(null); setPicked(id); }}
-              onOpenIncident={onOpenIncident}
+              onOpenIncident={openIncident}
             />
           )}
         </>

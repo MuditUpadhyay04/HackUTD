@@ -1,0 +1,102 @@
+/* Overview panel. Soft, calm: sections are separated by spacing and one hairline, no boxes in boxes.
+   Tokens come from v4.css (.v4). Hover rules are gated by (hover: hover) and (pointer: fine). */
+.v4 .ov {
+  height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  padding: 22px 20px 28px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi);
+  font-family: var(--font-ui); font-size: 14px; line-height: 1.5; color: var(--text);
+  scrollbar-width: thin; scrollbar-color: var(--line-2) transparent;
+}
+.v4 .ov h1, .v4 .ov h2, .v4 .ov h3, .v4 .ov p, .v4 .ov ul { margin: 0; padding: 0; }
+.v4 .ov ul { list-style: none; }
+.v4 .ov-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.v4 .ov-head h1 { font-size: 20px; line-height: 1.2; font-weight: 500; letter-spacing: -0.01em; }
+.v4 .ov-when { margin-top: 4px; font-size: 13px; color: var(--muted); }
+.v4 .ov-lede { margin-top: 12px; font-size: 15px; line-height: 1.5; color: var(--text); text-wrap: pretty; }
+
+.v4 .ov-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 16px; margin-top: 22px; }
+.v4 .ov-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.v4 .ov-stat-l { font-size: 12px; color: var(--muted); }
+.v4 .ov-stat-v { font-size: 27px; line-height: 1.2; font-weight: 500; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.v4 .ov-stat[data-tone="red"] .ov-stat-v { color: var(--red); }
+.v4 .ov-unknown { font-size: 20px; font-weight: 400; color: var(--muted); }
+
+.v4 .ov-rule { border: 0; height: 1px; margin: 24px 0 0; background: var(--line); }
+
+.v4 .ov-sec { margin-top: 26px; }
+.v4 .ov-sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.v4 .ov-sec-h h2 { font-size: 13px; font-weight: 500; color: var(--muted); }
+.v4 .ov-fine { font-size: 12px; line-height: 1.4; color: var(--faint); }
+.v4 .ov-sub { font-size: 13px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.v4 .ov-unavail { font-size: 13px; color: var(--muted); }
+
+/* Pump cards: no background until hover, separated by spacing. */
+.v4 .ov-cards { display: flex; flex-direction: column; gap: 6px; margin: 0 -12px; }
+.v4 .ov-card { padding: 14px 12px 16px; border-radius: var(--r-md); transition: background-color 150ms ease; }
+@media (hover: hover) and (pointer: fine) { .v4 .ov-card:hover { background: var(--panel-2); } }
+.v4 .ov-card-h { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.v4 .ov-card-h h3 { font-size: 15px; font-weight: 500; }
+.v4 .ov-card > .ov-sub:first-of-type { margin-top: 1px; color: var(--faint); font-size: 12px; }
+.v4 .ov-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; flex: none; }
+.v4 .ov-hatch { width: 8px; height: 8px; border-radius: 2px; flex: none; background-image: repeating-linear-gradient(135deg, currentColor 0 1.5px, transparent 1.5px 4px); }
+.v4 .ov-count { margin-top: 14px; }
+.v4 .ov-count-v { font-size: 40px; line-height: 1.05; font-weight: 500; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.v4 .ov-count-w { font-size: 28px; line-height: 1.15; font-weight: 500; letter-spacing: -0.02em; color: var(--muted); }
+.v4 .ov-count[data-urgent] .ov-count-v { color: var(--red); }
+.v4 .ov-count + .ov-sub { margin-top: 4px; }
+
+.v4 .ov-band { position: relative; height: 8px; margin-top: 10px; border-radius: var(--r-pill); background: var(--tint-neutral); overflow: hidden; }
+.v4 .ov-band-fill { position: absolute; top: 0; bottom: 0; background: var(--red); opacity: 0.7; border-radius: var(--r-pill); }
+.v4 .ov-band-tick { position: absolute; top: 1px; bottom: 1px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--text); }
+.v4 .ov-band + .ov-fine { margin-top: 5px; }
+
+.v4 .ov-plan { display: flex; gap: 12px; justify-content: space-between; margin-top: 14px; }
+.v4 .ov-plan-t { margin-top: 1px; font-size: 14px; line-height: 1.4; font-weight: 500; text-wrap: pretty; }
+.v4 .ov-plan-c { display: flex; flex-direction: column; align-items: flex-end; text-align: right; flex: none; max-width: 45%; font-size: 15px; font-weight: 500; }
+.v4 .ov-saves { font-size: 12px; font-weight: 400; color: var(--n5); line-height: 1.35; }
+
+.v4 .ov-btn { display: block; width: 100%; margin-top: 14px; height: 36px; border-radius: var(--r-md); background: var(--amber); color: #1A1816; font-size: 14px; font-weight: 500; }
+@media (hover: hover) and (pointer: fine) { .v4 .ov-btn:hover:not(:disabled) { background: #FFC233; } }
+.v4 .ov-btn:disabled { cursor: default; opacity: 0.7; }
+.v4 .ov-btn[data-state="failed"] { background: var(--tint-red); color: var(--red); }
+.v4 .ov-btn[data-state="stale"], .v4 .ov-btn[data-state="pending"] { background: var(--tint-amber); color: var(--amber); }
+.v4 .ov-ack { margin-top: 14px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--r-md); background: var(--tint-neutral); color: var(--n5); font-size: 14px; font-weight: 500; }
+
+/* Rows */
+.v4 .ov-list { display: flex; flex-direction: column; margin: 0 -8px; }
+.v4 .ov-row, .v4 .ov-sys { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 8px; border-radius: var(--r-md); transition: background-color 150ms ease; }
+@media (hover: hover) and (pointer: fine) { .v4 .ov-row:hover, .v4 .ov-sys:hover { background: var(--panel-2); } }
+.v4 .ov-row-m { flex: 1; min-width: 0; font-size: 13px; line-height: 1.4; }
+.v4 .ov-row-m b { font-weight: 500; }
+.v4 .ov-row-r { font-size: 12px; color: var(--muted); }
+
+.v4 .ov-sys { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); gap: 0 10px; }
+.v4 .ov-sys-n { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+.v4 .ov-sys-w { font-size: 13px; color: var(--muted); text-align: right; }
+.v4 .ov-sys-w[data-tone="red"] { color: var(--red); }
+.v4 .ov-sys-w[data-tone="magenta"] { color: var(--magenta); }
+.v4 .ov-sys-r { font-size: 12px; color: var(--faint); }
+.v4 .ov-sys-r:last-child { text-align: right; }
+.v4 .ov-sdot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--n5); }
+.v4 .ov-sdot[data-tone="red"] { background: var(--red); }
+.v4 .ov-sdot[data-tone="magenta"] { background: var(--magenta); border-radius: 2px; }
+.v4 .ov-sdot[data-tone="nodata"] { background: var(--tint-neutral); background-image: var(--dither-25); background-size: 8px 8px; box-shadow: inset 0 0 0 1px var(--line-2); }
+
+.v4 .ov-note { display: flex; gap: 10px; align-items: flex-start; margin-top: 22px; padding: 10px 12px; border-radius: var(--r-md); background: var(--tint-neutral); font-size: 13px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.v4 .ov-note .ov-dot { margin-top: 7px; background: var(--faint); }
+
+/* Shift handoff */
+.v4 .ov-clamp { position: relative; overflow: hidden; transition: height 200ms var(--ease-out); }
+.v4 .ov-clamp[data-instant="true"] { transition: none; }
+.v4 .ov-clamp[data-fade="true"] { -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent); mask-image: linear-gradient(to bottom, #000 62%, transparent); }
+.v4 .ov-handoff { font-size: 14px; line-height: 1.5; color: var(--text); white-space: pre-wrap; text-wrap: pretty; }
+.v4 .ov-more { margin-top: 6px; padding: 3px 8px; margin-left: -8px; border-radius: var(--r-sm); font-size: 13px; color: var(--amber); }
+@media (hover: hover) and (pointer: fine) { .v4 .ov-more:hover { background: var(--tint-amber); } }
+.v4 .ov-sec > .ov-fine { margin-top: 6px; }
+.v4 .ov-skel { display: flex; flex-direction: column; gap: 8px; }
+.v4 .ov-skel i { display: block; height: 11px; border-radius: var(--r-pill); background: var(--tint-neutral); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; opacity: 0.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .v4 .ov-clamp, .v4 .ov-card, .v4 .ov-row, .v4 .ov-sys { transition: none; }
+}

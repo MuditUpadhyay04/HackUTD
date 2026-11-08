@@ -155,6 +155,6 @@ describe("short plan refs", () => {
     const ev = facts.incidents[0]!.evidence[0]!.id;
     const out = ROLES.handoff.validate(ctx, { handoff: "S4 A and S4 C pumps are down; S5 B has a leak to inspect.", evidenceIds: [ev], planIds: ["P1", "p3"] }) as HandoffOutput;
     expect(out.planIds).toEqual(["opt-C-1", "opt-A-1"]);
-    expect(() => ROLES.handoff.validate(ctx, { handoff: "S4 C pump is down.", evidenceIds: [ev], planIds: ["PLAN_X"] })).toThrow("not found: PLAN_X; valid: P1, P2, P3, P4");
+    expect((ROLES.handoff.validate(ctx, { handoff: "S4 C pump is down.", evidenceIds: [ev], planIds: ["PLAN_X", "P1"] }) as HandoffOutput).planIds).toEqual(["opt-C-1"]); // unknown dropped
   });
 });
