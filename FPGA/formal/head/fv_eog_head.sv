@@ -115,9 +115,6 @@ module fv_eog_head #(
 );
     `include "eog_defs.svh"
 
-    // Reason bit 13 NO_MODEL: restored by ruling #23 (TASKS.md), but the v4 eog_defs.svh has no EOG_R_NO_MODEL yet.
-    localparam integer F_R_NO_MODEL = 13;
-
     localparam integer NSH = (SH == 0) ? 1 : (SH == 1) ? 7 : (SH == 2) ? (7 + 4 * N_FEAT) : 11;
     localparam integer SS  = 1;                    // shadow slot of word 1 (S_OUT)        (SH >= 1)
     localparam integer SB  = 2;                    // shadow slots of words 64..67 (B[k])  (SH >= 1)
@@ -239,7 +236,7 @@ module fv_eog_head #(
     always_comb begin
         if (in_valid) begin
             a_status: assume (is_vh(i_status) || i_status == EOG_ST_INVALID || i_status == EOG_ST_DROPPED);
-            a_nm:     assume (!in_data[EOG_BC_REASON + F_R_NO_MODEL]);
+            a_nm:     assume (!in_data[EOG_BC_REASON + EOG_R_NO_MODEL]);
             a_fset:   assume (&i_fset_ok);
         end
     end
@@ -471,7 +468,7 @@ module fv_eog_head #(
     assign t_vh     = is_vh(t_status);
     assign t_drop   = (t_status == EOG_ST_DROPPED);
     assign t_nm     = t_vh && (f_tver == 8'd0);
-    assign t_reason = f_td[EOG_BC_REASON +: EOG_BC_REASON_W] | (t_nm ? 16'(1 << F_R_NO_MODEL) : 16'd0);
+    assign t_reason = f_td[EOG_BC_REASON +: EOG_BC_REASON_W] | (t_nm ? 16'(1 << EOG_R_NO_MODEL) : 16'd0);
 
     logic [113:0] e_hdr, o_hdr;
     assign e_hdr = {f_td[EOG_BC_HIST_RESET], f_td[EOG_BC_SINCE_RESET +: 8], t_reason, t_status,
@@ -491,7 +488,7 @@ module fv_eog_head #(
             WV:  assert (out_data[EOG_BL_WVER +: 8] == (t_drop ? 8'd0 : f_tver));
             if (f_tver == 8'd0 || !t_vh)
                 H4_zero: assert (o_logits == 64'd0);
-            H4_nm: assert (out_data[EOG_BL_REASON + F_R_NO_MODEL] == t_nm);
+            H4_nm: assert (out_data[EOG_BL_REASON + EOG_R_NO_MODEL] == t_nm);
             if (f_dseen)
                 H8_logit_b: assert (o_logits == f_dlog);
             if (H8_LIVE != 0 && out_ready && f_tq)
@@ -613,7 +610,7 @@ module fv_eog_head #(
                            && out_data[EOG_BL_WVER +: 8] != 8'd0 && c_last_wver != 8'd0);
         C_sat:      cover (o_track && out_ready && t_vh && f_tver != 8'd0
                            && (o_logits[15:0] == 16'h7FFF || o_logits[15:0] == 16'h8000));
-        C_nomodel:  cover (out_fire && out_data[EOG_BL_REASON + F_R_NO_MODEL]);
+        C_nomodel:  cover (out_fire && out_data[EOG_BL_REASON + EOG_R_NO_MODEL]);
         C_coalesce: cover (f_toggle && c_coal);
         C_rb:       cover (p_rb_chk && active_bank == p_bank && wb_rdata != 32'd0);
         C_srst:     cover (out_fire && c_srst && out_data[EOG_BL_WVER +: 8] != 8'd0);
