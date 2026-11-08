@@ -108,8 +108,13 @@ export function countdownState(a: { countdown?: import("@hackutd/contracts").Cou
 
 /** Plan text as an operator reads it: "Send 1 truck now, shut in well A2 at 13:51". */
 export function planText(label: string, nowUnix: number) {
+  const plural = (n: string, word: string) => `${n} ${word}${n === "1" ? "" : "s"}`;
   return humanize(label)
     .replace(/\s\+\s/g, ", ")
+    // Operator API labels read "1 truck(s), 1 trip(s); shut in 2 well(s) after 40 min".
+    .replace(/(\d+) (truck|trip|well)\(s\)/g, (_m, n: string, w: string) => plural(n, w))
+    .replace(/;\s*/g, ", ")
+    .replace(/\bafter (\d+) min\b/g, (_m, m: string) => `at ${clockFrom(nowUnix + Number(m) * 60, nowUnix)}`)
     .replace(/\bin (?:(\d+)h\s?)?(\d+)m\b/g, (_m, h: string | undefined, m: string) =>
       `at ${clockFrom(nowUnix + (Number(h ?? 0) * 60 + Number(m)) * 60, nowUnix)}`,
     );
@@ -120,3 +125,6 @@ export function planText(label: string, nowUnix: number) {
 export function facilityTitle(id: string) {
   return facilityName(id).replace(" ", ", Facility ");
 }
+
+/** Facility letter from the id ("S5_FACILITY_C" -> "C"); the operator API sends the full id as `letter`. */
+export const letterOf = (f: { id: string; letter: string }) => /_FACILITY_(.+)$/i.exec(f.id)?.[1] ?? f.letter;

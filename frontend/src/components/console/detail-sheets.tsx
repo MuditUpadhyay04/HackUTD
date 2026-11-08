@@ -607,7 +607,7 @@ function BoardSection({
       </div>
       {simulated && (
         <p className="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
-          Development feed made from the console&apos;s own detections. These are not model scores.
+          Simulated development feed. These are not model scores.
         </p>
       )}
       {software && !simulated && (

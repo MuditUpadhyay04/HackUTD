@@ -1,16 +1,17 @@
 import { treaty } from "@elysia/eden";
 import type { App } from "@hackutd/api";
 
-// Eden appends its typed /api routes to this prefix. In the browser that is this console's own proxy
-// (/api/backend); on the server (page.tsx renders the dataset list) it is the operator API itself, reached
-// the way the proxy reaches it (API_URL, bearer API_TOKEN). "http://localhost" here meant port 80, where
-// nothing listens, so the page failed with 503. No upstream credentials reach the browser bundle: API_TOKEN
-// is server-only and unset in the client.
-const server = typeof window === "undefined";
-export const api = treaty<App>(server ? (process.env.API_URL || "http://127.0.0.1:3001") : `${window.location.origin}/api/backend`, {
-  parseDate: false,
-  ...(server && process.env.API_TOKEN ? { headers: { authorization: `Bearer ${process.env.API_TOKEN}` } } : {}),
-});
+// Eden appends its typed /api routes to this prefix. No upstream credentials
+// or server implementation are included in the browser bundle.
+// On the server (page render) there is no browser origin, and going through our own proxy would hit the
+// operator login. So server code talks to the operator API directly with the server-only token.
+export const api =
+  typeof window === "undefined"
+    ? treaty<App>(process.env.API_URL || "http://127.0.0.1:3001", {
+        parseDate: false,
+        headers: process.env.API_TOKEN ? { authorization: `Bearer ${process.env.API_TOKEN}` } : undefined,
+      })
+    : treaty<App>(`${window.location.origin}/api/backend`, { parseDate: false });
 
 export function unwrap<T>(result: { data: T | null; error: unknown }): Exclude<T, Response | { error: string; code: string }> {
   if (result.error) {
@@ -36,9 +37,10 @@ export async function listDatasets(): Promise<DatasetInfo[]> {
 }
 
 export function defaultDataset(datasets: DatasetInfo[]): DatasetInfo | undefined {
-  // Labels are folder names when the API loads DATA_ROOT; ids are content hashes.
-  const named = (name: string) => datasets.find((d) => d.label === name || d.id === name);
-  return named("test") ?? datasets.find((d) => d.label.startsWith("mock_test") || d.id.startsWith("mock_test")) ?? datasets[0];
+  // Same rule as the Photon bot (Photon/console.mts pickDataset): the newest upload labelled "test" (the judges'
+  // folder), then the mock test, then the first upload. Upload ids are content hashes, so labels decide.
+  const tests = datasets.filter((d) => d.id === "test" || d.label === "test").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return tests[0] ?? datasets.find((d) => d.id.startsWith("mock_test") || d.label.startsWith("mock_test")) ?? datasets[0];
 }
 
 import type { DatasetInfo } from "@hackutd/contracts";

@@ -1,8 +1,6 @@
 import { Suspense } from "react";
 import { Workspace } from "@/components/console/workspace";
-import { LiveRefresh } from "@/components/console/live-refresh";
 import { listDatasets, defaultDataset } from "@/lib/api";
-import { getBoard } from "@/lib/live/board";
 import { store as ingestStore } from "@/lib/live/ingest-store";
 
 export default function Page({ searchParams }: PageProps<"/">) {
@@ -37,7 +35,6 @@ async function ConsoleForRequest({ searchParams }: { searchParams: PageProps<"/"
   return (
     <>
       <Workspace dataset={dataset} at={at} boardNow={boardNow} />
-      {process.env.BOARD_INGEST === "1" && at == null && <LiveRefresh seconds={3} />}
     </>
   );
 }

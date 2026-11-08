@@ -6,6 +6,7 @@ import { Check, Truck } from "lucide-react";
 import type { BoardFacility, BoardStatus, Category, FacilityState, Incident, PlanOption, SystemState } from "@/lib/engine/types";
 import { categoryLabel, clockFrom, countdownState, facilityName, facilityTitle, humanize, money, num, planText, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { letterOf } from "@/lib/format";
 import type { Limits } from "./tank";
 
 export function StatCard({ label, value, tone }: { label: string; value: string; tone?: "crit" }) {
@@ -393,13 +394,13 @@ export function SystemCard({
                 </span>
               )}
               {dense ? (
-                <span className="-mt-1 flex max-w-full flex-col items-center text-[11px] leading-tight text-faint" title={label ? `${f.letter} ${label}` : undefined}>
-                  <span>{f.letter}</span>
+                <span className="-mt-1 flex max-w-full flex-col items-center text-[11px] leading-tight text-faint" title={label ? `${letterOf(f)} ${label}` : undefined}>
+                  <span>{letterOf(f)}</span>
                   {label && <span className="max-w-full truncate">{label}</span>}
                 </span>
               ) : (
                 <span className="-mt-1 max-w-full truncate text-[11.5px] text-faint">
-                  {f.letter}
+                  {letterOf(f)}
                   {label && ` ${label}`}
                 </span>
               )}

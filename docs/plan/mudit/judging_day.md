@@ -59,7 +59,7 @@ itself, leave-one-system-out validation (`ml/hutd_ml/train.py`) is the evidence 
    - `listen.py --source fpga`;
    - `replay.py` with weights v4.
 
-   Then it opens http://127.0.0.1:3000. `REPLAY_STEP` (default 0.1 s per 5-minute step) sets the pace. The script is
+   Then it opens http://127.0.0.1:3000. `REPLAY_STEP` (default 0.5 s per 5-minute step: a week in about 17 min) sets the pace. The script is
    not yet run on Windows: try it once on a practice folder first. The same by hand:
    `docs/plan/mudit/nemotron_v4_fpga_test.md` step 6.
 4. In the console:

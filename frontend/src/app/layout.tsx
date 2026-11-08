@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { themeScript } from "@/components/console/theme-toggle";
 
 export const metadata: Metadata = {
   title: { default: "Beat the Shutdown", template: "%s | Beat the Shutdown" },
@@ -9,7 +10,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
+    // The theme script sets class="dark" before paint, so React must not complain about the mismatch.
+    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-full text-text">{children}</body>
     </html>
   );
