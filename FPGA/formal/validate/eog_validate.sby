@@ -19,10 +19,12 @@
 # bmc_w   the same history properties without REF at full data width (exact 33-bit TS differences, 16-bit
 #         values, LO/HI limits anywhere). depth 12 (5 records).
 # cover   spec cover list (HELD, gap-held, INVALID, hold overflow (#70), each DROPPED reason) plus vacuity covers
-#         for the history properties, every schedule. depth 10 (all 21 covers are reached by step 7).
+#         for the history properties, every schedule. depth 12 (24 covers; C_ovf_sat, a hold run saturated at 3,
+#         needs step 11).
 #
 # Run times against a throwaway v4 reference stub (latency 1, II 2), WSL, yices, machine shared with other proof
-# jobs (load ~10 on 20 cores), Sun Nov 8 01:35 CST (after #23-#25): prove 16 s, bmc 304 s, bmc_w 78 s, cover 8 s.
+# jobs (load ~10 on 20 cores), Sun Nov 8 02:15 CST (R7 option C, #70/#71): prove 13 s, bmc 291 s, bmc_w 123 s,
+# cover 13 s.
 # The BMC tasks grow ~2.5x per record (2 steps at II 2); if the RTL makes them too slow, lower bmc to depth 12
 # (5 records) before touching anything else.
 
