@@ -10,7 +10,7 @@ points into it.
   the ML pipeline with **weights v4**, a few console fixes for hard rule 9 (I-11), and the rewritten global plan.
   PR #3 is fully covered and can be closed. FPGA **code** stays on Lucas's branch `FPGA` until his own PR after
   T2.top; the FPGA spec and task board are already on `main` (his PR #5).
-- **The FPGA is the fixed point.** Spec v4 is locked and the RTL is built to it (countdown, head and regs are finishing review); neither will change for the server's sake. Everything else, the server
+- **The FPGA is the fixed point.** Spec v4 is locked and the RTL is built to it (every module signed off, running on the board); neither will change for the server's sake. Everything else, the server
   included, adapts to them (`global_plan.md`, "How this file works").
 - **Final say:** server, agents and Nemotron are **yours**; spec / FPGA / RTL are Lucas's; ML, weights, `replay.py`
   and `listen.py` are Mudit's. It's a tiebreaker: the §8 approvers are consulted first.
@@ -66,9 +66,10 @@ practice week: leak precision / recall 0.92 / 0.99, median 10 min after onset; d
 Design: [`docs/plan/mudit/ml_architecture.md`](../mudit/ml_architecture.md). Quote these only with their source
 (hard rule 10).
 
-**Board status (Lucas, Sun 02:45):** most modules are signed off; countdown, head and regs are in review. Then
-T2.top → Vivado build → board tests with the v4 golden sets → **first live run, which streams into your server**.
-No clock times yet; Lucas pings when the Vivado build starts. Until then, `fakeboard.py` gives identical JSON.
+**Board status (Sun ~04:40):** the engine runs on the board (50 MHz build). The golden tests B1–B3 are bit-exact on
+hardware, including the full week with all 71 ALERTs. Next: the **live runs, which stream into your server**.
+Avoid demoing the server-down replay for now (`global_plan.md` O16). Until the board is on your network,
+`fakeboard.py` gives identical JSON.
 Order and estimates: `global_plan.md` §7 and [`../lucas/board_run_plan.md`](../lucas/board_run_plan.md).
 
 ### Run it locally today (verified Sun 03:25 CST with v4)

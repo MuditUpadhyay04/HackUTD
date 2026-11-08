@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:55 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 06:50 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -16,7 +16,7 @@ ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **S
   - **PROPOSED**: you may code against it, but the owner still has to confirm.
   - **OPEN**: don't assume anything.
 - **The FPGA is the fixed point (Mudit, Sun 02:55).** FPGA spec v4 (wire format, numerics, module contracts) is
-  locked, and the RTL is built to it (most modules signed off; countdown, head and regs finishing review, §7).
+  locked, and the RTL is built to it: every module is signed off (FPGA `3560bda`) and runs on the board (§7).
   Changing either would take far longer than we have, so **everything else adapts to them**: ingest, ML, the
   server, agents and the console. Nothing here asks for an FPGA or RTL change. A component that seems to need one
   raises it with Lucas only if something is actually broken; Lucas decides, and a workaround outside the FPGA is the
@@ -134,7 +134,7 @@ flowchart LR
 
 | Area | Owner | Plan / detail | Current focus |
 | --- | --- | --- | --- |
-| FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state) | Countdown / head / regs review, then T2.top full-week sim on the golden sets, T2.bd1 block design, T2.board1 board bring-up (validate with R7 C, features, memory, alarm, pack, mul, div, unpack DONE; T2.ps1 ARM app DONE) |
+| FPGA (Eclypse Z7) | Lucas | `docs/plan/lucas/` (incl. `board_run_plan.md`), `FPGA/AGENTS.md`, `FPGA/spec/` (v4, locked), `FPGA/TASKS.md`, `HANDOFF.md` (FPGA lead session state), `FPGA/reports/` (board bring-up, lead response) | Board bring-up: B1–B3 PASS on hardware (50 MHz); B4 (O16) and the clock decision (O17); SD boot; live runs with `board_suite` / `win_live*.bat` |
 | Model, features, ingest, board tooling | Mudit | `docs/plan/mudit/ml_architecture.md` (frozen), `ml/README.md`, `ml/INTEGRATION.md` | Weights v4 deployed; board run with Lucas on the v4 golden sets; ingest via `listen.py` with Jason / Gurneal |
 | Operator API, agents, Nemotron | Jason | **`docs/plan/jason/START_HERE.md`** (briefing: ML / FPGA state, verified commands, his open items), `docs/plan/jason/agent-backend-architecture.md`, `backend-demo-runbook.md`, `nemotron-inference-*.md`, root `README.md` | Board ingest into runs (I-1), the PR #4 review findings (§9) |
 | Web console | Gurneal (Jimmy), with Jason | `frontend/`, `frontend/docs/live-api.md` | Board view from the operator API's snapshot (I-2) |
@@ -174,8 +174,12 @@ flowchart LR
 - The board does the 1 GbE UDP round trip (Lucas).
 - `features_int.py` ≡ `eog_ref.py` bit for bit on the full practice week (v2, v3, v4; v4 with R7 option C at FPGA
   `10be393`) and the edge cases; the FPGA side's `check_mudit.py` passes on all 8 golden sets.
-- FPGA modules signed off under Lucas's three-tier standard (lint, sim, formal): mul, div, unpack, validate (R7 C),
-  features, memory, alarm, pack. Countdown, head and regs are in review.
+- **Every FPGA module is signed off** under Lucas's three-tier standard (lint, sim, formal; FPGA `3560bda`).
+- **The engine runs on the board** (50 MHz bring-up build, Sun ~04:40): golden B1–B3 are bit-exact on hardware: 4 bad
+  weight blobs refused, the 41 edge cases, and the full week (30,240 RESULTs, 71 ALERTs). B4 (results buffered during
+  a heartbeat gap) has 10 corrupted RESULTs: O16.
+- The full board suite (`python -m hutd_ml.board_suite`, `ml/BOARD_CHECKLIST.md`) passes on the software board,
+  including the live demo path (`replay.py` → board → `listen.py`) checked field by field against the reference.
 - replay → software board → listen → HTTP: 4,500 / 4,500 results delivered.
 - The operator API and console run end to end in software mode (Jason's PR #4 report, browser-checked). Measured
   on the integrated tree (Sun 02:55): `bun run test` 88 pass, 1 skip, **2 fail** (I-10; the same on PR #4 alone);
@@ -189,11 +193,11 @@ flowchart LR
 
    | Step | What | Where | Time (estimate) |
    | --- | --- | --- | --- |
-   | 0 | Countdown, head and regs signed off (three tiers). **regs is the long pole.** | FPGA agents | — |
+   | 0 | ~~Countdown, head and regs signed off~~ **Done** (every T1 module, `3560bda`) | FPGA agents | — |
    | a | T2.top: `eog_top`, top-level proof, full-week sim bit for bit against the model and weights v4 G0 / G1 / G2 | other machine | — |
    | b | T2.bd1: block design, LED / BTN0 / Pmod constraints, Vivado build | Lucas's PC | 30–60 min |
    | c | ARM app (`eog_app`, already host-tested): Vitis build, program the board | Lucas's PC | ~10 min |
-   | d | T2.board1: `board.py --golden ml/artifacts/v4/golden/g0 --weights-negative`, then g2, then g1, then `--heartbeat-test 6`; each byte-identical (RESULTs and ALERTs) before the next. Compare ALERTs on a freshly started board (latches survive CONFIG writes). Step-by-step checks, pass criteria and fault finding: [`ml/BOARD_CHECKLIST.md`](ml/BOARD_CHECKLIST.md). | board | 15–30 min |
+   | d | **B1–B3 PASS on hardware (Sun ~04:40); B4: O16.** T2.board1: `board.py --golden ml/artifacts/v4/golden/g0 --weights-negative`, then g2, then g1, then `--heartbeat-test 6`; each byte-identical (RESULTs and ALERTs) before the next. Compare ALERTs on a freshly started board (latches survive CONFIG writes). Step-by-step checks, pass criteria and fault finding: [`ml/BOARD_CHECKLIST.md`](ml/BOARD_CHECKLIST.md). | board | 15–30 min |
    | e | First live run: `replay.py` with weights v4 + its `global_config.json` over the full week → board → `listen.py` → Jason's server; then the live weight swap (`--swap-at-step … --swap-config`, checklist L4) | board PC → server | — |
 
    No clock times until regs and T2.top land; Lucas pings Mudit when T2.bd1 starts. Until step e, steps 2–3 below
@@ -263,7 +267,9 @@ Mudit's integration branch; `main` receives merges from them.
 | O10 | Throughput demo (loop / scale-out replay) | Lucas | T3.perf; never mixed with operator runs |
 | O11 | Server → web app API | Jason + Gurneal | Proposed resolution: C10 (implemented in PR #4) |
 | O12 | Nemotron agent scope and inputs | Jason | Proposed resolution: C12 (implemented in PR #4); the AI SDK fallback issues are I-8 |
-| O15 | With **no model** loaded (`weights_ver` 0) the logits are 0, and v4's leak / degradation thresholds are negative (−128 / −64), so the board's alarm stage would count every record as a hit and raise Night Shift. That is spec v4 as written (the FPGA is fixed). **Guarded on the host:** `replay.py` refuses to stream DATA unless the board confirms the weights swapped in (`--allow-no-model` for bring-up only), and `listen.py` reports no `above_threshold` / `active` at `weights_ver` 0. A board reset mid-run would still lose the model: re-run `replay.py`. | Lucas (informational) + Mudit | Found Sun 03:40 |
+| O15 | With **no model** loaded (`weights_ver` 0) the logits are 0, and v4's leak / degradation thresholds are negative (−128 / −64), so the board's alarm stage would count every record as a hit. Spec v4 as written (the FPGA is fixed). **Guarded:** `replay.py` refuses to stream unless the board confirms the pushed weights, and `listen.py` reports no detections at `weights_ver` 0. **SD boot** (Lucas, `FPGA/docs/SD_BOOT_WEIGHTS.md`) now loads a default model at power-on: put `ml/artifacts/v4/weights.eog` on the card. GLOBAL / Facility CONFIG are not on the card, so after a reset `replay.py` must run again. | Lucas (informational) + Mudit | Found Sun 03:40; SD boot Sun ~04:20 |
+| O16 | **B4 on the board:** after a 6 s heartbeat gap, 10 of 30,240 buffered-and-replayed RESULTs come back with 8-byte words overwritten by old data; ALERTs are fine (71 / 71). The FPGA lead rules out the RTL and the ARM protocol logic; the suspect is the board's PS memory system (cache / DMA / lwIP) or the PC's receive path. Experiments E0–E5 proposed (`FPGA/reports/LEAD_board_response.md`). Normal streaming (B1–B3, the demo path) is bit-exact. Until fixed, don't demo the server-down replay. | Lucas | Board run Sun ~04:40 |
+| O17 | **Clock:** 100 MHz misses timing by 8.1 ns (validate); the demo build runs at 50 MHz, which still handles more records/s than 1 GbE delivers. Lead recommends 50 MHz plus a validate pipelining fix for margin (decision D2); about a dozen doc lines name 100 MHz. Any rebuild: re-run `board_suite`. | Lucas | Lead response D2 / D5 |
 
 Resolved since the last version:
 
@@ -295,6 +301,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 06:50 | **The engine runs on the board.** Lucas's first hardware run (50 MHz build, Sun ~04:40): golden B1–B3 bit-exact (bad blobs refused, 41 edge cases, the full week with 71 ALERTs). B4 = O16 (buffered replay after a heartbeat gap; not the RTL, per the lead). Every FPGA module signed off (`3560bda`); `fpga_sync` PASS there. 100 MHz misses timing: O17. SD boot with a default model: `ml/artifacts/v4/weights.eog` (and v3) made with Lucas's `make_weights_sd.py`. **One-command board suite** `python -m hutd_ml.board_suite`: golden sets plus the live demo path (`replay.py` → board → `listen.py`) checked field by field against the reference, the v3 → v4 swap, and every other dataset folder; all PASS on the software board. `listen.py` no longer lags the board (select-based receive). |
 | Sun Nov 8 03:55 | **Board test suite** (`ml/BOARD_CHECKLIST.md`): pre-flight clash checks, golden tests B1–B6 with pass criteria (now also every ALERT and four rejected weight blobs), fault finding by module, live checks L1–L5. **Live swap fixed:** `replay.py --swap-config` sends the new model's GLOBAL (thresholds, K) right after the swap, and `listen.py --model` reads each result with its own model's settings. Rehearsed on the software board: B1–B4 PASS; v3 → v4 swap exact at one step boundary (900 results, 0 mismatches against the offline engine). |
 | Sun Nov 8 03:45 | **`active` added to the board JSON (C11, additive):** heads over threshold K records in a row, mirroring the board's persistence exactly (tested against the engine on the v4 edge-case set and the full week). Events should open on `active`, not on per-record `above_threshold`: the v4 thresholds were tuned with K, so the measured false-alert rates assume it. `ml/INTEGRATION.md`, Jason's briefing and the console's live store updated. New O15 (no-model alarms, guarded on the host). |
 | Sun Nov 8 03:30 | **Briefing for Jason** (`docs/plan/jason/START_HERE.md`): what the board side delivers (C11 JSON, weights v4, board timeline), the three-terminal software path re-verified with v4 (600 results, 9 alerts, 35 POST batches), his open items in a suggested order. New I-15 (Nemotron context limit and tool-call parser). |

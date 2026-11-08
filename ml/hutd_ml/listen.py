@@ -13,6 +13,7 @@ the board correctly enters AUTONOMOUS mode while the server is down and replays 
 import argparse
 import json
 import math
+import select
 import socket
 import sys
 import threading
@@ -144,7 +145,7 @@ def main(argv=None):
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 << 20)
         s.bind((a.local, port))
-        s.settimeout(0.05)
+        s.setblocking(False)
         socks[port] = s
     jsonl = open(a.jsonl, "a", buffering=1) if a.jsonl else None  # line-buffered: nothing lost on kill
     state = {"server_ok_at": time.monotonic(), "batch": [], "lock": threading.Lock(), "stop": False}
@@ -190,23 +191,27 @@ def main(argv=None):
     print(f"listening on {a.local}:7001/7002, heartbeat -> {a.board}:7003", file=sys.stderr)
     try:
         while True:
-            for port, s in socks.items():
-                try:
-                    buf, _ = s.recvfrom(65535)
-                except socket.timeout:
-                    continue
-                try:
-                    ptype, count, seq, aux = wire.parse_header(buf)
-                except ValueError:
-                    continue
-                if ptype == wire.T_RESULT:
-                    for r in np.frombuffer(buf, dtype=wire.RESULT_DTYPE, count=count, offset=16):
-                        emit(dec.result(r))
-                elif ptype == wire.T_ALERT:
-                    for al in np.frombuffer(buf, dtype=wire.ALERT_DTYPE, count=count, offset=16):
-                        emit(dec.alert(al))
-                elif ptype == wire.T_STATS:
-                    emit(dec.stats(buf))
+            # Wait on both sockets at once, then drain everything that's queued: no fixed per-socket timeout, so
+            # the JSON keeps up with the board (Lucas saw the old 50 ms-per-socket loop fall behind).
+            ready, _, _ = select.select(list(socks.values()), [], [], 0.5)
+            for s in ready:
+                while True:
+                    try:
+                        buf, _ = s.recvfrom(65535)
+                    except (BlockingIOError, InterruptedError):
+                        break
+                    try:
+                        ptype, count, seq, aux = wire.parse_header(buf)
+                    except ValueError:
+                        continue
+                    if ptype == wire.T_RESULT:
+                        for r in np.frombuffer(buf, dtype=wire.RESULT_DTYPE, count=count, offset=16):
+                            emit(dec.result(r))
+                    elif ptype == wire.T_ALERT:
+                        for al in np.frombuffer(buf, dtype=wire.ALERT_DTYPE, count=count, offset=16):
+                            emit(dec.alert(al))
+                    elif ptype == wire.T_STATS:
+                        emit(dec.stats(buf))
     except KeyboardInterrupt:
         state["stop"] = True
     finally:
