@@ -25,14 +25,20 @@
 //      and the weight banks (eog_head.wb_rst_n = hard reset only)
 //
 // Plusargs: +CASE=<name> runs one case (window mode, or DMA mode with +DMA=1); +LONG adds week and g1 to the
-// default list. Default list (scripts/sim.sh top): g0 g2 g0v0 g2v0 g0v3 g2v3 in window mode, then g0 g2 in DMA mode.
+// default list. Default list (scripts/sim.sh top, ~10 s): g0 g2 g0v0 g2v0 g0v3 g2v3 in window mode, then g0 g2 in
+// DMA mode. Long runs (after sim.sh top has built build/sim_top), from FPGA/ in WSL:
+//   vvp -n build/sim_top +CASE=week          (window mode, 30,240 records)      vvp -n build/sim_top +CASE=g1
+//   vvp -n build/sim_top +CASE=week +DMA=1   (DMA mode, ~2 min)
+// Any top_<case> of tb/vectors works (fields, time_h*, hold_h*, slots, swap, sat, alarm, random, onsets, slice);
+// the alarm case waits HB_TIMEOUT_MS = 5000 ms x CYC cycles for its hb_expire event (slow at CYC = 1000).
 // Prints per-case lines ("case ... ok" / "case ... MISMATCH"), then exactly one PASS: or FAIL: line.
 
 `timescale 1ns/1ps
 
-module tb_eog_top;
+module tb_eog_top #(
+    parameter integer CYC = 1000            // CYC_PER_MS (shrunk: heartbeat timeouts and BTN0 debounce stay short)
+);
     localparam integer N_FAC = 32;
-    localparam integer CYC   = 1000;        // CYC_PER_MS (shrunk: heartbeat timeouts and BTN0 debounce stay short)
     localparam integer DEB   = 2;           // DEB_MS
     localparam integer MAXR  = 32768;       // records per case
     localparam integer MAXA  = 1024;        // alerts per case
