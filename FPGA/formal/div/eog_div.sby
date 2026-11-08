@@ -1,0 +1,43 @@
+# SymbiYosys job for eog_div (Verify role, task T1.div.fv). Properties: fv_eog_div.sv (P1-P4 + P3_r, covers).
+#   bash scripts/formal.sh div          # all tasks, report in reports/formal_div.txt
+#
+# eog_div has no multiplier (restoring divider), so every task uses real arithmetic; there is no abstract model.
+# The latency is LAT = NW + 1, so each depth is chosen relative to LAT.
+#
+# prove : k-induction, NW = 8, DW = 5, TW = 2 (LAT = 9). All properties, including P2 (exact arithmetic), unbounded.
+#         depth 11 = LAT + 2: a feed-forward pipeline is fully determined by the last LAT inputs, so the inductive
+#         step closes once the window covers LAT cycles; +2 gives some margin.
+# bmc   : NW = 12, DW = 7, TW = 3 (LAT = 13), a second width pair so a bug that only shows at one width is caught.
+#         depth 17 = LAT + 4: every reachable input (reset, gaps, back-to-back) through at least four output cycles.
+# cover : NW = 8, DW = 5, TW = 2. depth 14 = LAT + 5: reset (1 cycle) + two inputs + LAT + slack; C1 needs LAT + 3.
+
+[tasks]
+prove
+bmc
+cover
+
+[options]
+prove: mode prove
+prove: depth 11
+bmc:   mode bmc
+bmc:   depth 17
+cover: mode cover
+cover: depth 14
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal -sv eog_fv_props.sv
+read_verilog -formal -sv -I . eog_div.sv
+read_verilog -formal -sv fv_eog_div.sv
+prove: chparam -set NW 8  -set DW 5 -set TW 2 fv_eog_div
+bmc:   chparam -set NW 12 -set DW 7 -set TW 3 fv_eog_div
+cover: chparam -set NW 8  -set DW 5 -set TW 2 fv_eog_div
+prep -top fv_eog_div
+
+[files]
+../common/eog_fv_props.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_div.sv
+fv_eog_div.sv
