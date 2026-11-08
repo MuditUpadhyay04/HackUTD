@@ -1,50 +1,113 @@
+# SymbiYosys job for eog_countdown (Verify role, task T1.countdown.fv). Harness: fv_eog_countdown.sv (labels and
+# reference semantics there): spec v4 + TASKS.md answers 1, 20, 21, 33, 34.
+#   bash scripts/formal.sh countdown                        # the default tasks below
+#   cd formal/countdown && sby -f eog_countdown.sby bmc_deep  # opt-in deep tasks (long; see below)
+#
+# Instance: N_FAC = 2, CD_LOG2 = 2 (ring of 4), RW = 8 (REC_NO low bits), MAX_INFLIGHT 8 (the spec sets no bound;
+# the RTL holds <= 4). Port-level facts from the RTL author (not assumed, only used to size depths): latency 55 at
+# CD_LOG2 = 2, accept gap 15 with in_valid = out_ready = 1, <= 4 records in flight at II = 16, one at a time at
+# II >= 57, reset sweep <= N_FAC + 8 cycles (conventions §1). So the first output of a record accepted after the
+# sweep is due around step 11 + 55 = 66, and every value property needs a depth above that.
+#
+# Arithmetic: `prove*`, `bmc`, `cover`, `bmc_deep`, `cover_wrap` use formal/common/eog_mul_abstract.sv and
+# eog_div_abstract.sv (q free except q = all ones when d = 0; out_valid/tag exactly LAT = NW + 1 later). Sound for
+# every check except the quotient values; the RTL author confirms that every forced value (tripped 0, q <= 0 ->
+# 0xFFFF, non-updating 3 x 0xFFFF, NOT_FILLING) bypasses the divider. `bmc_arith` uses rtl/eog_mul.sv + rtl/eog_div.sv.
+#
+# Why the split. Per-record value checks compare the output with what the harness captured at accept; a record can
+# wait inside the stage for an unbounded time under back-pressure when several are in flight, so they are not
+# port-inductive at II = 16. History checks (shadow ring) are never port-inductive. Hence:
+#
+# prove      (default) k-induction, II = 16 (<= 4 in flight), -DFV_STAGE: the stage contract only:
+#            u_out.ax_reset/ax_hold/ax_data, u_stage.st_order/st_no_ghost/st_inflight/st_cnt/st_link_n/st_link_r,
+#            f_trk. Uses the RTL's opt-in formal invariant -DEOG_FV_RECNO_SEQ=8 (FIFO entries hold consecutive
+#            REC_NOs; true whenever st_recno_in is assumed), which makes st_link_r inductive. Depth 12.
+#            II and latency bounds are not in this task (they need depth > 16 / > 128): bmc / bmc_deep.
+# prove_one  (default) k-induction, II = 64 (the RTL processes one record at a time at II >= 57), -DFV_PROVE: the
+#            record-local checks, unbounded: H_hdr/H_feat/H_rules (header, FEAT, RULES4 copied), C1_cd/C1_nf,
+#            C1x_cd/C1x_nf (TASKS #1), C2_cd/C2_nf (#21), C3_hr, C5_nf, C5_q, C5_qbig. A record is hidden inside the
+#            stage for at most its latency (55) when one is in flight, so depth 60 > 55 closes without RTL
+#            invariants. Checker asserts are removed here (prove covers them).
+# bmc        (default) bmc from reset, II = 16, back-pressure free: record-local + history (C4_nf, C5_m10/m50/m90
+#            on the shadow ring; C1 "no ring change" and C7 slot independence through the per-slot shadow) +
+#            u_stage.st_ii (II <= 16 after the sweep). PAYLOAD = 0 (uninterpreted input bits tied to 0; prove_one
+#            checks pass-through), INFLOW from 5 bits (q = 0..15, so mean = 0 and > 0 both occur). Depth 85:
+#            the outputs of the first two records (fill, then one push or another slot / HIST_RESET / INVALID).
+# bmc_arith  (default) bmc from reset, real eog_mul + eog_div, -DFV_ARITH: + C6_p10/p50/p90 (m(q) exact), C5_ord,
+#            C3_eq. out_ready = 1 (READY1; the arithmetic does not depend on back-pressure), operands narrowed
+#            structurally: INFLOW 5 bits, LEVEL 11 bits signed, K_CD < 2^15, SHUT_LVL < 2^10 (K·Δ up to 2^26, so
+#            the 0xFFFF clamp, finite values and tripped records all occur). Depth 85 (as bmc).
+# cover      (default) cover goals cv_trip, cv_nf, cv_fin, cv_mix, cv_inv, cv_drop, cv_oob, cv_bp, cv_refill
+#            (assertions removed; cv_wrap is in cover_wrap). Depth 85.
+# bmc_deep   (opt-in) as bmc with out_ready = 1 and depth 135: C4/C5 across a wrapped ring (fill + 4 pushes of one
+#            slot = 5 records x 15 cycles + 55) and u_stage.st_lat (latency <= 128, needs depth > 128 + sweep).
+# cover_wrap (opt-in) cv_wrap (a ring whose prefilled values are all gone) and the other goals except cv_bp
+#            (out_ready = 1 here), depth 135.
+# The spec's "a ring that has wrapped" cover and the wrapped-ring history are only reachable at depth ~130, which
+# costs about a minute per step on this pipeline; the default tasks stop at 85 and the bit-exact simulation
+# (tb/countdown, every vector case incl. Mudit's golden sets) covers wrapped rings.
+#
+# Run times against a throwaway stub (P = 4, gap 15, latency 55; never committed) on the shared WSL box are in the
+# T1.countdown.fv report.
+
 [tasks]
-prove
-prove_one
-bmc
-bmc_stage
-bmc_arith
-cover
+prove: default
+prove_one: default
+bmc: default
+bmc_arith: default
+cover: default
+bmc_deep
+cover_wrap
 
 [options]
-prove:     mode prove
-prove:     depth 20
-prove_one: mode prove
-bmc:       mode bmc
-bmc:       depth 130
-bmc_stage: mode bmc
-bmc_stage: depth 150
-bmc_arith: mode bmc
-bmc_arith: depth 90
-cover:     mode cover
-cover:     depth 130
+prove:      mode prove
+prove:      depth 12
+prove_one:  mode prove
+prove_one:  depth 60
+bmc:        mode bmc
+bmc:        depth 85
+bmc_arith:  mode bmc
+bmc_arith:  depth 85
+cover:      mode cover
+cover:      depth 85
+bmc_deep:   mode bmc
+bmc_deep:   depth 135
+cover_wrap: mode cover
+cover_wrap: depth 135
 
 [engines]
-prove:     smtbmc yices
-prove_one: abc pdr
-bmc:       abc bmc3
-bmc_stage: abc bmc3
-bmc_arith: abc bmc3
-cover:     smtbmc yices
+prove:      smtbmc yices
+prove_one:  smtbmc yices
+bmc:        abc bmc3
+bmc_arith:  abc bmc3
+cover:      smtbmc yices
+bmc_deep:   abc bmc3
+cover_wrap: smtbmc yices
 
 [script]
-prove:     read_verilog -formal -sv -I . -DFV_STAGE -DEOG_FV_RECNO_SEQ=8 eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
-prove_one: read_verilog -formal -sv -I . -DFV_PROVE eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
-bmc:       read_verilog -formal -sv -I .            eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
-bmc_stage: read_verilog -formal -sv -I . -DFV_STAGE eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
-bmc_arith: read_verilog -formal -sv -I . -DFV_ARITH eog_fv_props.sv eog_mul.sv eog_div.sv eog_countdown.sv fv_eog_countdown.sv
-cover:     read_verilog -formal -sv -I . -DFV_COVER eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
-prove:     chparam -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
-prove_one: chparam -set II 64 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
-bmc:       chparam -set PAYLOAD 0 -set N_IB 5 fv_eog_countdown
-bmc_stage: chparam -set PAYLOAD 0 fv_eog_countdown
-bmc_arith: chparam -set PAYLOAD 0 -set N_IB 5 -set N_LB 11 -set N_KB 15 -set N_SB 10 fv_eog_countdown
-cover:     chparam -set PAYLOAD 0 -set N_IB 5 fv_eog_countdown
+prove:      read_verilog -formal -sv -I . -DFV_STAGE -DEOG_FV_RECNO_SEQ=8 eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+prove_one:  read_verilog -formal -sv -I . -DFV_PROVE eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+bmc:        read_verilog -formal -sv -I .            eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+bmc_arith:  read_verilog -formal -sv -I . -DFV_ARITH eog_fv_props.sv eog_mul.sv eog_div.sv eog_countdown.sv fv_eog_countdown.sv
+cover:      read_verilog -formal -sv -I . -DFV_COVER eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+bmc_deep:   read_verilog -formal -sv -I .            eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+cover_wrap: read_verilog -formal -sv -I . -DFV_COVER eog_fv_props.sv eog_mul_abstract.sv eog_div_abstract.sv eog_countdown.sv fv_eog_countdown.sv
+prove:      chparam -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
+prove_one:  chparam -set II 64 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
+bmc:        chparam -set PAYLOAD 0 -set N_IB 5 -set LAT_CHK 0 fv_eog_countdown
+bmc_arith:  chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 -set N_LB 11 -set N_KB 15 -set N_SB 10 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
+cover:      chparam -set PAYLOAD 0 -set N_IB 5 fv_eog_countdown
+bmc_deep:   chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 fv_eog_countdown
+cover_wrap: chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 fv_eog_countdown
 prep -top fv_eog_countdown
-prove_one: chformal -assert -remove *eog_fv_stage *eog_fv_axis
-bmc:       chformal -assert -remove *eog_fv_stage *eog_fv_axis
-bmc_arith: chformal -assert -remove *eog_fv_stage *eog_fv_axis
-cover:     chformal -assert -remove
+prove_one:  chformal -assert -remove *eog_fv_stage *eog_fv_axis
+bmc:        chformal -assert -remove *eog_fv_axis *eog_fv_stage/st_order *eog_fv_stage/st_no_ghost *eog_fv_stage/st_inflight *eog_fv_stage/st_cnt *eog_fv_stage/st_link_n *eog_fv_stage/st_link_r
+bmc_arith:  chformal -assert -remove *eog_fv_stage *eog_fv_axis
+cover:      chformal -assert -remove
+cover:      chformal -cover -remove fv_eog_countdown/cv_wrap
+bmc_deep:   chformal -assert -remove *eog_fv_axis *eog_fv_stage/st_order *eog_fv_stage/st_no_ghost *eog_fv_stage/st_inflight *eog_fv_stage/st_cnt *eog_fv_stage/st_link_n *eog_fv_stage/st_link_r
+cover_wrap: chformal -assert -remove
+cover_wrap: chformal -cover -remove fv_eog_countdown/cv_bp
 setundef -anyseq
 
 [files]
