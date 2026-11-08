@@ -91,9 +91,11 @@ module fv_eog_countdown #(
     parameter integer N_KB    = 24,    // K_CD < 2^N_KB (spec: < 2^24)
     parameter integer N_SB    = 16,    // SHUT_LVL < 2^N_SB
     parameter integer READY1  = 0,     // 1: assume out_ready = 1 (no back-pressure; deep history tasks)
-    parameter integer PAYLOAD = 1      // 0: input bits the countdown does not interpret (IN_LAST, FAC_RAW, TS, REASON,
-                                       // SINCE_RESET, FEAT, RULES4, REC_NO above RW) are tied to 0; used by the
-                                       // history tasks; pass-through (H_*) is checked by bmc_pass / prove_one
+    parameter integer PAYLOAD = 1      // input bits the countdown does not interpret (IN_LAST, FAC_RAW, TS, REASON,
+                                       // SINCE_RESET, FEAT, RULES4, REC_NO above RW): 1 free; 0 tied to 0 (history
+                                       // tasks); 2 free only on the tracked record f_k, 0 on every other record
+                                       // (data independence: pass-through of record f_k is checked against
+                                       // all-zero neighbours, so a lost, swapped or mixed payload still shows)
 ) (
     input  logic         clk,          // top-level inputs are free: the solver drives them
     input  logic         rst_n,
@@ -114,12 +116,17 @@ module fv_eog_countdown #(
     localparam logic [1:0] K_TRIP = 2'd2;                // VALID/HELD, LEVEL >= SHUT_LVL
     localparam logic [1:0] K_COMP = 2'd3;                // VALID/HELD, LEVEL <  SHUT_LVL
 
+    // Checker counters (eog_fv_stage outputs) and the tracked record's REC_NO (anyconst: so every record)
+    logic [RW-1:0] f_in_cnt, f_out_cnt;
+    logic [7:0]    f_in_flight;
+    (* anyconst *) logic [RW-1:0] f_k;
+
     // ---------------------------------------------------------------------------------------------------------
     // Input bus
     logic [645:0] in_data;
     always_comb begin
         in_data = in_bus;
-        if (PAYLOAD == 0) begin
+        if (PAYLOAD == 0 || (PAYLOAD == 2 && f_in_cnt != f_k)) begin
             in_data = '0;
             in_data[EOG_BM_REC_NO +: RW]          = in_bus[EOG_BM_REC_NO +: RW];
             in_data[EOG_BM_FAC +: 5]              = in_bus[EOG_BM_FAC +: 5];
@@ -188,8 +195,6 @@ module fv_eog_countdown #(
     eog_fv_axis #(.W(663), .ASSUME(0)) u_out (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
         .valid(out_valid), .ready(out_ready), .data(out_data));
 
-    logic [RW-1:0] f_in_cnt, f_out_cnt;
-    logic [7:0]    f_in_flight;
     eog_fv_stage #(.RW(RW), .MAX_INFLIGHT(MAX_IF), .II_MAX(II_CHK), .LAT_MAX(LAT_CHK), .SWEEP(N_FAC + 8)) u_stage (
         .clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
         .in_valid(in_valid), .in_ready(in_ready), .in_recno(in_data[EOG_BM_REC_NO +: RW]),
@@ -301,8 +306,6 @@ module fv_eog_countdown #(
 
     // ---------------------------------------------------------------------------------------------------------
     // Tracked record: the one whose REC_NO low bits equal the anyconst f_k (so: every record)
-    (* anyconst *) logic [RW-1:0] f_k;
-
     logic          trk_v;            // accepted, output not yet transferred
     logic [645:0]  trk_in;
     logic [1:0]    trk_kind;
