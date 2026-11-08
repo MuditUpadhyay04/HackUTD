@@ -131,8 +131,13 @@ def test_edge_case_statuses(enc, tmp_path):
     assert st[7] == wire.ST_DROPPED and reason[7] == wire.R_OUT_OF_ORDER
     assert st[8] == wire.ST_HELD and reason[8] & wire.R_GAP_HELD
     assert reason[10] & wire.R_RESET and res["since_reset"][10] == 0
-    assert st[12:15] == [wire.ST_HELD, wire.ST_HELD, wire.ST_INVALID] and reason[14] & wire.R_RESET
-    assert st[15] == wire.ST_VALID and res["since_reset"][15] == 0
+    # R7 option C: the hold overflow makes the record INVALID (FIELD_LOST) WITHOUT a history reset
+    assert st[12:15] == [wire.ST_HELD, wire.ST_HELD, wire.ST_INVALID]
+    assert reason[14] & wire.R_FIELD_LOST and not reason[14] & wire.R_RESET
+    assert st[15] == wire.ST_VALID and res["since_reset"][15] == res["since_reset"][14] == 4
+    assert st[19] == st[20] == wire.ST_INVALID  # the counter saturates at 3 until a fully-OK record
+    assert st[36:39] == [wire.ST_INVALID] * 3 and all(not reason[i] & wire.R_RESET for i in range(36, 40))
+    assert st[39] == wire.ST_VALID and res["since_reset"][39] == res["since_reset"][38]
     assert reason[17] & wire.R_ENUM and reason[18] & wire.R_RANGE
     assert st[21] == wire.ST_DROPPED and st[22] == wire.ST_DROPPED
     assert reason[21] == reason[22] == wire.R_UNKNOWN_FACILITY

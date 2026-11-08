@@ -114,7 +114,7 @@ change the code here and regenerate the golden sets.
 | A3 | `(raw·M + 2^(S−1)) >> S` with an arithmetic shift (round half up, negatives included). **`S_feat` = 17, fixed** (FPGA D3: signed 20-bit × unsigned 32-bit); ingest refuses any M ≥ 2^32 |
 | A4 | Timestamp step: Δ = 0 → DROPPED duplicate; 0 < Δ < 300 or Δ < 0 → DROPPED out-of-order; Δ = 600/900 → HELD with reason bit 1; Δ ≥ 1200 or not a multiple of 300 → history reset. Channel 11 uses the level change since the last accepted record (not divided over the gap). Memory features are **post-update**: record t includes its own update. |
 | A5 | Feature 27's average starts at `x << 8` on the first record after a reset |
-| A6 | One hold counter per facility counts consecutive records with ≥ 1 held field. Above `hold_max` the history resets, which also clears the last-valid values. A field with no last-valid value makes the record **INVALID**: no features or memory update, logits 0, rules 0, countdown `0xFFFF`, `since_reset` not incremented, persistence counters cleared. Range/enum failures count as absent (reason bits 3 / 4). |
+| A6 | **Replaced by R7 option C** (FPGA spec question 70, Sun 02:10). One hold counter per facility counts consecutive records with ≥ 1 held field, saturating at 3. Above `hold_max` the held fields become missing → INVALID (`FIELD_LOST`), **without** a history reset. A field with no `last_valid` value also makes the record INVALID: no features or memory update, logits 0, rules 0, countdown `0xFFFF`, `since_reset` not incremented, persistence counters cleared. Range/enum failures count as absent (reason bits 3 / 4). The legacy A6 rule (overflow → history reset) is still available as `Engine(hold_policy="A6")`, for comparison only. |
 | A7 | `since_reset` = VALID/HELD records since the reset (0 on the first). The steps-since-run counter starts at 0 at a reset. Feature 30 uses `since_reset` before its increment. |
 | A8 | **`review_r1r2` (default; FPGA D1, D2, D6).** The ring holds `max(inflow, 0)` and starts filled with the first value after a reset; mean = sum >> `cd_log2`; p10 = max, p50 = mean, p90 = min. Level ≥ shutdown → 0 / 0 / 0 and "not filling" = 0. Otherwise "not filling" = mean ≤ 0. (`plan_v1`, which rings inflow − pump flow, is kept only as a non-default option.) |
 | A9 | `K_cd = round(0.288·C·256)`; `minutes = (K_cd·Δlevel_raw) // (net_raw << 8)`; ≥ `0xFFFF` → `0xFFFF` |
@@ -158,8 +158,10 @@ covers FPGA spec v4 plus those rulings. "Effective value" = the observed value i
      `OUT_OF_RANGE`.
 
    A field that fails becomes **held** if it has a `last_valid`, otherwise **missing**.
-5. `hold_run` = consecutive non-DROPPED records with ≥ 1 held field. Records that end INVALID count too.
-   `hold_run > hold` (`hold = min(HOLD_MAX, 2)`) → history reset, and every held field becomes missing.
+5. `hold_run` = consecutive non-DROPPED records with ≥ 1 held field, **saturating at 3**. Records that end INVALID
+   count too. **R7 option C** (FPGA spec question 70): `hold_run > hold` (`hold = min(HOLD_MAX, 2)`) → every held
+   field becomes missing, so the record is INVALID with `FIELD_LOST`. There is **no history reset**: `last_valid`,
+   memory, ring, `prev_level` and latches survive, and the next fully-OK record continues the same history.
 6. Every OK field updates its `last_valid`, also on records that end INVALID.
 7. Any missing field → **INVALID**. Otherwise **HELD** if `FIELD_HELD` or `GAP_HELD` is set, else **VALID**.
 
@@ -172,7 +174,7 @@ ring, the persistence counters and the gap counter. It never clears the alarm co
 | --- | --- | --- | --- |
 | 0 | `FIELD_HELD` | ≥ 1 field was replaced by its `last_valid` value, and no hold-overflow reset happened on this record | VALID never; HELD; INVALID (another field missing) |
 | 1 | `GAP_HELD` | 1–`hold` 5-minute steps were skipped | HELD, INVALID |
-| 2 | `HIST_RESET` | history reset on this record: first record of the facility, a time gap above `hold` (or not a multiple of 300 s), or `hold_run > hold` | VALID, HELD, INVALID |
+| 2 | `HIST_RESET` | history reset on this record: first record of the facility, or a time gap above `hold` (or not a multiple of 300 s). **Not** on a hold overflow (R7 C). | VALID, HELD, INVALID |
 | 3 | `OUT_OF_RANGE` | ≥ 1 present field outside its bounds | VALID never; HELD, INVALID |
 | 4 | `ILLEGAL_ENUM` | ≥ 1 present pump or well status with an illegal code | HELD, INVALID |
 | 5 | `FEAT_SAT` | any of the 10 multiplied channels (0–6, 9, 10, 11) saturated to int16 | VALID, HELD |
@@ -184,7 +186,7 @@ ring, the persistence counters and the gap counter. It never clears the alarm co
 | 11 | `FIELD_ABSENT` | ≥ 1 required field had its `present` bit clear | HELD, INVALID |
 | 12 | `FRAMING` | a reserved field ≠ 0 | DROPPED (only bit) |
 | 13 | `NO_MODEL` | the active weights version is 0 | VALID, HELD |
-| 14 | `FIELD_LOST` | ≥ 1 required field had no value to use (failed with no `last_valid`, or held fields lost to a hold-overflow reset) | INVALID (always) |
+| 14 | `FIELD_LOST` | ≥ 1 required field had no value to use (failed with no `last_valid`, or held fields turned missing by a hold overflow, R7 C) | INVALID (always) |
 | 15–31 | — | never | — |
 
 Bits 0, 3, 4 and 11 are ORed over all required fields. Several of them, plus bits 1 and 2, can appear together.

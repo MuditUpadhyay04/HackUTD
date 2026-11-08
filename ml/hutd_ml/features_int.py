@@ -78,7 +78,8 @@ class _Fac:
 class Engine:
     """Stateful engine for one run. `process(record)` -> (RESULT dict, stages dict, list of ALERT dicts)."""
 
-    def __init__(self, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None):
+    def __init__(self, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None,
+                 hold_policy="C"):
         g = global_config[0] if getattr(global_config, "shape", ()) else global_config
         self.s = int(g["S"])
         self.hold_max = min(int(g["hold_max"]), 2)  # the RTL clamps HOLD_MAX to 2 (FPGA numerics.md v4 section 3)
@@ -95,6 +96,9 @@ class Engine:
         if countdown not in ("plan_v1", "review_r1r2"):
             raise ValueError("countdown must be 'plan_v1' or 'review_r1r2'")
         self.countdown_variant = countdown
+        if hold_policy not in ("C", "A6"):
+            raise ValueError("hold_policy must be 'C' (R7, spec question 70) or 'A6' (legacy, comparison only)")
+        self.hold_policy = hold_policy
         from .encode import fixed_multipliers
         fm = fixed_multipliers(self.s)
         self.m_level, self.m_dis, self.m_pl = fm["M_level"], fm["M_discharge"], fm["M_pipeline"]
@@ -202,12 +206,20 @@ class Engine:
         # S1: fields, hold, reset
         raw, checks, freason, held, missing = self._fields(r, c, st)
         reason |= freason
-        st.hold_run = st.hold_run + 1 if held else 0
-        if st.hold_run > self.hold_max:
-            st.reset_history()
-            reason |= wire.R_RESET
-            missing = missing + held
-            held = []
+        if self.hold_policy == "C":
+            # R7 option C (FPGA spec question 70): the counter saturates at 3; above hold_max every held field is
+            # missing -> INVALID (FIELD_LOST). NO history reset: last_valid, memory, ring and latches all survive.
+            st.hold_run = min(st.hold_run + 1, 3) if held else 0
+            if st.hold_run > self.hold_max:
+                missing = missing + held
+                held = []
+        else:  # legacy A6: the overflow resets the facility's history
+            st.hold_run = st.hold_run + 1 if held else 0
+            if st.hold_run > self.hold_max:
+                st.reset_history()
+                reason |= wire.R_RESET
+                missing = missing + held
+                held = []
         for n, ok in checks.items():
             if ok:
                 st.last_valid[n] = raw[n]
@@ -343,10 +355,11 @@ class Engine:
         return res, stages, alerts
 
 
-def run(records, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None):
+def run(records, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None,
+        hold_policy="C"):
     """Process records in order. Returns (results ndarray RESULT_DTYPE, list of stages, list of alerts)."""
     import numpy as np
-    eng = Engine(global_config, facility_config, weights, countdown, persist_k)
+    eng = Engine(global_config, facility_config, weights, countdown, persist_k, hold_policy)
     out = np.zeros(len(records), dtype=wire.RESULT_DTYPE)
     stages, alerts = [], []
     for i, r in enumerate(records):

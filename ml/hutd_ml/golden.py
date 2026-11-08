@@ -61,7 +61,10 @@ def g2_records(enc):
     r = base[30].copy(); r["reserved1"] = 1; seq.append(r)           # non-zero reserved field -> DROPPED FRAMING
     r = base[30].copy(); r["reserved0"] = 2; r["fac_id"] = 40; seq.append(r)  # framing is checked before the slot
     seq += list(base[30:33])                         # 30 is then accepted (the framing drops changed nothing)
-    return np.array(seq, dtype=wire.DATA_DTYPE)
+    for k in range(33, 38):                          # R7 option C: pump flow absent 5 times -> HELD, HELD, then
+        r = base[k].copy(); r["present"] = int(r["present"]) & ~(1 << wire.P_PUMP_FLOW); seq.append(r)
+    seq += list(base[38:40])                         # INVALID x3 (counter saturates at 3, no reset); recovers with
+    return np.array(seq, dtype=wire.DATA_DTYPE)      # memory and since_reset intact
 
 
 def build(data, out, which="g1", weights="v0", weights_version=None, config=None, countdown="review_r1r2",
