@@ -26,6 +26,15 @@ void     hal_reg_write(uint32_t off, uint32_t val);  /* 32-bit write (WSTRB = 0x
  * e.g. lwIP ip4_addr.addr). Returns 0 on success, nonzero if it could not be queued (retried later). */
 int      hal_udp_send(uint16_t src_port, uint32_t dst_ip, uint16_t dst_port, const uint8_t *buf, uint16_t len);
 uint32_t hal_ms(void);                               /* free-running millisecond counter (wraps) */
+/* Read the whole file `name` (root of the boot medium, SD card on the board: eog_sd.c) into buf, at most maxlen
+ * bytes. Returns the number of bytes read (a file longer than maxlen returns maxlen), or EOG_FILE_NO_CARD /
+ * EOG_FILE_MISSING / EOG_FILE_IO. Only eog_boot_load_weights() calls it. */
+int      hal_read_file(const char *name, uint8_t *buf, uint32_t maxlen);
+/* One line of log text without a line ending (UART on the board). Only eog_boot_load_weights() calls it. */
+void     hal_log(const char *msg);
+#define EOG_FILE_NO_CARD  (-1)               /* mount failed: no card, no FAT file system, card I/O error */
+#define EOG_FILE_MISSING  (-2)               /* card mounted, file not found */
+#define EOG_FILE_IO       (-3)               /* open/read error */
 
 /* ---------- wire format v1 (wire.py) ---------- */
 #define EOG_MAGIC          0x46474F45u   /* "EOGF" */
@@ -156,6 +165,37 @@ int  eog_init(uint32_t default_peer_ip);
 void eog_rx(uint16_t local_port, uint32_t src_ip, uint16_t src_port, const uint8_t *buf, uint32_t len);
 void eog_poll(void);
 const eog_state_t *eog_state(void);
+
+/* ---------- weight load (shared by the UDP COMMIT path and the SD boot load) ---------- */
+/* eog_weights_load() results */
+enum {
+    EOG_LOAD_SWAPPED = 0,   /* written to the inactive bank, swap done (swap_pending fell) */
+    EOG_LOAD_PENDING,       /* written, swap_req pulsed, swap_pending still 1 after EOG_SWAP_TIMEOUT_MS */
+    EOG_LOAD_BUSY,          /* an earlier swap was still pending: banks left alone, nothing written */
+    EOG_LOAD_LENGTH,        /* blob shorter than 280 B + its self-test vectors, or longer than 1,024 B */
+    EOG_LOAD_HEADER,        /* blob_format / n_heads / n_features / feature_set_id */
+    EOG_LOAD_SELFTEST       /* a self-test vector disagrees */
+};
+/* Validate a weight blob (header, self-test vectors), then write window words 0..69 = blob bytes 0..279 and word
+ * 70 = ver into the inactive bank, pulse swap_req and wait (bounded) for swap_pending = 0. */
+int eog_weights_load(const uint8_t *blob, uint32_t len, uint8_t ver);
+
+/* ---------- SD boot load (FPGA/docs/SD_BOOT_WEIGHTS.md) ---------- */
+#define EOG_SD_FILE        "weights.eog"
+#define EOG_SD_MAGIC       0x57474F45u   /* "EOGW" */
+#define EOG_SD_FORMAT      1
+#define EOG_SD_HDR_LEN     16
+enum {
+    EOG_SD_OK = 0, EOG_SD_NO_CARD, EOG_SD_NO_FILE, EOG_SD_IO, EOG_SD_SHORT, EOG_SD_MAGIC_BAD, EOG_SD_FORMAT_BAD,
+    EOG_SD_VERSION0, EOG_SD_LENGTH, EOG_SD_CRC, EOG_SD_HEADER, EOG_SD_SELFTEST, EOG_SD_SWAP_TIMEOUT,
+    EOG_SD_SWAP_BUSY, EOG_SD_N
+};
+/* Read EOG_SD_FILE through hal_read_file, check the 16-byte wrapper (magic, format, version != 0, length <= 1,024
+ * and == file size - 16, CRC32 over the blob), then eog_weights_load(). Logs one line through hal_log:
+ * "SD weights v<N> active ..." or "SD weights: <reason> ...". Returns EOG_SD_*; on failure the engine keeps the
+ * model it had (none after power-up). Call after eog_init() and before any UDP port is opened. */
+int         eog_boot_load_weights(void);
+const char *eog_sd_reason(int code);
 
 /* helpers, exported for tests */
 uint32_t eog_crc32(const uint8_t *p, size_t n);   /* IEEE 802.3, same as zlib.crc32 */

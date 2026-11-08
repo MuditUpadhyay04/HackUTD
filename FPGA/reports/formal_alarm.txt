@@ -1,7 +1,7 @@
-# formal alarm  2026-11-08T07:55:22Z  sby rc=0  (formal/alarm/eog_alarm.sby)
-eog_alarm_bmc_a8: PASS 0 19
-eog_alarm_bmc_ack: PASS 0 288
-eog_alarm_bmc_mod: PASS 0 114
-eog_alarm_bmc_seq: PASS 0 469
-eog_alarm_cover: PASS 0 4
-eog_alarm_prove: PASS 0 42
+# formal alarm  2026-11-08T11:41:34Z  sby rc=0  (formal/alarm/eog_alarm.sby)
+eog_alarm_bmc_a8: PASS 0 12
+eog_alarm_bmc_ack: PASS 0 132
+eog_alarm_bmc_mod: PASS 0 59
+eog_alarm_bmc_seq: PASS 0 208
+eog_alarm_cover: PASS 0 3
+eog_alarm_prove: PASS 0 26

@@ -8,12 +8,18 @@
  *   hal_reg_read/write -> Xil_In32/Xil_Out32 at eog_regs (0x43C1_0000, FPGA/spec/regmap.md)
  *   hal_udp_send       -> udp_sendto on the pcb bound to the source port
  *   hal_ms             -> the Cortex-A9 global timer (XTime_GetTime)
+ *   hal_read_file      -> FatFs on the microSD card (eog_sd.c, xilffs)
+ *   hal_log            -> UART (xil_printf)
  * and keeps the 7777 multiply health check of udp_mul.c (compiled in here with EOG_APP, perf probe left out).
  *
- * Unity build: this one file is what Vitis compiles. deploy/vitis_build.py copies eog_proto.c/.h and udp_mul.c
- * next to it as eog_inc/eog_proto_c.h, eog_inc/eog_proto.h, eog_inc/udp_mul_c.h (header names, so a build that
- * globs *.c never compiles them twice):
- *   vitis -s deploy/vitis_build.py <ws> <xsa> ps/eog_app.c ps/eog_proto.c ps/eog_proto.h ps/udp_mul.c
+ * Boot (FPGA/docs/SD_BOOT_WEIGHTS.md): the board boots from the microSD card (BOOT.BIN). start_application() runs
+ * eog_init(), then eog_boot_load_weights() (weights.eog from the card, the same checks as a WEIGHTS COMMIT), and
+ * only then opens the UDP ports. The outcome is on the UART: "SD weights v<N> active ..." or the failure reason.
+ *
+ * Unity build: this one file is what Vitis compiles. deploy/vitis_build.py copies eog_proto.c/.h, eog_sd.c and
+ * udp_mul.c next to it as eog_inc/eog_proto_c.h, eog_inc/eog_proto.h, eog_inc/eog_sd_c.h, eog_inc/udp_mul_c.h
+ * (header names, so a build that globs *.c never compiles them twice):
+ *   vitis -s deploy/vitis_build.py <ws> <xsa> ps/eog_app.c ps/eog_proto.c ps/eog_proto.h ps/eog_sd.c ps/udp_mul.c
  */
 #define EOG_APP 1
 
@@ -24,9 +30,11 @@
 #endif
 #ifdef EOG_INC_DIR
 #include "eog_inc/eog_proto_c.h"
+#include "eog_inc/eog_sd_c.h"
 #include "eog_inc/udp_mul_c.h"
 #else
 #include "eog_proto.c"
+#include "eog_sd.c"
 #include "udp_mul.c"
 #endif
 
@@ -68,6 +76,8 @@ static uint32_t n_rx_drop;
 uint32_t hal_reg_read(uint32_t off) { return Xil_In32(EOG_BASEADDR + off); }
 
 void hal_reg_write(uint32_t off, uint32_t val) { Xil_Out32(EOG_BASEADDR + off, val); }
+
+void hal_log(const char *msg) { xil_printf("eog: %s\r\n", msg); }
 
 uint32_t hal_ms(void)
 {
@@ -137,6 +147,9 @@ int start_application(void)
                    EOG_BASEADDR, (unsigned)hal_reg_read(EOG_R_ID), EOG_ID_VALUE);
     else
         xil_printf("eog: eog_regs at 0x%08x, VERSION 0x%08x\r\n", EOG_BASEADDR, (unsigned)hal_reg_read(EOG_R_VERSION));
+    /* Default model from the SD card before any UDP port is open. On failure the reason is logged and the board
+     * runs with no model (weights_ver 0) until WEIGHTS arrive on 7004. */
+    eog_boot_load_weights();
     pcb_data = bind_port(EOG_PORT_DATA, 1);
     pcb_cfg = bind_port(EOG_PORT_CONFIG, 1);
     pcb_wts = bind_port(EOG_PORT_WEIGHTS, 1);

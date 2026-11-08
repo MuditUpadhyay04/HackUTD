@@ -1,4 +1,4 @@
-# formal common  2026-11-08T07:30:33Z  sby rc=0  (formal/common/common.sby)
-common_bmc: PASS 0 1
+# formal common  2026-11-08T11:41:45Z  sby rc=0  (formal/common/common.sby)
+common_bmc: PASS 0 0
 common_cover: PASS 0 0
 common_prove: PASS 0 0

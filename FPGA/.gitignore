@@ -2,6 +2,9 @@ build/
 reports/*
 !reports/SUMMARY.md
 !reports/formal_*.txt
+!reports/RTL_DONE_HANDOFF.md
+!reports/LEAD_board_response.md
+!reports/board_*.md
 formal/**/*_prove/
 formal/**/*_cover/
 formal/**/*_bmc/

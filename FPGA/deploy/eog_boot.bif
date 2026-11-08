@@ -1,0 +1,11 @@
+// eog_boot.bif: SD boot image for the Eclypse Z7 (FPGA/docs/SD_BOOT_WEIGHTS.md).
+// FSBL, then the bitstream (FSBL configures the PL), then the ARM app it hands over to.
+// File names are relative: deploy/make_boot_sd.bat copies this file into <workspace>\out (where
+// deploy/vitis_build.py leaves fsbl.elf, eog.bit and eog_app.elf) and runs bootgen there:
+//   bootgen -arch zynq -image eog_boot.bif -o BOOT.BIN -w on
+the_ROM_image:
+{
+    [bootloader] fsbl.elf
+    eog.bit
+    eog_app.elf
+}

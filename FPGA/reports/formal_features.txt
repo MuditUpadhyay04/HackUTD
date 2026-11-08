@@ -1,4 +1,4 @@
-# formal features  2026-11-08T07:49:06Z  sby rc=0  (formal/features/eog_features.sby)
-eog_features_cover: PASS 0 40
-eog_features_prove: PASS 0 77
-eog_features_prove_f4: PASS 0 320
+# formal features  2026-11-08T12:27:00Z  sby rc=0  (formal/features/eog_features.sby)
+eog_features_cover: PASS 0 26
+eog_features_prove: PASS 0 49
+eog_features_prove_f4: PASS 0 171

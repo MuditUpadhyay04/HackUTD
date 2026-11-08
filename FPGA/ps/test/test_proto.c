@@ -33,6 +33,28 @@ int hal_udp_send(uint16_t sport, uint32_t ip, uint16_t dport, const uint8_t *buf
     return 0;
 }
 
+/* ---------- fake SD card (hal_read_file) and log ---------- */
+static uint8_t sd_file[2048];
+static int sd_len = EOG_FILE_MISSING;      /* bytes in sd_file, or an EOG_FILE_* error */
+static char sd_name[64];
+static char last_log[256];
+static int n_logs;
+
+int hal_read_file(const char *name, uint8_t *b, uint32_t maxlen)
+{
+    snprintf(sd_name, sizeof sd_name, "%s", name);
+    if (sd_len < 0) return sd_len;
+    uint32_t n = (uint32_t)sd_len < maxlen ? (uint32_t)sd_len : maxlen;
+    memcpy(b, sd_file, n);
+    return (int)n;
+}
+
+void hal_log(const char *msg)
+{
+    snprintf(last_log, sizeof last_log, "%s", msg);
+    n_logs++;
+}
+
 static int count_type(uint8_t type)
 {
     int n = 0;
@@ -561,6 +583,154 @@ static void t_weights(const char *path, const char *crc_hex)
     CHECK_EQ(eog_state()->cnt.bad_packets, 0);
 }
 
+/* ---------- SD boot load (FPGA/docs/SD_BOOT_WEIGHTS.md) ---------- */
+/* weights.eog = 16-byte wrapper + blob (make_weights_sd.py layout) */
+static void sd_make(const uint8_t *b, uint32_t n, uint8_t ver)
+{
+    eog_put32(sd_file, EOG_SD_MAGIC);
+    sd_file[4] = ver;
+    sd_file[5] = 1;
+    eog_put16(sd_file + 6, (uint16_t)n);
+    eog_put32(sd_file + 8, eog_crc32(b, n));
+    eog_put32(sd_file + 12, 0);
+    memcpy(sd_file + 16, b, n);
+    sd_len = (int)(16 + n);
+}
+
+/* power-up, then the boot load; checks that a failure leaves the engine with no model and sends nothing */
+static int sd_boot_fail(int expect, const char *what)
+{
+    fresh();
+    n_logs = 0;
+    last_log[0] = 0;
+    int r = eog_boot_load_weights();
+    CHECK_EQ(r, expect);
+    CHECK_EQ(FR.active_ver, 0);
+    CHECK_EQ(n_logs, 1);
+    CHECK(strncmp(last_log, "SD weights: ", 12) == 0);
+    CHECK(strstr(last_log, eog_sd_reason(expect)) != NULL);
+    CHECK_EQ(n_sent, 0);
+    printf("  %-28s -> %s\n", what, last_log);
+    return r;
+}
+
+static void t_sd_boot(const char *path)
+{
+    puts("SD boot load");
+    uint8_t b[EOG_MAX_BLOB];
+    uint32_t n;
+    FILE *f = path ? fopen(path, "rb") : NULL;
+    if (f) {
+        n = (uint32_t)fread(b, 1, sizeof b, f);
+        fclose(f);
+    } else {
+        /* synthetic blob + one self-test vector: features 0 -> logit = round(B[k] / 2^20) = 16 (k + 1) */
+        synth_blob();
+        memcpy(b, blob, 280);
+        b[5] = 1;
+        memset(b + 280, 0, 70);
+        for (int k = 0; k < 4; k++) eog_put16(b + 280 + 62 + 2 * k, (uint16_t)(16 * (k + 1)));
+        n = 350;
+    }
+    CHECK_EQ(eog_blob_check(b, n), EOG_W_OK);
+    CHECK(b[5] > 0);
+
+    /* good file: model active with the file's version before any UDP traffic */
+    sd_make(b, n, 3);
+    fresh();
+    n_logs = 0;
+    CHECK_EQ(eog_boot_load_weights(), EOG_SD_OK);
+    CHECK(strcmp(sd_name, "weights.eog") == 0);
+    CHECK_EQ(FR.active_ver, 3);
+    CHECK_EQ(FR.pulses_swap, 1);
+    CHECK_EQ(FR.swap_pending, 0);
+    int win_ok = 1;
+    for (int w = 0; w < 70; w++) win_ok &= FR.wwin[w] == eog_le32(b + 4 * w);
+    CHECK(win_ok);
+    CHECK_EQ(FR.wwin[70], 3);
+    CHECK_EQ(n_logs, 1);
+    CHECK(strncmp(last_log, "SD weights v3 active", 20) == 0);
+    printf("  %-28s -> %s\n", "good file", last_log);
+    CHECK_EQ(n_sent, 0);
+    CHECK_EQ(hal_reg_read(EOG_R_STATUS) >> 24, 3);    /* STATS "active weights version" */
+    send_global(0, 0);                                /* first RESULT carries WVER 3, no WEIGHTS sent */
+    send_data(0, 2, 1000);
+    eog_poll();
+    CHECK_EQ(count_type(EOG_T_RESULT), 1);
+    CHECK_EQ(nth_type(EOG_T_RESULT, 0)->b[16 + 21], 3);
+    /* UDP WEIGHTS afterwards: same status codes as without an SD model (#67), and it replaces the SD model */
+    uint32_t crc = eog_crc32(b, n);
+    w_chunk(0, 5, 0, b, (uint16_t)n);
+    w_commit(1, 5, n, crc ^ 1);
+    CHECK_EQ(last_wack()->b[20], EOG_W_CRC);
+    CHECK_EQ(last_wack()->b[21], 3);
+    w_commit(2, 5, n, crc);
+    CHECK_EQ(last_wack()->b[20], EOG_W_LENGTH);       /* nothing assembled any more */
+    uint8_t hb = b[3];
+    b[3] = 30;
+    w_chunk(3, 5, 0, b, (uint16_t)n);
+    w_commit(4, 5, n, eog_crc32(b, n));
+    CHECK_EQ(last_wack()->b[20], EOG_W_SELFTEST);     /* bad header -> 3 */
+    b[3] = hb;
+    w_chunk(5, 5, 0, b, (uint16_t)n);
+    w_commit(6, 5, n, crc);
+    CHECK_EQ(last_wack()->b[20], EOG_W_SWAPPED);
+    CHECK_EQ(last_wack()->b[21], 5);
+    CHECK_EQ(FR.active_ver, 5);
+
+    /* failures: reason logged, no model, boot continues */
+    sd_len = EOG_FILE_MISSING;  sd_boot_fail(EOG_SD_NO_FILE, "missing file");
+    sd_len = EOG_FILE_NO_CARD;  sd_boot_fail(EOG_SD_NO_CARD, "no card");
+    sd_len = EOG_FILE_IO;       sd_boot_fail(EOG_SD_IO, "read error");
+    sd_make(b, n, 3); sd_len = 15;                   sd_boot_fail(EOG_SD_SHORT, "15-byte file");
+    sd_make(b, n, 3); sd_file[0] ^= 1;               sd_boot_fail(EOG_SD_MAGIC_BAD, "bad magic");
+    sd_make(b, n, 3); sd_file[5] = 2;                sd_boot_fail(EOG_SD_FORMAT_BAD, "wrapper format 2");
+    sd_make(b, n, 0);                                sd_boot_fail(EOG_SD_VERSION0, "version 0");
+    sd_make(b, n, 3); sd_len--;                      sd_boot_fail(EOG_SD_LENGTH, "file 1 B short");
+    sd_make(b, n, 3); sd_file[sd_len++] = 0;         sd_boot_fail(EOG_SD_LENGTH, "file 1 B long");
+    sd_make(b, n, 3); eog_put16(sd_file + 6, 1025);  sd_boot_fail(EOG_SD_LENGTH, "length 1025");
+    {   /* a 1,041-byte file that claims 1,025 B: still a length error, not a read past the buffer */
+        memset(sd_file + 16, 0, 1025);
+        eog_put32(sd_file, EOG_SD_MAGIC); sd_file[4] = 3; sd_file[5] = 1; eog_put16(sd_file + 6, 1025);
+        sd_len = 16 + 1025;
+        sd_boot_fail(EOG_SD_LENGTH, "1,041-byte file");
+    }
+    sd_make(b, n, 3); sd_file[8] ^= 0x80;            sd_boot_fail(EOG_SD_CRC, "bad CRC");
+    sd_make(b, n, 3); sd_file[16 + 100] ^= 1;        sd_boot_fail(EOG_SD_CRC, "corrupt blob byte");
+    {
+        static const int pos[] = {0, 2, 3, 6};       /* blob_format, n_heads, n_features, feature_set_id */
+        for (int i = 0; i < 4; i++) {
+            uint8_t save_b = b[pos[i]];
+            b[pos[i]] ^= 0x40;
+            sd_make(b, n, 3);
+            sd_boot_fail(EOG_SD_HEADER, "bad blob header");
+            b[pos[i]] = save_b;
+        }
+    }
+    b[280 + 62] ^= 1;                                /* first vector's expected logit 0 */
+    sd_make(b, n, 3);                                sd_boot_fail(EOG_SD_SELFTEST, "failing self-test");
+    b[280 + 62] ^= 1;
+    sd_make(b, n - 1, 3);                            sd_boot_fail(EOG_SD_LENGTH, "truncated vectors");
+    sd_make(b, 279, 3);                              sd_boot_fail(EOG_SD_LENGTH, "blob < 280 B");
+    /* swap never completes (engine busy): bounded wait, logged */
+    sd_make(b, n, 3);
+    fr_reset();
+    n_sent = 0;
+    eog_init(PC_IP);
+    FR.swap_immediate = 0;
+    CHECK_EQ(eog_boot_load_weights(), EOG_SD_SWAP_TIMEOUT);
+    CHECK_EQ(FR.swap_pending, 1);
+    printf("  %-28s -> %s\n", "swap stuck", last_log);
+    /* after a failed boot load the UDP path still works */
+    sd_len = EOG_FILE_MISSING;
+    fresh();
+    eog_boot_load_weights();
+    w_chunk(0, 9, 0, b, (uint16_t)n);
+    w_commit(1, 9, n, eog_crc32(b, n));
+    CHECK_EQ(last_wack()->b[20], EOG_W_SWAPPED);
+    CHECK_EQ(FR.active_ver, 9);
+}
+
 int main(int argc, char **argv)
 {
     t_init();
@@ -574,6 +744,7 @@ int main(int argc, char **argv)
     t_send_fail();
     t_stats();
     t_weights(argc > 1 ? argv[1] : NULL, argc > 2 ? argv[2] : NULL);
+    t_sd_boot(argc > 1 ? argv[1] : NULL);
     printf("test_proto: %d passed, %d failed\n", n_pass, n_fail);
     puts(n_fail ? "FAIL" : "PASS");
     return n_fail != 0;

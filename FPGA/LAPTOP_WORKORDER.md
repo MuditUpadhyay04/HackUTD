@@ -28,7 +28,9 @@ JTAG, and Ethernet to 192.168.1.10. Start Claude Code in the repo root and give 
   - **Phase B can start right away.**
 - **Existing working flow to reuse:** `FPGA/docs/link_bringup.md` §4–5 (`axi_mul` on lucaslegion).
   - Paths: Vivado outputs in `C:\vb2`, Vitis workspaces in `..\vws2` / `..\vws_eog`, lwIP fix repo `..\eswfix`.
-  - Network: PC 192.168.1.50/24, board 192.168.1.10. UART is COM9. The boot jumper must be on JTAG.
+  - Network: PC 192.168.1.50/24, board 192.168.1.10. UART is COM9.
+  - Boot jumper: phases A–C were written for JP5 on JTAG. From T2.sd on, **JP5 stays on SD** (see "SD boot" below);
+    JTAG/xsdb can still download a bitstream or ELF over a running board for quick tests.
 
 ## Phase A: now (no `eog_top.sv` yet)
 
@@ -107,6 +109,47 @@ JTAG, and Ethernet to 192.168.1.10. Start Claude Code in the repo root and give 
    - anything else that differed.
 
    Commit on `eog/T2.board1` and push.
+
+## SD boot with default weights (T2.sd)
+
+The board always boots from the microSD card and loads a default model from it (`FPGA/docs/SD_BOOT_WEIGHTS.md`).
+Code and scripts are on branch `eog/T2.sd`; host tests pass (`bash FPGA/ps/test/run_tests.sh`), nothing has run on
+the board yet.
+
+1. **Build** (Vitis): `set EOG_XSA=C:\vb2\eclypse_eog.xsa` (exported **with** the bitstream), then
+   `FPGA\deploy\win_vitis_build_eog.bat`. Besides the app it now:
+   - adds `xilffs` (FatFs, SD interface, read-only) to the BSP and rebuilds the platform;
+   - builds an FSBL (the platform's own boot FSBL if Vitis made one, else an `eog_fsbl` app from the `zynq_fsbl`
+     template);
+   - leaves `fsbl.elf`, `eog.bit` (taken from the XSA) and `eog_app.elf` in `..\vws_eog\out\`.
+
+   Check `deploy\vitis_eog.log` for `BUILD_OK`. If the link fails with undefined `f_mount`/`f_open`/`f_read`, the app
+   was created before xilffs was in the BSP: delete `..\vws_eog\mul_app` (or the whole `..\vws_eog`) and re-run.
+   If the FSBL step fails, create a Zynq FSBL app named `eog_fsbl` on the same platform in the Vitis GUI, build it,
+   and re-run.
+2. **Weights file:** `python FPGA\deploy\make_weights_sd.py --blob ..\ml\ml\artifacts\v3\weights.bin --version 3
+   --out ..\vws_eog\out\weights.eog`. It must print `header checks OK, self-test OK` (and the hutd_ml self-test when
+   Mudit's checkout is found; `--ml <dir>` or `EOG_ML`). v3: 996 B, CRC32 `0xA8E1639F`.
+3. **Card:** FAT32, root directory holds exactly `BOOT.BIN` and `weights.eog`. With the card in the PC's reader at
+   drive E: `FPGA\deploy\make_boot_sd.bat E` runs `bootgen` over `deploy\eog_boot.bif` (FSBL + bitstream +
+   `eog_app.elf`), copies both files and compares them; the last line is `BOOT_SD_OK` (log
+   `deploy\make_boot_sd.log`). Without a drive letter it only builds `BOOT.BIN`. Set `VITIS_BIN` if `bootgen` isn't in
+   `C:\AMDDesignTools\2026.1\Vitis\bin`.
+4. **Jumper:** JP5 on SD, permanently.
+5. **Acceptance test** (capture the UART on COM9 from power-on):
+   1. power-cycle in SD mode. The UART must show `eog: SD weights v3 active (980 B blob, CRC32 0xa8e1639f)` before
+      `eog: listening on 7000/7003/7004`;
+   2. read STATS before sending any WEIGHTS: word 12 (`weights_ver`) must be 3 (STATS arrive on PC:7001 every
+      second; `python -m hutd_ml.listen --data <dataset>` prints them as JSON);
+   3. `python -m hutd_ml.board --golden artifacts/v3/golden/g0` must PASS byte-exact. To prove the model came from the
+      card, also run it on a copy of g0 without `weights.bin` (then no WEIGHTS are pushed); it must PASS too;
+   4. negative cases, each followed by a power cycle and a STATS read (`weights_ver` must be 0, UART shows the
+      reason, UDP 7777 and CONFIG/DATA still work):
+      - no card: the board can't boot at all from SD (expected; nothing to check beyond that);
+      - card without `weights.eog`: `SD weights: weights.eog not found ...`;
+      - corrupt CRC (flip one byte in the blob part, offset ≥ 16, e.g. with a hex editor): `SD weights: CRC mismatch ...`.
+6. **Report:** the UART lines, the STATS value, the golden pass counts, and which image ran (SD `BOOT.BIN` or JTAG).
+   Commit on `eog/T2.sd` (or a board branch) and push.
 
 ## Phase D: later (line rate, T3)
 
