@@ -37,8 +37,11 @@
 //                    property except F4_ch / F4_sat, plus F4_zero. Task `prove`.
 //   FV_CONCAT_MUL    formal/features/eog_mul_concat.sv (cheap injective stand-in P(a, b), see that file): F4_ch and
 //                    F4_sat against the same reference with x*M replaced by P(x, M), unbounded. Task `prove_f4`.
-//   neither          rtl/eog_mul.sv (the real multiplier): F4_ch / F4_sat with the real product x*M. Tasks `bmc`,
-//                    `cover`.
+//   FV_COVER         rtl/eog_mul.sv (the real multiplier), no F4 reference: the cover goals with real arithmetic.
+//                    Task `cover`.
+//   none             rtl/eog_mul.sv with F4_ch / F4_sat against the true product x*M. Not in the .sby: proving the
+//                    DUT's 20x32 eog_mul equal to the reference's x*M did not finish (bitwuzla, first output step,
+//                    > 4 min even with every reading and P0 limited to [-2, 2]); kept for manual bmc runs.
 //
 // Environment assumptions (the upstream eog_validate's contract, numerics.md §3 / eog_validate.md), labelled A_*:
 //   A_status  STATUS is one of 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 is never produced; conventions §3).
@@ -156,6 +159,7 @@ module fv_eog_features (
             end
         end
     end
+
 
     // ---- shadow of the accepted records (port-only) ---------------------------------------------------------
     // Slot (acceptance number mod MAXF) holds that record. The stage checker asserts at most MAXF in flight and
@@ -285,7 +289,9 @@ module fv_eog_features (
     assign o_rules  = out_data[EOG_BF_RULES4 +: EOG_BF_RULES4_W];
 
     // ---- F4 reference: feat(x, M) = sat16((x*M + 2^16) >>> 17) ----------------------------------------------
-`ifdef FV_ABSTRACT_MUL
+`ifdef FV_COVER
+    // cover task: real multiplier, no reference (the cover goals don't use it)
+`elsif FV_ABSTRACT_MUL
     // F4_zero: a computed channel with M_c == 0, or with a single-field / popcount x_c == 0, is 0.
     logic [11:0] f4_ok;
     always_comb
@@ -387,7 +393,8 @@ module fv_eog_features (
             B_run:  assert (out_data[EOG_BF_PUMP_RUN] == (e_vh && e_pst == 2'd1));
             B_copy: assert (copy_ok);
 
-`ifdef FV_ABSTRACT_MUL
+`ifdef FV_COVER
+`elsif FV_ABSTRACT_MUL
             F4_zero: assert (f4_ok == 12'hFFF);
 `else
             F4_ch:  assert (f4_ok == 12'hFFF);

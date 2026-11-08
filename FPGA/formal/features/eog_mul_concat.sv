@@ -25,7 +25,7 @@
 // The proof is sound for a design that forms each multiplied channel's product with one eog_mul call on
 // a = x_c (signed 20-bit) and b = M_c (unsigned 32-bit), the shape numerics.md §4 / D3 prescribe ("signed 20-bit x
 // unsigned 32-bit"). A design that splits a channel over several calls (e.g. PUMP_FLOW*M - RECV_FLOW*M) would fail
-// prove_f4 although correct; F4 then rests on the bmc task and simulation.
+// prove_f4 although correct; F4 then rests on simulation (tb/features, bit-exact on every golden record).
 //
 // Product timing is exactly eog_mul's: valid LAT cycles after a / b (LAT = 0: combinational).
 
