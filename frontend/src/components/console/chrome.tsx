@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useTransition, type ReactNode } from "react";
 import type { BoardStatus, DatasetInfo, SystemState } from "@/lib/engine/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -149,6 +149,7 @@ export function Toolbar({
   board?: BoardStatus | null;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, start] = useTransition();
   const nemotron = (
     <Link
@@ -196,7 +197,7 @@ export function Toolbar({
         })}
       </div>
 
-      <Select value={current.id} onValueChange={(v) => start(() => router.push(`/?dataset=${encodeURIComponent(String(v))}`))}>
+      <Select value={current.id} onValueChange={(v) => start(() => router.push(`${pathname}?dataset=${encodeURIComponent(String(v))}`))}>
         <SelectTrigger
           aria-label="Dataset"
           className="h-auto rounded-lg border-0 bg-white py-[5px] pr-2.5 pl-3 text-[13px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] [&>svg:last-child]:hidden"

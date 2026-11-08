@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DatasetInfo, LiveEvent, RunRecord, RuntimeMode } from "@hackutd/contracts";
 import type { Snapshot } from "@/lib/engine/types";
 import { api, commandKey, unwrap } from "@/lib/api";
@@ -24,6 +24,7 @@ export function Workspace({
 } = {}) {
   const params = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
   const datasetId = params.get("dataset");
   const atParam = params.get("at");
   const mode = params.get("runtime");
@@ -108,7 +109,7 @@ export function Workspace({
   const navigate = (patch: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
     for (const [key, value] of Object.entries(patch)) value == null ? q.delete(key) : q.set(key, value);
-    router.push(`/?${q}`);
+    router.push(`${pathname}?${q}`);
   };
   return <>
     <div className="mx-auto flex max-w-[1344px] flex-wrap items-center gap-3 px-4 pt-4 text-sm">

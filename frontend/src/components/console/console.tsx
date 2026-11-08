@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { BoardStatus, DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -37,6 +37,7 @@ export function Console({
   // Brief and export must describe the same moment the screen shows, including a board-driven "now".
   const at = s.nowUnix < s.dataset.nowUnix ? s.nowUnix : undefined;
   const router = useRouter();
+  const pathname = usePathname();
   const [view, setView] = useState<View>(live ? "overview" : "replay");
   // Browser Back/Forward can move between live and past URLs without remounting: a past
   // snapshot must never sit under the "Now" overview.
@@ -109,7 +110,7 @@ export function Console({
     setView(v);
     if (v === "overview" && !live) {
       // Overview always means the latest reading.
-      router.push(`/?dataset=${encodeURIComponent(s.dataset.id)}`);
+      router.push(`${pathname}?dataset=${encodeURIComponent(s.dataset.id)}`);
     }
   };
 

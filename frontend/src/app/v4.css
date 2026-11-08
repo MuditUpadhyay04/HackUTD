@@ -1,0 +1,160 @@
+/* UI v4 "Pipe View". Everything is scoped under .v4 so the v3 console (globals.css) is untouched.
+   Source of truth: frontend/docs/ui-v4-brief.md sections 3 and 4. */
+
+@font-face { font-family: "Martian Grotesk"; src: url("/fonts/martian-grotesk/MartianGrotesk%5Bwdth%2Cwght%5D.woff2") format("woff2"); font-weight: 100 800; font-stretch: 75% 112.5%; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Static"; src: url("/fonts/martian-grotesk/MartianGrotesk-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Static"; src: url("/fonts/martian-grotesk/MartianGrotesk-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Narrow"; src: url("/fonts/martian-grotesk/MartianGroteskCondensed-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Narrow"; src: url("/fonts/martian-grotesk/MartianGroteskCondensed-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono/MartianMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono/MartianMono-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono/MartianMono-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Martian Mono Narrow"; src: url("/fonts/martian-mono/MartianMonoCondensed-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+
+.v4 {
+  --bg: #0D0B09;
+  --surface: #15120F;
+  --raised: #1D1915;
+  --line: rgba(255, 238, 214, 0.08);
+  --line-2: rgba(255, 238, 214, 0.16);
+  --text: #F3EEE7;
+  --muted: #A69C90;
+  --faint: #6F675E;
+
+  --amber: #FFB400;
+  --red: #FF3B30;
+  --magenta: #FF2E88;
+  --nv: #76B900;
+
+  --n1: #2CE5FF; --n2: #B4FF39; --n3: #A880FF; --n4: #4D8DFF;
+  --n5: #3CFFB4; --n6: #7AF0FF; --n7: #C6A8FF; --n8: #E4FF6B;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --font-ui: "Martian Grotesk", system-ui, sans-serif;
+  --font-narrow: "Martian Grotesk Narrow", "Martian Grotesk", system-ui, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 15px; --fs-5: 20px; --fs-6: 28px;
+  --r-1: 3px; --r-2: 5px; --r-3: 6px;
+
+  /* Ordered dither tiles (4x4 Bayer, 2px cells => 8px tile). ink: warm white at 50% alpha; mask: for any ink colour. */
+  --dither-25: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3C%2Fsvg%3E");
+  --dither-50: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3C%2Fsvg%3E");
+  --dither-75: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.5)%22%2F%3E%3C%2Fsvg%3E");
+  --dither-mask-25: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
+  --dither-mask-50: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
+  --dither-mask-75: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
+
+  --dissolve-ms: 280ms;
+  --hdr-h: 32px; --rail-w: 56px; --transport-h: 36px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-2);
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.v4 *, .v4 *::before, .v4 *::after { box-sizing: border-box; }
+.v4 button, .v4 select, .v4 input { font: inherit; color: inherit; }
+.v4 button { background: none; border: 0; padding: 0; cursor: pointer; }
+.v4 a { color: inherit; text-decoration: none; }
+
+/* Type helpers */
+.v4 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.v4 .label { font-family: var(--font-mono); font-size: var(--fs-1); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.v4 .narrow { font-family: var(--font-narrow); }
+.v4 .muted { color: var(--muted); }
+.v4 .faint { color: var(--faint); }
+
+/* Focus: amber ring, instant (keyboard focus never animates) */
+.v4 :focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+/* Ordered dither utilities: uncertainty only (no data, HELD, p10-p90 bands, empty states) */
+.v4 .dither-25 { background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .dither-50 { background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .dither-75 { background-image: var(--dither-75); background-size: 8px 8px; image-rendering: pixelated; }
+/* Masked variants paint the element's own background-color as the ink: <div class="dither-mask-50" style="background:var(--n1)"> */
+.v4 .dither-mask-25 { -webkit-mask-image: var(--dither-mask-25); mask-image: var(--dither-mask-25); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+.v4 .dither-mask-50 { -webkit-mask-image: var(--dither-mask-50); mask-image: var(--dither-mask-50); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+.v4 .dither-mask-75 { -webkit-mask-image: var(--dither-mask-75); mask-image: var(--dither-mask-75); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+/* Magenta 45 degree hatch: inspect states (leak, worn pump). Always paired with text. */
+.v4 .hatch { background-image: repeating-linear-gradient(135deg, var(--magenta) 0 1.5px, transparent 1.5px 6px); }
+.v4 .hatch-dim { background-image: repeating-linear-gradient(135deg, rgba(255, 46, 136, 0.55) 0 1.5px, transparent 1.5px 6px); }
+
+/* Pressables: 120ms ease-out, scale .97 (transform only) */
+.v4 .press { transition: transform 120ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease; }
+.v4 .press:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) {
+  .v4 .press:hover { background-color: var(--raised); }
+  .v4 .rail-item:hover { color: var(--text); background-color: var(--raised); }
+}
+
+/* Dither-dissolve: swap a state with a 4-step mask (apply .dissolve-in on the element whose state just changed) */
+@keyframes v4-dissolve { from { -webkit-mask-image: var(--dither-mask-25); mask-image: var(--dither-mask-25); opacity: .4; } 50% { -webkit-mask-image: var(--dither-mask-75); mask-image: var(--dither-mask-75); opacity: .8; } to { -webkit-mask-image: none; mask-image: none; opacity: 1; } }
+.v4 .dissolve-in { animation: v4-dissolve var(--dissolve-ms) steps(4, end) both; }
+
+/* Tooltip enter: 160ms ease-out from scale(.97); origin-aware via transform-origin set by the component */
+.v4 .tip { transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out); }
+.v4 .tip[data-state="closed"] { transform: scale(.97); opacity: 0; }
+
+/* Shell layout */
+.v4-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr); grid-template-rows: var(--hdr-h) minmax(0, 1fr) var(--transport-h); }
+.v4-ticker-slot { grid-column: 1 / -1; grid-row: 1; border-bottom: 1px solid var(--line-2); background: var(--surface); min-width: 0; overflow: hidden; }
+.v4-rail { grid-column: 1; grid-row: 2; border-right: 1px solid var(--line-2); background: var(--surface); display: flex; flex-direction: column; align-items: stretch; padding: 6px 0; gap: 2px; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.v4-main { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.v4-split { flex: 1 1 0; min-height: 0; display: grid; grid-template-rows: minmax(120px, var(--pv, 53fr)) 7px minmax(120px, var(--ar, 47fr)); }
+.v4-pane { min-height: 0; min-width: 0; overflow: hidden; position: relative; }
+.v4-handle { position: relative; cursor: row-resize; background: var(--surface); border-block: 1px solid var(--line-2); touch-action: none; }
+.v4-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 28px; height: 3px; margin: -1.5px 0 0 -14px; border-radius: 2px; background: var(--faint); }
+.v4-handle:hover::after, .v4-handle[data-drag="true"]::after { background: var(--amber); }
+.v4-trucks-slot { flex: none; border-top: 1px solid var(--line-2); background: var(--surface); }
+.v4-trucks-slot:empty { display: none; }
+.v4-transport-slot { grid-column: 1 / -1; grid-row: 3; border-top: 1px solid var(--line-2); background: var(--surface); min-width: 0; }
+
+/* Rail */
+.v4 .rail-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 44px; margin-inline: 4px; border-radius: var(--r-2); color: var(--muted); font-family: var(--font-mono); font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
+.v4 .rail-item[aria-current="page"], .v4 .rail-item[data-active="true"] { color: var(--amber); background: var(--raised); }
+.v4 .rail-sep { height: 1px; margin: 6px 10px; background: var(--line-2); flex: none; }
+.v4 .rail-sys { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; margin-inline: 4px; border-radius: var(--r-2); font-family: var(--font-mono); font-size: var(--fs-1); }
+
+/* Placeholder region used by stubs */
+.v4 .stub { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line-2); margin: 6px; border-radius: var(--r-2); }
+
+/* Scrollbars */
+.v4 * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+
+/* Loading / empty state */
+.v4-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; }
+.v4-loadbar { width: 160px; height: 8px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4-loadbar::after { content: ""; display: block; height: 100%; width: 40%; background: var(--amber); transform-origin: left; animation: v4-load 1.2s linear infinite; }
+@keyframes v4-load { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.v4-toast { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 5; max-width: min(640px, 90vw); padding: 8px 12px; border: 1px solid var(--red); border-radius: var(--r-2); background: var(--raised); font-size: var(--fs-2); }
+
+/* Transport controls (stub-level, B3 may restyle) */
+.v4 .tp-btn { display: inline-flex; align-items: center; justify-content: center; height: 24px; min-width: 28px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r-1); background: var(--bg); font-family: var(--font-mono); font-size: var(--fs-1); letter-spacing: .04em; text-transform: uppercase; }
+.v4 .tp-btn[aria-pressed="true"], .v4 .tp-btn[data-on="true"] { border-color: var(--amber); color: var(--amber); }
+.v4 .tp-select { height: 24px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: var(--r-1); background: var(--bg); font-family: var(--font-mono); font-size: var(--fs-1); text-transform: uppercase; letter-spacing: .04em; max-width: 220px; }
+
+/* Reduced transparency: no translucent lines */
+@media (prefers-reduced-transparency: reduce) {
+  .v4 { --line: #2A2520; --line-2: #3D362F; }
+}
+/* Reduced motion: dissolves become 150ms opacity fades; press/tooltip scale removed; infinite motion stops */
+@media (prefers-reduced-motion: reduce) {
+  .v4 { --dissolve-ms: 150ms; }
+  .v4 .dissolve-in { animation-name: v4-fade; animation-timing-function: linear; }
+  @keyframes v4-fade { from { opacity: 0; } to { opacity: 1; } }
+  .v4 .press:active { transform: none; }
+  .v4 .tip, .v4 .tip[data-state="closed"] { transform: none; }
+  .v4-loadbar::after { animation: none; transform: none; width: 100%; }
+}
