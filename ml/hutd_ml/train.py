@@ -24,9 +24,9 @@ THR_GRID = np.round(np.arange(-8, 8.001, 0.25) * 256).astype(int)
 K_GRID = (1, 2, 3, 4)
 
 
-def fit_head(X, y, C):
+def fit_head(X, y, C, w=None):
     clf = LogisticRegression(C=C, class_weight="balanced", max_iter=10000)
-    clf.fit(X, y)
+    clf.fit(X, y, sample_weight=w)
     return clf.coef_[0], clf.intercept_[0]
 
 
@@ -71,9 +71,11 @@ def choose(logit_q, y, fac, event_id, ts, ks=K_GRID):
         for thr in THR_GRID:
             pred = runs(logit_q > thr, fac) >= k
             m = metrics(pred, y, fac, event_id, ts)
-            # within the false-alert budget: most events caught, then FASTEST median detection, then recall
+            # within the false-alert budget: most events caught, then fastest median detection, then the
+            # shortest worst-case delay, then frame recall
             key = (m["false_alerts_per_fac_day"] <= FA_BUDGET, m.get("detected", 0),
-                   -(m.get("median_delay_min") or 0), round(m["recall"], 3), -k, -abs(int(thr)))
+                   -(m.get("median_delay_min") or 0), -(m.get("max_delay_min") or 0), round(m["recall"], 3), -k,
+                   -abs(int(thr)))
             if best is None or key > best[0]:
                 best = (key, int(thr), k, m)
     return best[1], best[2], best[3]
@@ -89,6 +91,10 @@ def main(argv=None):
     ap.add_argument("--augment", action="store_true",
                     help="also train on augment.TRAIN copies (pressure offsets, sizes, noise); validation stays clean")
     ap.add_argument("--c", default=None, help="fixed C per head, e.g. 1,1,0.03,0.03 (skips the C search)")
+    ap.add_argument("--observable", action="store_true",
+                    help="weight 0 for leak/degradation positives before the pump first runs in the event")
+    ap.add_argument("--drop-aug", action="store_true",
+                    help="also train on a copy with 2 %% of telemetry rows deleted (held / reset / INVALID records)")
     a = ap.parse_args(argv)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -104,27 +110,35 @@ def main(argv=None):
     systems = sorted(set(system))
     Xf = X / 16384.0
     print(f"records {len(X)}, positives {dict(zip(wire.HEADS, Y.sum(0).tolist()))}, folds {systems}")
+    def weights_for(Xa, eva):
+        return labels.observable_weights(Xa, eva) if a.observable else np.ones((len(Xa), 4))
+
     aug = []
-    if a.augment:
+    if a.augment or a.drop_aug:
         import pandas as pd
         from . import augment
         net0 = encode.load_network(a.data)
         tel0 = pd.read_csv(Path(a.data) / "telemetry.csv")
-        for name, fn in augment.TRAIN.items():
+        makers = {**(augment.TRAIN if a.augment else {}),
+                  **({"drop_train": augment.drop_rows(0.02, seed=7)} if a.drop_aug else {})}
+        for name, fn in makers.items():
             e2 = encode.encode_frames(*fn(net0, tel0))
             _, st2, _ = fi.run(e2.records, e2.global_config, e2.facility_config)
             X2, ok2 = fi.feature_matrix(st2)
-            Y2, _, _ = labels.make_labels(e2.records, e2.facilities, a.answer_key)
+            Y2, ev2, _ = labels.make_labels(e2.records, e2.facilities, a.answer_key)
             sys2 = np.array([e2.facilities[f].system for f in e2.records["fac_id"].astype(np.int64)])
-            aug.append((X2[ok2], Y2[ok2], sys2[ok2]))
+            W2 = weights_for(X2, ev2)
+            aug.append((X2[ok2], Y2[ok2], sys2[ok2], W2[ok2]))
             print(f"augmentation {name}: {int(ok2.sum())} records", flush=True)
+    W0 = weights_for(X, event_id)
 
     def train_rows(exclude=None, cols=None):
-        """Clean rows (+ augmented copies) whose system is not `exclude`, as float features."""
-        parts = [(X, Y, system)] + aug
+        """Clean rows (+ augmented copies) whose system is not `exclude`: float features, labels, sample weights."""
+        parts = [(X, Y, system, W0)] + aug
         Xs = np.concatenate([p[0][p[2] != exclude] for p in parts]) / 16384.0
         Ys = np.concatenate([p[1][p[2] != exclude] for p in parts])
-        return (Xs if cols is None else Xs[:, cols]), Ys
+        Ws = np.concatenate([p[3][p[2] != exclude] for p in parts])
+        return (Xs if cols is None else Xs[:, cols]), Ys, Ws
 
     # 1. C per head by pooled out-of-fold average precision (float)
     chosen_C, cv = [], {}
@@ -139,7 +153,7 @@ def main(argv=None):
             oof = np.zeros(len(X))
             for s in systems:
                 te = system == s
-                w, b = fit_head(folds[s][0], folds[s][1][:, h], C)
+                w, b = fit_head(folds[s][0], folds[s][1][:, h], C, folds[s][2][:, h])
                 oof[te] = Xf[te] @ w + b
             scores[C] = average_precision_score(Y[:, h], oof)
         cv[wire.HEADS[h]] = {str(C): round(v, 4) for C, v in scores.items()}
@@ -151,7 +165,7 @@ def main(argv=None):
     oof_f = np.zeros((len(X), 4))
     for s in systems:
         tr, te = system != s, system == s
-        ws, bs = zip(*(fit_head(folds[s][0], folds[s][1][:, h], chosen_C[h]) for h in range(4)))
+        ws, bs = zip(*(fit_head(folds[s][0], folds[s][1][:, h], chosen_C[h], folds[s][2][:, h]) for h in range(4)))
         w_q, b_q, s_out, _ = model_int.quantize(np.array(ws), np.array(bs))
         oof_q[te] = model_int.logits_int(X[te], w_q, b_q, s_out)
         oof_f[te] = Xf[te] @ np.array(ws).T + np.array(bs)
@@ -198,16 +212,16 @@ def main(argv=None):
             oof = np.zeros(len(X))
             for s in systems:
                 tr, te = system != s, system == s
-                Xt, Yt = train_rows(s, cols)
-                w, b = fit_head(Xt, Yt[:, h], chosen_C[h])
+                Xt, Yt, Wt = train_rows(s, cols)
+                w, b = fit_head(Xt, Yt[:, h], chosen_C[h], Wt[:, h])
                 oof[te] = Xf[te][:, cols] @ w + b
             m = metrics(oof > 0, Y[:, h], fac)
             row[wire.HEADS[h]] = f"{m['precision']:.2f} / {m['recall']:.2f}"
         ablation[name] = row
 
     # 7. final model on all systems
-    Xall, Yall = train_rows(None)
-    ws, bs = zip(*(fit_head(Xall, Yall[:, h], chosen_C[h]) for h in range(4)))
+    Xall, Yall, Wall = train_rows(None)
+    ws, bs = zip(*(fit_head(Xall, Yall[:, h], chosen_C[h], Wall[:, h]) for h in range(4)))
     W_f, B_f = np.array(ws), np.array(bs)
     w_q, b_q, s_out, fw = model_int.quantize(W_f, B_f)
     lq = model_int.logits_int(X, w_q, b_q, s_out)
@@ -219,6 +233,7 @@ def main(argv=None):
     vec_rows += [int(np.argmax(running & (Y.sum(1) == 0))), int(np.argmax(~running & (Y.sum(1) == 0)))]
     vectors = model_int.edge_vectors() + [X[i] for i in vec_rows]
     meta = {"version": a.version, "feature_set_id": fi.FEATURE_SET_ID, "C": chosen_C, "augmented": bool(a.augment),
+            "observable_labels": bool(a.observable), "missing_data_aug": bool(a.drop_aug),
             "w": W_f.round(6).tolist(), "b": B_f.round(6).tolist()}
     mh = model_int.model_hash(meta)
     blob = model_int.pack_blob(w_q, b_q, s_out, vectors, mhash=mh)
@@ -284,7 +299,12 @@ def render_report(a, cv, chosen_C, per_class, single, k_single, estop, ablation,
          "Failure and shut-in are directly signalled by pump status 2 / all wells off.", "",
          ("Training data: the clean practice week **plus augmented copies** (healthy pressure offsets x0.8 / x1.2, "
           "sizes x0.7 / x1.5, extra sensor noise; see `augment.TRAIN`). Validation scores are always on the clean "
-          "held-out system." if wjson.get("augmented") else "Training data: the clean practice week."), "",
+          "held-out system." if wjson.get("augmented") else "Training data: the clean practice week."),
+         ("Missing-data augmentation: also a copy with 2 % of telemetry rows deleted (held, reset and INVALID "
+          "records; INVALID rows are not trained on)." if wjson.get("missing_data_aug") else ""),
+         ("Observable labels: leak / degradation positives before the pump first runs inside their event get "
+          "training weight 0 (nothing can show the problem yet); evaluation uses the full labels."
+          if wjson.get("observable_labels") else ""), "",
          f"Blob: {wjson['blob_bytes']} B, CRC32 {wjson['blob_crc32']}, model hash {wjson['model_hash']}, "
          f"S_out {wjson['S_out']}, Fw {wjson['Fw']}, logits in 1/256 units.", "",
          "## Regularization (pooled out-of-fold average precision by C)", ""]

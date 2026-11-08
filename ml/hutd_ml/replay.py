@@ -3,7 +3,7 @@
     python -m hutd_ml.replay --data <dataset folder> [--board 192.168.1.10] [--local 192.168.1.50]
                              [--weights ../ml/artifacts/v1/weights.bin --weights-version 1]
                              [--config artifacts/v1/global_config.json] [--step-seconds 1.0] [--start-step 0]
-                             [--loop]
+                             [--loop] [--swap-at-step N --swap-weights <blob> --swap-version V]
 
 Startup order (FPGA plan): GLOBAL CONFIG -> Facility CONFIG per facility (ACKed) -> WEIGHTS (ACKed) -> DATA.
 Then one 5-minute step (all facilities, <= 30 records per packet) every --step-seconds (1.0 = 300x real time;
@@ -35,6 +35,10 @@ def main(argv=None):
     ap.add_argument("--start-step", type=int, default=0)
     ap.add_argument("--steps", type=int, default=None, help="stop after this many steps (default: all)")
     ap.add_argument("--loop", action="store_true")
+    ap.add_argument("--swap-at-step", type=int, default=None,
+                    help="live weight swap demo: send --swap-weights once this step has been streamed")
+    ap.add_argument("--swap-weights", default=None, help="weights.bin to swap in mid-stream")
+    ap.add_argument("--swap-version", type=int, default=None, help="weights_ver of the swapped-in blob")
     a = ap.parse_args(argv)
 
     gkw = {}
@@ -66,6 +70,10 @@ def main(argv=None):
                 seq += 1
                 if a.step_seconds == 0 and a.pps:
                     time.sleep(1.0 / a.pps)
+            if a.swap_at_step is not None and loop == 0 and i == a.swap_at_step and a.swap_weights:
+                status, active = b.send_weights(Path(a.swap_weights).read_bytes(), a.swap_version or 0)
+                print(f"step {i}: live swap to weights v{a.swap_version}: {status}, active version {active}",
+                      flush=True)
             if a.step_seconds:
                 time.sleep(a.step_seconds)
             if i % 288 == 0:

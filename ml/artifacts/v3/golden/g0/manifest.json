@@ -1,0 +1,27 @@
+{
+ "set": "g0",
+ "dataset": "full_week",
+ "records": 30,
+ "wire_version": 1,
+ "feature_set_id": 1,
+ "countdown": "review_r1r2",
+ "weights": "v3",
+ "weights_version": 3,
+ "weights_crc32": "0xA8E1639F",
+ "assumptions": "A1-A19 + FPGA response (S=17, review_r1r2, A13 FRAMING, A19 latches, per-class K), 2026-11-08",
+ "status_counts": {
+  "0": 30
+ },
+ "sha256": {
+  "data.bin": "3dd56b43480e5127640a53015bfaaa7c3a4570aa32f69d232063d5e9d96cb856",
+  "data.mem": "efb189d1a3e93d9ea5e1664cb8295890314668fca8e1e507bd017d64ad306202",
+  "expected_alerts.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "expected_results.bin": "f1ded5adfd973edb9e24616e6e6781f1d2fca983990407442e3658575a778651",
+  "expected_results.mem": "2b796b68a6b8ffdc47f6e9692c6e5a30a8347883e4350a394d19c997a01db553",
+  "expected_stages.csv": "58b58c2fd3697b03105850e44d296686ac64ce213bc0fde395b2aa5ff58e3ddb",
+  "facilities.json": "759e37c97ca463417bb0490048118862b99cf1513ffe8705663d8e8d8e9eff75",
+  "facility_config.bin": "3b8adc7cd25eb54425889bc140bd0facf36baa28bb451d9b9d008b24937a32c7",
+  "global_config.bin": "9b725c0a7de84d460cc80127e2e68836de7bd2186b6f3fc970ee4c8e614b62ee",
+  "weights.bin": "7f62bd11a5b2208a2da3715281e70585612c61a919825d711d877b607e12b561"
+ }
+}

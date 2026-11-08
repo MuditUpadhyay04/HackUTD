@@ -93,7 +93,21 @@ class FakeBoard:
                 if ok:
                     self.fac_cfg[int(r["fac_id"])] = r.copy()
                 acks.append((int(r["fac_id"]), 0 if ok else 1))
-        self.engine = None  # rebuilt on the next DATA with the new tables
+        if self.engine is not None:
+            # like the RTL: a CONFIG write never resets the engine. GLOBAL updates the run-wide settings; a Facility
+            # CONFIG write makes that slot's next record a new history (HIST_RESET), keeping its alarm latches,
+            # while result_no and the other slots carry on.
+            fresh = fi.Engine(self.global_cfg, np.array(list(self.fac_cfg.values()), dtype=wire.FAC_CONFIG_DTYPE),
+                              self.weights, self.countdown)
+            for k in ("s", "hold_max", "cd_log2", "k", "logit_thr", "gap_thr", "cfg"):
+                setattr(self.engine, k, getattr(fresh, k))
+            for fid, _ in acks:
+                if fid in fresh.fac:
+                    old = self.engine.fac.get(fid)
+                    self.engine.fac[fid] = fresh.fac[fid]
+                    if old is not None:
+                        for k in ("ns_cond", "es_cond", "ns_latch", "es_latch"):
+                            setattr(self.engine.fac[fid], k, getattr(old, k))
         for fid, st in acks:
             s.sendto(wire.header(wire.T_CONFIG_ACK, 1, self.seq[wire.PORT_CONFIG]) + wire.CONFIG_ACK.pack(fid, st, 0, seq),
                      addr)
@@ -186,7 +200,8 @@ class FakeBoard:
                     self.stats["bad_packets"] += 1
             now = time.monotonic()
             hb_timeout = int(self.global_cfg["hb_timeout_ms"][0]) / 1000 if self.global_cfg is not None else 5.0
-            if not self.autonomous and now - self.last_hb > hb_timeout:
+            # FPGA numerics v4 section 9: AUTONOMOUS = (HB_TIMEOUT_MS != 0) & (time since heartbeat >= timeout)
+            if not self.autonomous and hb_timeout and now - self.last_hb >= hb_timeout:
                 self.autonomous = True
             if now - last_stats >= 1.0:
                 self._stats()

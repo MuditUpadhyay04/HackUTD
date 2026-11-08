@@ -7,6 +7,23 @@ Builds on Lucas's [FPGA plan](../lucas/fpga_hardware_plan.md), the source of tru
 feature rules, and on [`global_plan.md`](../../../global_plan.md) (hard rules §2, contracts §5). Dataset:
 [nihaal419/HackUTD-ZeroDay](https://github.com/nihaal419/HackUTD-ZeroDay) at commit `135ba4c`.
 
+## Progress update (Sun 01:50 CST): architecture frozen, release candidate v3
+
+- **Spec v4 re-diff:** `features_int.py` matches v4 plus Lucas's final rulings (spec questions 20–25).
+  - Fixed: the golden GLOBAL now carries `HB_TIMEOUT_MS = 0` (v4 §9); the stand-in now treats 0 as "never
+    autonomous".
+  - Mirrored the RTL's `HOLD_MAX` clamp.
+  - Documented the exact reason-bit and RESULT rules in `ml/README.md`.
+  - New spec questions 26–28: [`fpga_spec_questions.md`](fpga_spec_questions.md).
+- **Architecture experiments** (`ml/hutd_ml/experiments.py`):
+  - The **feature set stays frozen**: no feature variant pays for an RTL change.
+  - The **training recipe changed**: observable labels + C 3.
+- **Weights v3 deployed:** degradation recall 0.85 → 0.90, worst delay 275 → 180 min; fewer false alerts under
+  pressure and noise distortions. Golden sets v3; UDP loopback byte-identical, including all alerts.
+- **Live weight swap demo** (D6): `replay.py --swap-at-step`. Verified v2 → v3 mid-stream at a step boundary.
+- **Staying in step with branch FPGA:** `python -m hutd_ml.fpga_sync --record` (log in `ml/FPGA_SYNC.md`).
+- Full write-up: [`ml_architecture.md`](ml_architecture.md).
+
 ## Progress update (Sun 01:10 CST): Lucas's review applied (FPGA task T0.0)
 
 - **`features_int.py` is now the normative reference for the RTL.**

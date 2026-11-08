@@ -37,3 +37,20 @@ def make_labels(records, facilities, answer_key_path):
         if all((ws >> (2 * s) & 3) == 0 and int(r["well_water"][s]) == 0 for s in range(W)):
             Y[i, 3] = 1
     return Y, event_id, events
+
+
+def observable_weights(X, event_id):
+    """Training sample weights (N x 4). Leak / degradation positives that come BEFORE the pump first runs inside their
+    event get weight 0: nothing in the telemetry can show the problem yet, so training on them only teaches the model
+    to fire on healthy-looking pump-off frames. Everything else gets weight 1. Evaluation always uses the full labels."""
+    w = np.ones((len(X), 4))
+    running = np.asarray(X)[:, 7] == 16384
+    for h in (0, 1):
+        for e in np.unique(event_id[:, h]):
+            if not e:
+                continue
+            idx = np.where(event_id[:, h] == e)[0]
+            seen = np.where(running[idx])[0]
+            first = idx[seen[0]] if len(seen) else idx[-1] + 1
+            w[idx[idx < first], h] = 0.0
+    return w

@@ -48,12 +48,12 @@ python -m hutd_ml.fakeboard
 
 # 2. results as JSON: printed, saved, and/or POSTed to your server
 python -m hutd_ml.listen --data $DATA --board 127.0.0.2 \
-    --weights-json artifacts/v2/weights.json --config artifacts/v2/global_config.json \
+    --weights-json artifacts/v3/weights.json --config artifacts/v3/global_config.json \
     --jsonl results.jsonl --post http://127.0.0.1:8000/ingest
 
 # 3. stream the dataset: 1 five-minute step per second (300x real time)
 python -m hutd_ml.replay --data $DATA --board 127.0.0.2 --local 127.0.0.1 \
-    --weights artifacts/v2/weights.bin --weights-version 2 --config artifacts/v2/global_config.json \
+    --weights artifacts/v3/weights.bin --weights-version 3 --config artifacts/v3/global_config.json \
     --step-seconds 1
 ```
 
@@ -103,7 +103,7 @@ answer 2xx quickly. Three types:
 | `above_threshold` | Problems whose score is over the tuned alarm threshold. Needs `--config`. **This is the detection.** |
 | `rules` | Hard facts, not ML: `pump_fault` (pump reports a fault), `shut_in` (all wells off), `level_at_shutdown`, `level_at_warning`, `not_filling` (normal while the pump runs; ignore it for alerting). |
 | `countdown_min` | Minutes until the tank reaches its shutdown level if nothing changes. p50 = best estimate; p10 = soonest; p90 = latest. `null` = not filling / > 45 days. It assumes the pump moves nothing, so **show it only while `pump_fault`**. 0 / 0 / 0 = the tank is already at its shutdown level (tripped). |
-| `weights_ver` | Which model made the call: **2** = current trained model (v2); **1** = previous trained model; **240** = untrained test weights (scores meaningless); **0** = no model loaded (scores 0; rules and countdown still valid). |
+| `weights_ver` | Which model made the call: **3** = current trained model (v3); **2** = previous trained model; **240** = untrained test weights (scores meaningless); **0** = no model loaded (scores 0; rules and countdown still valid). |
 | `result_no` | Monotonic counter. Gaps mean lost UDP packets. |
 
 ### `alert`: the board's own alarm changed state
@@ -174,8 +174,8 @@ buffering.
 
   | Problem | Precision / recall | Events caught | Typical delay |
   | --- | --- | --- | --- |
-  | Leak | 0.94 / 0.99 | 5/5 | 5 min |
-  | Degradation | 0.95 / 0.84 | 5/5 | about 3 h |
+  | Leak | 0.95 / 0.99 | 5/5 | 5 min |
+  | Degradation | 0.95 / 0.90 | 5/5 | about 2.5 h (worst 3 h) |
   | Failure / shut-in | 1.00 / 1.00 | — | — |
 
   Degradation is slow by nature, because early wear looks like normal noise. Failure and shut-in come straight from
@@ -185,7 +185,7 @@ buffering.
   stand-in and the golden sets already behave this way.
 - **The fake board is the reference**, not the hardware. The real board must produce byte-identical results;
   Lucas is verifying that. The JSON contract above doesn't change between them.
-- **Current weights are v2**, trained with augmented copies of the data so they hold up if the judging network's pressures look different. Future weights keep the same JSON; only `weights_ver` changes.
+- **Current weights are v3** (trained with distorted copies of the data so they hold up if the judging network looks different; design in `docs/plan/mudit/ml_architecture.md`). Future weights keep the same JSON; only `weights_ver` changes. A live weight swap during the demo is `replay.py --swap-at-step N --swap-weights … --swap-version V`.
 - `fac_id`, the wire format, and the exact meaning of some fields depend on 19 implementation details
   (`ml/README.md`, A1–A19) that Lucas is reviewing. Expect small changes in edge cases only.
 

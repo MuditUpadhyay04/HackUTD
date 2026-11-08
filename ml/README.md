@@ -26,11 +26,13 @@ Implements [`docs/plan/mudit/ml_plan.md`](../docs/plan/mudit/ml_plan.md) against
 ```sh
 DATA=/path/to/HackUTD-ZeroDay/history/full_week
 HUTD_DATA=$DATA python3 -m pytest -q tests                      # 10 tests, ~6 s
-python3 -m hutd_ml.train --data $DATA --answer-key $DATA/answer_key.json --out artifacts/v2 --version 2 \
-    --augment --c 1,1,0.03,0.03 \
+python3 -m hutd_ml.train --data $DATA --answer-key $DATA/answer_key.json --out artifacts/v3 --version 3 \
+    --augment --observable --c 3,3,0.03,0.03 \
     --mock $DATA/../mock_test_2026-10-10T1530                     # ~3 min
-python3 -m hutd_ml.golden --data $DATA --out artifacts/v2/golden/g1 --set g1 \
-    --weights artifacts/v2/weights.bin --weights-version 2 --config artifacts/v2/global_config.json
+python3 -m hutd_ml.golden --data $DATA --out artifacts/v3/golden/g1 --set g1 \
+    --weights artifacts/v3/weights.bin --weights-version 3 --config artifacts/v3/global_config.json
+python3 -m hutd_ml.experiments --data $DATA --answer-key $DATA/answer_key.json --out artifacts/experiments  # ~15 min
+python3 -m hutd_ml.fpga_sync --record     # what changed on branch FPGA + xcheck vs eog_ref
 python3 -m hutd_ml.robustness --data $DATA --answer-key $DATA/answer_key.json --out artifacts/robustness  # ~25 min
 ```
 
@@ -41,8 +43,9 @@ python3 -m hutd_ml.robustness --data $DATA --answer-key $DATA/answer_key.json --
 | Folder | Weights | Contents |
 | --- | --- | --- |
 | `artifacts/v0/golden/g0`, `g2` | Untrained pseudo-random int16 (`weights_ver` **240**): full range, both signs, saturating logits | Bring-up of the head/accumulator/saturation path |
-| `artifacts/v2/golden/g0`, `g1`, `g2` | **Trained v2, current** (`weights_ver` 2) + its GLOBAL CONFIG (thresholds, K, `gap_thr`) | The real thing |
-| `artifacts/v2/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Current model + validation report |
+| `artifacts/v3/golden/g0`, `g1`, `g2` | **Trained v3, deployed** (`weights_ver` 3) + its GLOBAL CONFIG | Use for the board run and the demo |
+| `artifacts/v3/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Deployed model + validation report |
+| `artifacts/v2/golden/g0`, `g1`, `g2` | Trained v2 (`weights_ver` 2) | What the RTL is verified against (T2.top). Equally valid: the RTL doesn't depend on the weights. |
 | (v1 removed) | v1 used the pre-review spec (`S_feat` 11, old countdown); it is in git history only | — |
 | `artifacts/robustness/` | `report.md`, `results.json` | Robustness pass (section below) |
 
@@ -81,8 +84,8 @@ python3 -m hutd_ml.compare artifacts/v1/golden/g2/expected_results.bin my_result
 **On the board** (direct cable, PC 192.168.1.50 ↔ board 192.168.1.10):
 
 ```sh
-python3 -m hutd_ml.board --golden artifacts/v2/golden/g0                      # then g2, then g1
-python3 -m hutd_ml.board --golden artifacts/v2/golden/g0 --heartbeat-test 6   # AUTONOMOUS + replay
+python3 -m hutd_ml.board --golden artifacts/v3/golden/g0                      # then g2, then g1 (v2 sets work too)
+python3 -m hutd_ml.board --golden artifacts/v3/golden/g0 --heartbeat-test 6   # AUTONOMOUS + replay
 ```
 
 The harness binds local UDP ports 7001–7004. Stop anything else on the PC that uses them first.
@@ -91,7 +94,7 @@ The harness binds local UDP ports 7001–7004. Stop anything else on the PC that
 
 ```sh
 python3 -m hutd_ml.fakeboard &        # listens on 127.0.0.2
-python3 -m hutd_ml.board --golden artifacts/v2/golden/g1 --board 127.0.0.2 --local 127.0.0.1 --pps 200
+python3 -m hutd_ml.board --golden artifacts/v3/golden/g1 --board 127.0.0.2 --local 127.0.0.1 --pps 200
 ```
 
 Verified Sat 23:05 CST: G0, G2 and G1 (30,240/30,240 RESULTs) byte-identical over UDP, plus a 6 s heartbeat gap
@@ -210,31 +213,28 @@ when level ≥ shutdown.
 - INVALID clears `cnt` and `gap_run`, and leaves the conditions, latches and ALERTs alone.
 - ALERT rules: A19 above.
 
-## Current model (v2)
+## Current model (v3, deployed)
 
-See `artifacts/v2/report.md`. Retrained Sun Nov 8 ~01:00 CST under the reviewed spec (`S_feat` = 17,
-`review_r1r2` countdown). Training data: the practice week **plus augmented copies**:
+**Full design, recipe and the experiments behind it:** [`docs/plan/mudit/ml_architecture.md`](../docs/plan/mudit/ml_architecture.md).
 
-- healthy pressure offsets ×0.8 / ×1.2;
-- sizes ×0.7 / ×1.5;
-- extra sensor noise.
+| Item | v3 |
+| --- | --- |
+| Recipe | practice week + augmented copies; **observable labels** (leak/degradation positives before the pump first runs in the event get weight 0); C = 3 for leak and degradation, 0.03 for failure and shut-in |
+| GLOBAL | `persist_K4` [1, 3, 1, 1], `logit_thr` [−64, 0, 0, 0] (1/256), `gap_thr` 504, S 17 |
+| Blob | 980 B, CRC32 `0xA8E1639F`, Fw 8, S_out 14 |
 
-C = 1 for leak and degradation, 0.03 for failure and shut-in. Shipped GLOBAL settings: `persist_K` = 1,
-`persist_K4` = [1, 1, 1, 1], `logit_thr` = [0, 384, 0, 0] in 1/256 units, `gap_thr` = 504. Thresholds and K are
-chosen, within ≤ 0.05 false alerts per facility-day, for the most events caught and then the fastest median
-detection. Scored out-of-fold (holding out one system at a time) on clean data, with integer logits:
+Out-of-fold results, holding out one system at a time, with integer logits:
 
-| Head | Precision / recall | Events caught | Median / max delay after onset | False alerts per facility-day |
+| Head | Precision / recall | Events caught | Median / worst delay | False alerts per facility-day |
 | --- | --- | --- | --- | --- |
-| Leak | 0.94 / 0.99 | 5/5 | 5 / 60 min | 0.048 |
-| Degradation | 0.95 / 0.84 | 5/5 | 170 / 275 min | 0.048 |
+| Leak | 0.95 / 0.99 | 5/5 | 5 / 60 min | 0.019 |
+| Degradation | 0.95 / 0.90 | 5/5 | 155 / 180 min | 0.038 |
 | Failure | 1.00 / 1.00 | 13/13 | 0 | 0 |
 | Shut-in | 1.00 / 1.00 | — | — | 0 |
 
-- E-STOP fires on 5/5 leaks and never outside a leak.
-- int16 vs float decisions agree on 99.999% of records.
-- The thresholds were picked on the same out-of-fold scores, so these numbers are optimistic on one practice week.
-- Failure and shut-in are signalled directly by pump status 2 / all wells off.
+- E-STOP fires on 5/5 leaks and never outside one.
+- Under healthy pressure offsets ×1.3, false alerts are 0.05 / 0.11 per facility-day (v2: 0.08 / 0.27).
+- G0 / G1 / G2 plus all 100 alerts are byte-identical over UDP against the stand-in.
 
 **Why degradation is slower than leak:**
 
@@ -242,9 +242,8 @@ detection. Scored out-of-fold (holding out one system at a time) on clean data, 
   that there is nothing to measure.
 - When the pump does run, flow is still within healthy noise: 0.990–1.002 of normal, against a healthy 1st–99th
   percentile of 0.987–1.013.
-- The model fires once the loss reaches about 1–2 %, which is at the edge of that noise.
-- Events last 24–36 h, and three end in a pump failure. Detection 3–4 h in is about 30 h before those
-  failures (an in-sample check gave 31–33 h).
+- Events last 24–36 h, and three end in a pump failure, so detection about 2.5–3 h in is about 30 h before those
+  failures.
 
 ## Cross-check with the FPGA team's reference model
 
