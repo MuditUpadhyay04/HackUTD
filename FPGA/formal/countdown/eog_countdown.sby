@@ -45,8 +45,11 @@
 #            for the two-record horizon).
 # bmc_arith  (default) bmc from reset, real eog_mul + eog_div, -DFV_ARITH: + C6_p10/p50/p90 (m(q) exact), C5_ord,
 #            C3_eq. out_ready = 1 (READY1; the arithmetic does not depend on back-pressure), operands narrowed
-#            structurally: INFLOW 5 bits, LEVEL 11 bits signed, K_CD < 2^15, SHUT_LVL < 2^10 (K·Δ up to 2^26, so
-#            the 0xFFFF clamp, finite values and tripped records all occur). Depth 70 (as bmc: m(q) on fills).
+#            structurally to a few free bits per record: INFLOW 4 bits signed (q = 0..7), LEVEL 6 bits signed,
+#            K_CD < 2^8, SHUT_LVL < 2^7, so K·Δ < 2^16 and finite values, q = 0 -> 0xFFFF and tripped records
+#            occur. (With ~40 free operand bits the first compute output alone did not finish in 10 min on the
+#            stub: SAT on a 48-stage divider. The 0xFFFF clamp of large quotients is covered by the vectors:
+#            the `sat` case has K_CD = 2^24 - 1 with inflow 1.) Depth 70 (as bmc: m(q) on fills).
 # cover      (default) cover goals cv_trip, cv_nf, cv_fin, cv_mix, cv_inv, cv_drop, cv_oob, cv_bp, cv_refill
 #            (assertions removed; cv_wrap is in cover_wrap). Depth 85.
 # bmc_deep   (opt-in) as bmc with out_ready = 1 and depth 135: C4/C5 across a wrapped ring (fill + 4 pushes of one
@@ -113,7 +116,7 @@ prove:      chparam -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 prove_one:  chparam -set II 64 -set PAYLOAD 2 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 bmc:        chparam -set PAYLOAD 0 -set N_IB 5 -set LAT_CHK 0 fv_eog_countdown
 bmc_pass:   chparam -set PAYLOAD 2 -set READY1 1 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
-bmc_arith:  chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 -set N_LB 11 -set N_KB 15 -set N_SB 10 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
+bmc_arith:  chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 4 -set N_LB 6 -set N_KB 8 -set N_SB 7 -set II_CHK 0 -set LAT_CHK 0 fv_eog_countdown
 cover:      chparam -set PAYLOAD 0 -set N_IB 5 fv_eog_countdown
 bmc_deep:   chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 fv_eog_countdown
 cover_wrap: chparam -set PAYLOAD 0 -set READY1 1 -set N_IB 5 fv_eog_countdown
