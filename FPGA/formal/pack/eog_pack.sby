@@ -1,0 +1,48 @@
+# SymbiYosys job for eog_pack (Verify role, task T1.pack.fv). Properties: fv_eog_pack.sv (K1-K4, B_*, stage
+# contract via eog_fv_stage, covers). BATCH = 3 in the harness (spec cover).
+#   bash scripts/formal.sh pack          # all tasks, report in reports/formal_pack.txt
+#
+# prove : unbounded proof of every assertion with abc pdr (IC3). Why not k-induction: the DUT's beat position
+#         (and any skid buffer) is invisible at the ports; with m_ready held 0 for any number of cycles a k-step
+#         induction trace can start with the DUT's beat counter out of step with the harness's f_beat, so no
+#         depth closes without RTL-internal invariants (same situation as formal/unpack). PDR learns them.
+#         The harness keeps its shadows position-relative (tracked record = "records ahead of it", IN_LAST in a
+#         shift queue) -- a version indexed by REC_NO counters ran > 25 min without converging.
+#         Against the verifier's throwaway stubs (never committed), shared loaded WSL machine: 2-entry (skid)
+#         stub PASS 62 s, one-record-at-a-time stub PASS 31 s, registered-tap stub PASS 62 s; mutants FAIL on
+#         the expected label: corrupted RESULT bit K2_data 15 s, corruption only on REC_NO 200 K2_data 101 s,
+#         wrong BATCH count K3_last 4 s.
+# bmc   : smtbmc, every assertion from reset, depth 20 = reset + idle + 4 records' 16 beats (> one BATCH = 3 batch
+#         plus the next record) -- quick counterexamples for the RTL author (~55 s against the stub). Mutants
+#         caught: K2_data, K3_beat, K3_last, K4_val, K4_ghost, B_rate, u_stage.st_link_n (5-beat record).
+# cover : spec cover (a batch of BATCH = 3 results ending in m_last) + sanity covers; depth 24 (deepest goal,
+#         C1_batch, at step 14 against the stub); ~1 s.
+
+[tasks]
+prove
+bmc
+cover
+
+[options]
+prove: mode prove
+bmc:   mode bmc
+bmc:   depth 20
+cover: mode cover
+cover: depth 24
+
+[engines]
+prove: abc pdr
+bmc:   smtbmc boolector
+cover: smtbmc yices
+
+[script]
+read_verilog -formal -sv eog_fv_props.sv
+read_verilog -formal -sv -I . eog_pack.sv
+read_verilog -formal -sv -I . fv_eog_pack.sv
+prep -top fv_eog_pack
+
+[files]
+../common/eog_fv_props.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_pack.sv
+fv_eog_pack.sv

@@ -24,6 +24,14 @@
 #include "xil_cache.h"
 #include "xil_mmu.h"
 
+/* Built inside eog_app.c (EOG_APP defined): eog_app.c owns the template entry points, this file keeps the
+ * 7777 multiply server under mul_* names, and the 7000 perf probe is left out (7000 carries DATA there). */
+#ifdef EOG_APP
+#define UDP_MUL_ENTRY(name) mul_##name
+#else
+#define UDP_MUL_ENTRY(name) name
+#endif
+
 /* Matches mul_base in vivado/build.tcl. If your xparameters.h defines the
  * module-reference base address, that wins. */
 #if defined(XPAR_AXI_MUL_0_BASEADDR)
@@ -159,6 +167,7 @@ static void mul_recv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
 }
 
 
+#ifndef EOG_APP
 /* ---------- UDP receive-ceiling probe (port 7000) ----------
  * Measures how many UDP packets/bytes the ARM + lwIP can absorb.
  *   PRF1 packet: magic u32 | seq u32 | mode u32 | payload...   (mode 0 = count, 1 = copy + cache flush)
@@ -286,15 +295,17 @@ static void perf_recv(void *arg, struct udp_pcb *upcb, struct pbuf *p,
     }
 }
 
+#endif /* !EOG_APP */
+
 /* ---------- functions the template's main.c calls ---------- */
-void print_app_header(void)
+void UDP_MUL_ENTRY(print_app_header)(void)
 {
     xil_printf("\r\n----- HackUTD FPGA link: UDP multiply server -----\r\n");
     xil_printf("UDP port %d, axi_mul at 0x%08x\r\n", MUL_PORT, MUL_BASEADDR);
     xil_printf("request 16B: magic|seq|a|b   response 28B: magic|seq|status|a|b|p_hi|p_lo\r\n");
 }
 
-int start_application(void)
+int UDP_MUL_ENTRY(start_application)(void)
 {
     hw_selftest();   /* report only; keep serving so errors show up on the host too */
 
@@ -311,6 +322,7 @@ int start_application(void)
     udp_recv(mul_pcb, mul_recv, NULL);
     xil_printf("UDP multiply server listening on port %d\r\n", MUL_PORT);
 
+#ifndef EOG_APP
     perf_pcb = udp_new();
     if (perf_pcb == NULL || udp_bind(perf_pcb, IP_ADDR_ANY, PERF_PORT) != ERR_OK) {
         xil_printf("perf probe: bind %d failed\r\n", PERF_PORT);
@@ -320,11 +332,13 @@ int start_application(void)
     Xil_SetTlbAttributes((INTPTR)nc_ring, NORM_NONCACHE);
     mac_stats_accumulate();
     xil_printf("UDP perf probe listening on port %d\r\n", PERF_PORT);
+#endif
     return 0;
 }
 
+#ifndef EOG_APP
 /* Called every main-loop iteration; prints a heartbeat every 2^24 calls. */
-void transfer_data(void)
+void UDP_MUL_ENTRY(transfer_data)(void)
 {
     static uint32_t ticks;
     loop_iter++;
@@ -338,3 +352,4 @@ void transfer_data(void)
         xil_printf("[udp_mul] rx=%d err=%d hw_ops=%d\r\n", (int)n_rx, (int)n_err,
                    (int)Xil_In32(MUL_BASEADDR + REG_COUNT));
 }
+#endif /* !EOG_APP */

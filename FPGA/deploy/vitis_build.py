@@ -1,5 +1,5 @@
 # vitis_build.py — run by Vitis' Python CLI:
-#   vitis -s vitis_build.py <workspace> <xsa> <udp_mul.c>
+#   vitis -s vitis_build.py <workspace> <xsa> <udp_mul.c | eog_app.c> [extra sources...]
 #
 # First run : creates the platform (standalone on ps7_cortexa9_0 + lwIP) and an app from the
 #             lwIP Echo Server template, then replaces the template's echo.c with udp_mul.c
@@ -157,6 +157,17 @@ if not srcs:
     raise SystemExit("echo.c not found in app src")
 shutil.copyfile(src, srcs[0])
 log("replaced", srcs[0], "with udp_mul.c contents")
+# Extra sources (eog_app.c is a unity build): copied to src/eog_inc/ under header names (X.c -> X_c.h) so a
+# template build that globs *.c never compiles them a second time.
+extras = [os.path.abspath(a) for a in sys.argv[4:]]
+if extras:
+    inc = os.path.join(os.path.dirname(srcs[0]), "eog_inc")
+    os.makedirs(inc, exist_ok=True)
+    for e in extras:
+        base, ext = os.path.splitext(os.path.basename(e))
+        dst = os.path.join(inc, base + "_c.h" if ext == ".c" else base + ext)
+        shutil.copyfile(e, dst)
+        log("copied", e, "->", dst)
 
 comp = client.get_component(name=APP)
 try:
