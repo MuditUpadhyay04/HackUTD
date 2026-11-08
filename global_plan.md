@@ -202,5 +202,6 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 
 | When (CST) | Change |
 | --- | --- |
+| Sat Nov 7 23:15 | ML pipeline in `ml/`: encoder, bit-exact engine reference, trained weights v1, golden sets, UDP board harness and software board stand-in. Proposed values for O2: `persist_K` = 1, `logit_thr` = [64, 384, 0, 0] (1/256), `gap_thr` = 504. Assumptions A1–A19 in `ml/README.md` need Lucas's confirmation. No contract changes. |
 | Sat Nov 7 22:45 | Linked Mudit's ML plan (PROPOSED). No contract changes yet; its proposals for Lucas (per-class K, weight blob layout, debug readback) need his sign-off before they land in §5. |
 | Sat Nov 7 21:45 | Created the global plan from Lucas's FPGA plan (snapshot through its Sat 21:20 row): architecture, owners, contracts C1–C10, the superseded CNN/window/transport items, the demo path, change control and open questions. Logged repo-side review findings R1–R6 as O3, O5–O8. |

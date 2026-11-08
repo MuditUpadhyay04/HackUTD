@@ -1,10 +1,44 @@
 # ML plan — four logistic regressions for the Eclypse Z7
 
-Owner: **Mudit** · Sat Nov 7 2026, 22:45 CST · Status: **PROPOSED, for discussion before training starts**
+Owner: **Mudit** · Sat Nov 7 2026, 22:45 CST · Status: **IN PROGRESS.** The plan was accepted as-is (revert
+later if needed); D1–D5 are implemented in [`ml/`](../../../ml/README.md).
 
 Builds on Lucas's [FPGA plan](../lucas/fpga_hardware_plan.md), the source of truth for the wire format, engine and
 feature rules, and on [`global_plan.md`](../../../global_plan.md) (hard rules §2, contracts §5). Dataset:
 [nihaal419/HackUTD-ZeroDay](https://github.com/nihaal419/HackUTD-ZeroDay) at commit `135ba4c`.
+
+## Progress (Sat 23:15 CST)
+
+| # | Status | Where |
+| --- | --- | --- |
+| D1 encoder + wire layouts | Done | `ml/hutd_ml/encode.py`, `wire.py` |
+| D2 bit-exact engine reference | Done; 19 places where the FPGA plan is silent are written down as assumptions A1–A19 for Lucas to confirm | `ml/hutd_ml/features_int.py`, `ml/README.md` |
+| D3 weights v0 + golden sets | Done: G0, G2 with untrained test weights (`weights_ver` 240) | `ml/artifacts/v0/golden/` |
+| D4 trained weights v1 | Done; report in `ml/artifacts/v1/report.md` | `ml/artifacts/v1/` |
+| D5 edge-case set G2 + UDP harness | Done, plus a software stand-in for the board (`fakeboard.py`). Loopback G0 / G1 / G2 byte-identical, heartbeat-gap replay OK. | `ml/hutd_ml/board.py`, `fakeboard.py` |
+| D6 live retrain → swap | Not started (the harness and stand-in already support the WEIGHTS swap) | — |
+
+**v1 results** (held-out systems, integer logits, wire-v1 single K = 1):
+
+| Head | Precision / recall | Events | Median delay |
+| --- | --- | --- | --- |
+| Leak | 0.94 / 0.99 | 5/5 | 5 min |
+| Degradation | 0.95 / 0.83 | 5/5 | 190 min |
+| Failure | 1.00 / 1.00 | 13/13 | 0 |
+| Shut-in | 1.00 / 1.00 | — | — |
+
+**Other outputs:**
+
+- **Thresholds** in 1/256 logit units: `[64, 384, 0, 0]`.
+- **`gap_thr`** = 504. E-STOP fires on 5/5 leaks and on no frame outside a leak.
+- **int16 export** matches the float model 100%.
+- **Per-class K** is no longer needed with these thresholds (§7 item 1 dropped to optional).
+
+**Follow-ups:**
+
+- C for leak/degradation landed on the edge of the grid (3.0). Weights are larger, Fw = 9; check robustness
+  before the demo.
+- Pressure augmentation (§4.5) is not done yet.
 
 ## 0. Summary
 
