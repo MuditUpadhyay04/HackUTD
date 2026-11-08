@@ -7,6 +7,7 @@ import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { boardFacility, InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
 import { NetworkCard } from "./network";
+import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
@@ -229,6 +230,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         approvedAt={incident ? approvedAt(incident.id) : undefined}
         boardFacility={incident ? boardFacility(s.board, incident.facilityId) : undefined}
         boardSource={s.board?.source}
+        boardTestWeights={isTestWeights(s.board?.weightsVersion)}
+        boardSoftware={s.board?.provenance === "software"}
         onApprove={(a) => {
           setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
           setIncident(null);
@@ -240,6 +243,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         incident={s.alerts.find((a) => a.facilityId === facilityId)}
         boardFacility={facilityId ? boardFacility(s.board, facilityId) : undefined}
         boardSource={s.board?.source}
+        boardTestWeights={isTestWeights(s.board?.weightsVersion)}
+        boardSoftware={s.board?.provenance === "software"}
         nowUnix={s.nowUnix}
         limits={s.limits}
         onClose={() => setFacilityId(null)}

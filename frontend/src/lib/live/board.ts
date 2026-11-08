@@ -2,7 +2,7 @@
 //
 // Modes (env):
 //   LIVE_API_URL=https://host/api   -> read GET {LIVE_API_URL}/v1/board?dataset=&at= (contract: docs/live-api.md)
-//   SIMULATE_BOARD=1 | autonomous | reconnected | offline -> development feed derived from the local engine, always labelled
+//   SIMULATE_BOARD=1 | autonomous | reconnected | software | offline -> development feed derived from the local engine, always labelled
 //   neither                         -> local mode: board is undefined and the UI shows no board elements
 //
 // The local engine snapshot is always computed first, so the console keeps working if the board or server is down.
@@ -38,7 +38,9 @@ async function fetchLive(base: string, s: Snapshot): Promise<BoardStatus | null>
   }
 }
 
-const clamp01 = (x: unknown) => (typeof x === "number" && Number.isFinite(x) ? Math.min(1, Math.max(0, x)) : 0);
+const isNum = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+const clamp01 = (x: unknown) => (isNum(x) ? Math.min(1, Math.max(0, x)) : 0);
+const HEADS = ["pipeline_leak", "pump_degradation", "pump_failure", "facility_shut_in"] as const;
 const numOr = (x: unknown, d: number | null) => (typeof x === "number" && Number.isFinite(x) ? x : d);
 
 /** Defensive parse: unknown fields are ignored, bad values never reach the UI as numbers. */
@@ -51,13 +53,15 @@ export function parseBoard(raw: unknown): Omit<BoardStatus, "source"> | null {
     if (!f || typeof f.facilityId !== "string") continue;
     const sc = f.scores as Record<string, unknown> | null | undefined;
     const alarm = f.alarm === "night_shift" || f.alarm === "e_stop" ? f.alarm : "none";
-    const state = f.alarmState === "raised" || f.alarmState === "cleared" || f.alarmState === "acknowledged" ? f.alarmState : null;
+    // An alarm the board sent is always shown; if its state is garbled, treat it as still raised (safer).
+    const state = f.alarmState === "raised" || f.alarmState === "cleared" || f.alarmState === "acknowledged" ? f.alarmState : "raised";
     const source = f.source === "rule" || f.source === "model" || f.source === "both" ? f.source : "none";
     const trend = f.degradationTrend as { t?: unknown; v?: unknown } | undefined;
     facilities.push({
       facilityId: f.facilityId,
       updatedUnix: numOr(f.updatedUnix, 0) as number,
-      scores: sc
+      // Scores are all-or-nothing: if any head isn't a real number, show no model numbers rather than a fake 0%.
+      scores: sc && HEADS.every((h) => isNum(sc[h]))
         ? {
             pipeline_leak: clamp01(sc.pipeline_leak),
             pump_degradation: clamp01(sc.pump_degradation),
@@ -78,7 +82,9 @@ export function parseBoard(raw: unknown): Omit<BoardStatus, "source"> | null {
           : undefined,
     });
   }
+  const provenance = r.provenance === "software" || r.provenance === "unavailable" ? r.provenance : "fpga";
   return {
+    provenance,
     online: r.online === true,
     mode: r.mode === "AUTONOMOUS" ? "AUTONOMOUS" : "NORMAL",
     lastSeenUnix: numOr(r.lastSeenUnix, null),
@@ -144,6 +150,7 @@ function simulate(s: Snapshot, mode: string): BoardStatus | null {
   );
   return {
     source: "simulated",
+    provenance: mode === "software" ? "software" : "fpga",
     online: !autonomous,
     mode: autonomous ? "AUTONOMOUS" : "NORMAL",
     lastSeenUnix: s.nowUnix,
@@ -153,3 +160,7 @@ function simulate(s: Snapshot, mode: string): BoardStatus | null {
     facilities,
   };
 }
+
+/** The ML pipeline's untrained bring-up weights report weights_ver 240 (ml/README.md). Their scores mean nothing. */
+export const TEST_WEIGHTS_VERSION = 240;
+export const isTestWeights = (v: number | null | undefined) => v === TEST_WEIGHTS_VERSION;

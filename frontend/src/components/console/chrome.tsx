@@ -231,16 +231,30 @@ export function Toolbar({
 
 /** Board health beside the Nemotron badge. Only rendered when a board is configured (live or simulated). */
 function BoardChip({ board }: { board: BoardStatus | null }) {
-  const state = !board || !board.online ? (board?.mode === "AUTONOMOUS" ? "own" : "offline") : board.mode === "AUTONOMOUS" ? "own" : "online";
+  const state =
+    !board || board.provenance === "unavailable" || (!board.online && board.provenance !== "software")
+      ? board?.mode === "AUTONOMOUS"
+        ? "own"
+        : "offline"
+      : board.provenance === "software"
+        ? "software"
+        : board.mode === "AUTONOMOUS"
+          ? "own"
+          : "online";
   const simulated = board?.source === "simulated";
-  const label = state === "online" ? "Board online" : state === "own" ? "Board on its own" : "Board offline";
+  const label =
+    state === "online" ? "Board online" : state === "own" ? "Board on its own" : state === "software" ? "Software runtime" : "Board offline";
   const detail =
     state === "offline"
       ? "Showing the console's own detections"
       : state === "own"
         ? "The board lost the server and is watching on its own"
+        : state === "software"
+          ? "The board isn't connected; the server's software copy of the board model is classifying"
         : board?.weightsVersion != null
-          ? `Model v${board.weightsVersion}`
+          ? board.weightsVersion === 240
+            ? "Untrained test weights (v240)"
+            : `Model v${board.weightsVersion}`
           : undefined;
   const title = [simulated ? "Simulated board, not model output" : undefined, detail].filter(Boolean).join(". ") || undefined;
   return (
@@ -250,7 +264,7 @@ function BoardChip({ board }: { board: BoardStatus | null }) {
       className="flex max-w-full items-center gap-1.5 rounded-lg bg-white px-2.5 py-[5px] text-[13px] text-text shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
     >
       <span
-        className={cn("size-2 shrink-0 rounded-full", state === "online" ? "bg-[#34c759]" : state === "own" ? "bg-warn-fill" : "bg-[#8e8e93]")}
+        className={cn("size-2 shrink-0 rounded-full", state === "online" ? "bg-[#34c759]" : state === "own" ? "bg-warn-fill" : state === "software" ? "bg-water" : "bg-[#8e8e93]")}
         aria-hidden
       />
       <span className="min-w-0">

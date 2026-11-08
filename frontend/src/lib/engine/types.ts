@@ -185,6 +185,8 @@ export interface BoardFacility {
 
 export interface BoardStatus {
   source: "live" | "simulated"; // "simulated" = mock feed for development, always labelled in the UI
+  /** Who produced the results, as in Jason's fpga-sim runtime: the board, the server's software stand-in, or nothing. */
+  provenance: "fpga" | "software" | "unavailable";
   online: boolean; // server has heard from the board recently
   mode: "NORMAL" | "AUTONOMOUS"; // AUTONOMOUS = board lost the server heartbeat and is buffering
   lastSeenUnix: number | null;

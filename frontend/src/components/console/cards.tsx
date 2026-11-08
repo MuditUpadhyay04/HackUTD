@@ -1,5 +1,7 @@
 "use client";
 
+import { isTestWeights } from "@/lib/live/board";
+
 import { Check, Truck } from "lucide-react";
 import type { BoardFacility, BoardStatus, Category, FacilityState, Incident, PlanOption, SystemState } from "@/lib/engine/types";
 import { categoryLabel, clockFrom, countdownState, facilityName, facilityTitle, humanize, money, num, planText, systemNum } from "@/lib/format";
@@ -297,7 +299,13 @@ function BoardLine({
   const score = f.scores ? f.scores[category] : undefined;
   const src = f.source !== "none" ? sourceText[f.source] : undefined;
   let text =
-    score != null ? (board.source === "simulated" ? `Simulated score ${Math.round(score * 100)}%` : `Model ${Math.round(score * 100)}% sure`) : "";
+    score != null
+      ? board.source === "simulated"
+        ? `Simulated score ${Math.round(score * 100)}%`
+        : isTestWeights(board.weightsVersion)
+          ? `Test weights, score not meaningful`
+          : `Model ${Math.round(score * 100)}% sure`
+      : "";
   if (src) text = text ? `${text}, ${src}` : src[0].toUpperCase() + src.slice(1);
   if (!alarm && !text && !f.replayed) return null;
   return (

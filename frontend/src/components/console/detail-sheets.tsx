@@ -22,6 +22,8 @@ export function IncidentSheet({
   onClose,
   boardFacility,
   boardSource,
+  boardTestWeights,
+  boardSoftware,
 }: {
   incident: Incident | null;
   facility?: FacilityState;
@@ -33,6 +35,8 @@ export function IncidentSheet({
   /** Live board data for this facility; absent in local mode, so nothing extra renders. */
   boardFacility?: BoardFacility;
   boardSource?: "live" | "simulated";
+  boardTestWeights?: boolean;
+  boardSoftware?: boolean;
 }) {
   // Focus starts on the sheet itself, so a stray Enter can't approve a plan nobody has read yet.
   const popupRef = useRef<HTMLDivElement>(null);
@@ -47,7 +51,7 @@ export function IncidentSheet({
             limits={limits}
             approvedAt={approvedAt}
             onApprove={() => onApprove(incident)}
-            board={boardFacility && <BoardSection board={boardFacility} source={boardSource} nowUnix={nowUnix} />}
+            board={boardFacility && <BoardSection board={boardFacility} source={boardSource} testWeights={boardTestWeights} software={boardSoftware} nowUnix={nowUnix} />}
           />
         ) : (
           <InspectionDetail
@@ -59,6 +63,8 @@ export function IncidentSheet({
                 <BoardSection
                   board={boardFacility}
                   source={boardSource}
+                  testWeights={boardTestWeights}
+                  software={boardSoftware}
                   nowUnix={nowUnix}
                   showTrend={incident.category === "pump_degradation"}
                   onsetUnix={incident.onsetUnix}
@@ -429,6 +435,8 @@ export function FacilitySheet({
   onOpenIncident,
   boardFacility,
   boardSource,
+  boardTestWeights,
+  boardSoftware,
 }: {
   facility: FacilityState | null;
   incident?: Incident;
@@ -439,6 +447,8 @@ export function FacilitySheet({
   /** Live board data for this facility; absent in local mode, so nothing extra renders. */
   boardFacility?: BoardFacility;
   boardSource?: "live" | "simulated";
+  boardTestWeights?: boolean;
+  boardSoftware?: boolean;
 }) {
   const f = facility;
   const pumpText = f ? (["Stopped", "Running", "Fault"][f.pump.status] ?? "status unknown") : "";
@@ -503,7 +513,7 @@ export function FacilitySheet({
               <Stat label="Pump moving" value={bpd(f.pump.flowBpd)} />
               <Stat label="Reaching disposal" value={bpd(f.pipeline.receiveFlowBpd)} />
             </section>
-            {boardFacility && <BoardSection board={boardFacility} source={boardSource} nowUnix={nowUnix} showTrend />}
+            {boardFacility && <BoardSection board={boardFacility} source={boardSource} testWeights={boardTestWeights} software={boardSoftware} nowUnix={nowUnix} showTrend />}
             <WellsTable facility={f} highlight={[]} />
             <div className="h-8" />
           </>
@@ -542,14 +552,15 @@ function alarmText(b: BoardFacility, nowUnix: number) {
   return `Night Shift alarm raised${at ? ` at ${at}` : ""}`;
 }
 
-function sourceText(b: BoardFacility, simulated: boolean) {
+function sourceText(b: BoardFacility, simulated: boolean, testWeights = false) {
   const over = b.overThreshold as string[];
   const s = b.scores;
   // The model's confidence in what it flagged: the highest score among heads over threshold.
   const flagged = s ? HEADS.filter((h) => over.includes(h.key)).map((h) => s[h.key]) : [];
   // A simulated feed is not model output, so it never says "Model N% sure".
   const top = flagged.length ? pct(Math.max(...flagged)) : null;
-  const sure = top == null ? null : simulated ? `Simulated score ${top}%` : `Model ${top}% sure`;
+  const sure =
+    top == null ? null : simulated ? `Simulated score ${top}%` : testWeights ? "Untrained test weights, scores not meaningful" : `Model ${top}% sure`;
   switch (b.source) {
     case "both":
       return sure ? `${sure}, rule and model agree` : "Rule and model agree";
@@ -568,12 +579,16 @@ function BoardSection({
   nowUnix,
   showTrend = false,
   onsetUnix,
+  testWeights = false,
+  software = false,
 }: {
   board: BoardFacility;
   source?: "live" | "simulated";
   nowUnix: number;
   showTrend?: boolean;
   onsetUnix?: number;
+  testWeights?: boolean;
+  software?: boolean;
 }) {
   const simulated = source === "simulated";
   const over = b.overThreshold as string[];
@@ -593,6 +608,11 @@ function BoardSection({
       {simulated && (
         <p className="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
           Development feed made from the console&apos;s own detections. These are not model scores.
+        </p>
+      )}
+      {software && !simulated && (
+        <p className="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
+          The board isn&apos;t connected, so the server&apos;s software copy of the board model produced these scores.
         </p>
       )}
       <div className="rounded-xl border border-line bg-white/60 px-4 py-4 shadow-[inset_0_0.5px_0_rgba(255,255,255,0.9)]">
@@ -648,7 +668,7 @@ function BoardSection({
         )}
 
         <div className="mt-4 flex flex-col gap-1 border-t border-line-soft pt-3 text-[13px] text-muted-foreground">
-          <p className="text-text">{sourceText(b, simulated)}</p>
+          <p className="text-text">{sourceText(b, simulated, testWeights)}</p>
           <p>
             History behind these scores: <span className="num text-text">{b.sinceReset >= 255 ? "255 or more" : num(b.sinceReset)}</span>{" "}
             {b.sinceReset === 1 ? "reading" : "readings"}
