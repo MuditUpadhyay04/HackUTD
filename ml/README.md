@@ -15,6 +15,8 @@ Implements [`docs/plan/mudit/ml_plan.md`](../docs/plan/mudit/ml_plan.md) against
 | `hutd_ml/train.py` | Trains the 4 heads with held-out-system validation; picks thresholds / K / `gap_thr`; exports blob + config + report |
 | `hutd_ml/golden.py` | Golden vector sets for the RTL testbench and the board |
 | `hutd_ml/compare.py` | Diffs RESULT dumps against a golden set; names the first mismatching record and field |
+| `hutd_ml/combined_suite.py` | **The combined test**: v4 board results → API incidents → Nemotron agents, one command: see [`COMBINED_TEST.md`](COMBINED_TEST.md) |
+| `hutd_ml/board_suite.py` | **One command for the whole board test suite** (golden sets + the live demo path checked against the reference): see [`BOARD_CHECKLIST.md`](BOARD_CHECKLIST.md) |
 | `hutd_ml/board.py` | Laptop UDP harness: CONFIG → WEIGHTS → DATA (+ HEARTBEAT) to the board, collects RESULT/ALERT/STATS, diffs |
 | `hutd_ml/fakeboard.py` | Software stand-in for the board (same UDP protocol, computes with `features_int.py`), for testing the harness, ingest and server without hardware |
 | `hutd_ml/replay.py` | **CSV → binary sender (runs on Lucas's PC)**: CONFIG → WEIGHTS → one 5-minute step at a time to the board; leaves 7001/7002 free |
@@ -46,7 +48,7 @@ python3 -m hutd_ml.missing_data --data $DATA --answer-key $DATA/answer_key.json 
 | --- | --- | --- |
 | `artifacts/v0/golden/g0`, `g2` | Untrained pseudo-random int16 (`weights_ver` **240**): full range, both signs, saturating logits | Bring-up of the head/accumulator/saturation path |
 | `artifacts/v4/golden/g0`, `g1`, `g2` | **Trained v4, deployed** (`weights_ver` 4) + its GLOBAL CONFIG | Use for the board run and the demo |
-| `artifacts/v4/` | `weights.bin` (980 B blob), `weights.json`, `global_config.json`, `report.md` | Deployed model + validation report |
+| `artifacts/v4/` | `weights.bin` (980 B blob), `weights.eog` (the same blob for the board's SD card), `weights.json`, `global_config.json`, `report.md` | Deployed model + validation report |
 | `artifacts/v3/` (+ `golden/`) | Trained v3 (`weights_ver` 3): same recipe without missing-data augmentation | Fallback: 5 min faster on clean leaks, worse with missing readings |
 | `artifacts/v2/golden/g0`, `g1`, `g2` | Trained v2 (`weights_ver` 2) | What the RTL is verified against (T2.top). Equally valid: the RTL doesn't depend on the weights. |
 | (v1 removed) | v1 used the pre-review spec (`S_feat` 11, old countdown); it is in git history only | — |

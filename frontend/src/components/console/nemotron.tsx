@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Tile } from "./section";
 import type { AnalysisRecord } from "@hackutd/contracts";
 import { api, commandKey, unwrap } from "@/lib/api";
+import { humanize } from "@/lib/format";
 
 /** A neutral eye glyph in NVIDIA green: marks where Nemotron is speaking. Not the NVIDIA logo. */
 export function NemotronMark({ className }: { className?: string }) {
@@ -47,8 +48,8 @@ export function NemotronBrief({ runId, expanded }: { runId: string; expanded?: b
         <h3 className="text-[15px] font-semibold text-text">Note for the next operator</h3>
       </div>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        {brief?.source === "nemotron"
-          ? `Written by ${brief.model ?? "Nemotron"}`
+        {brief?.source === "nemotron" || brief?.source === "ai-sdk"
+          ? `Written by ${brief.model ?? "Nemotron"}${brief.source === "ai-sdk" ? " (fallback runtime)" : ""}; checked against the snapshot.`
           : brief
               ? "Draft from the plan solver."
               : "Reading the network…"}
@@ -65,7 +66,7 @@ export function NemotronBrief({ runId, expanded }: { runId: string; expanded?: b
         )}
         {brief && (
           <>
-            <p className="text-[16px] leading-relaxed text-text">{brief.handoff}</p>
+            <p className="max-w-[80ch] text-[16px] leading-relaxed text-text">{humanize(brief.handoff)}</p>
             <details className="group mt-4 border-t border-line pt-3" open={expanded}>
               <summary className="cursor-pointer list-none text-[13px] text-muted-foreground hover:text-text">
                 <span className="group-open:hidden">Show how the agents got here</span>
@@ -76,7 +77,7 @@ export function NemotronBrief({ runId, expanded }: { runId: string; expanded?: b
                   <li key={i} className="text-[13px] leading-snug">
                     <span className="font-medium text-text">{s.agent}</span>
                     {s.model.toLowerCase() !== s.agent.toLowerCase() && <span className="text-faint"> ({s.model})</span>}
-                    <p className="text-muted-foreground">{s.text}</p>
+                    <p className="text-muted-foreground">{humanize(s.text)}</p>
                   </li>
                 ))}
               </ol>

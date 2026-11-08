@@ -1,10 +1,11 @@
 {
-  "name": "bts-photon-test-bot",
+  "name": "bts-photon-bot",
   "private": true,
   "type": "module",
-  "description": "Throwaway test: text the Photon line and get Beat the Shutdown status. Delete this folder to remove it.",
+  "description": "Beat the Shutdown on your phone: text the Photon line for status, alerts and the agents' handoff.",
   "scripts": {
-    "start": "node --env-file=.env --import tsx bot.mts"
+    "start": "node --env-file=.env --import tsx bot.mts",
+    "check": "node --env-file-if-exists=.env --import tsx console.mts --check"
   },
   "dependencies": {
     "spectrum-ts": "^12.15.0",

@@ -3,7 +3,15 @@ import type { App } from "@hackutd/api";
 
 // Eden appends its typed /api routes to this prefix. No upstream credentials
 // or server implementation are included in the browser bundle.
-export const api = treaty<App>(`${typeof window === "undefined" ? "http://localhost" : window.location.origin}/api/backend`, { parseDate: false });
+// On the server (page render) there is no browser origin, and going through our own proxy would hit the
+// operator login. So server code talks to the operator API directly with the server-only token.
+export const api =
+  typeof window === "undefined"
+    ? treaty<App>(process.env.API_URL || "http://127.0.0.1:3001", {
+        parseDate: false,
+        headers: process.env.API_TOKEN ? { authorization: `Bearer ${process.env.API_TOKEN}` } : undefined,
+      })
+    : treaty<App>(`${window.location.origin}/api/backend`, { parseDate: false });
 
 export function unwrap<T>(result: { data: T | null; error: unknown }): Exclude<T, Response | { error: string; code: string }> {
   if (result.error) {
@@ -29,7 +37,10 @@ export async function listDatasets(): Promise<DatasetInfo[]> {
 }
 
 export function defaultDataset(datasets: DatasetInfo[]): DatasetInfo | undefined {
-  return datasets.find((d) => d.id === "test") ?? datasets.find((d) => d.id.startsWith("mock_test")) ?? datasets[0];
+  // Same rule as the Photon bot (Photon/console.mts pickDataset): the newest upload labelled "test" (the judges'
+  // folder), then the mock test, then the first upload. Upload ids are content hashes, so labels decide.
+  const tests = datasets.filter((d) => d.id === "test" || d.label === "test").sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return tests[0] ?? datasets.find((d) => d.id.startsWith("mock_test") || d.label.startsWith("mock_test")) ?? datasets[0];
 }
 
 import type { DatasetInfo } from "@hackutd/contracts";

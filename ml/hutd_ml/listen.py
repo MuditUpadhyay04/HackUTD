@@ -13,6 +13,7 @@ the board correctly enters AUTONOMOUS mode while the server is down and replays 
 import argparse
 import json
 import math
+import select
 import socket
 import sys
 import threading
@@ -39,13 +40,17 @@ def bits(v, names):
 
 
 class Decoder:
-    def __init__(self, facilities, calibration=None, logit_thr=None, persist_k=None, models=None):
+    def __init__(self, facilities, calibration=None, logit_thr=None, persist_k=None, models=None, source=None):
         self.fac = {f.fac_id: f for f in facilities}
+        self.source = source  # "fpga" or "fakeboard": written into every object so consumers can label provenance
         # default model settings, plus per-weights_ver settings for a live swap (each model has its own
         # calibration, thresholds and K); a result is read with the settings of the model that produced it
         self.default = (calibration, logit_thr, persist_k)
         self.models = models or {}
         self.cnt = {}  # fac_id -> consecutive hits per head, kept exactly like the board's persistence counters
+
+    def _src(self):
+        return {"source": self.source} if self.source else {}
 
     def _names(self, fid):
         f = self.fac.get(fid)
@@ -58,7 +63,7 @@ class Decoder:
     def result(self, r):
         fid, ts = int(r["fac_id"]), int(r["ts_unix"])
         logits = [int(x) / 256 for x in r["logits"]]
-        out = {"type": "result", "fac_id": fid, **self._names(fid), "ts_unix": ts, "time": self._iso(ts),
+        out = {"type": "result", **self._src(), "fac_id": fid, **self._names(fid), "ts_unix": ts, "time": self._iso(ts),
                "status": STATUS.get(int(r["status"]), int(r["status"])), "reason": bits(r["reason"], REASONS),
                "since_reset": int(r["since_reset"]), "logits": dict(zip(wire.HEADS, logits)),
                "rules": bits(r["rules"], RULES), "weights_ver": int(r["weights_ver"]), "result_no": int(r["result_no"]),
@@ -94,18 +99,17 @@ class Decoder:
 
     def alert(self, a):
         fid, ts = int(a["fac_id"]), int(a["ts_unix"])
-        return {"type": "alert", "fac_id": fid, **self._names(fid), "ts_unix": ts, "time": self._iso(ts),
+        return {"type": "alert", **self._src(), "fac_id": fid, **self._names(fid), "ts_unix": ts, "time": self._iso(ts),
                 "kind": ALERT_KIND.get(int(a["kind"]), int(a["kind"])), "source": bits(a["source"], ALERT_SOURCE),
                 "latch": "estop" if int(a["source"]) >> 4 & 1 else "night_shift",
                 "result_no": int(a["result_no"]), "rules": bits(a["rules"], RULES),
                 "classes": bits(a["classes"], wire.HEADS),
                 "countdown_p10_min": None if int(a["countdown_p10"]) == wire.COUNTDOWN_NONE else int(a["countdown_p10"])}
 
-    @staticmethod
-    def stats(buf):
+    def stats(self, buf):
         d = dict(zip(wire.STATS_FIELDS, wire.STATS.unpack_from(buf, 16)))
         d["mode"] = "AUTONOMOUS" if d["mode"] else "NORMAL"
-        return {"type": "stats", **d}
+        return {"type": "stats", **self._src(), **d}
 
 
 def main(argv=None):
@@ -119,6 +123,9 @@ def main(argv=None):
                     help="artifacts folder of a model (weights.json + global_config.json); repeat it for a live swap, "
                          "e.g. --model artifacts/v3 --model artifacts/v4. Results are read with the settings of the "
                          "model whose weights_ver they carry; --weights-json / --config remain the default")
+    ap.add_argument("--source", choices=["fpga", "fakeboard"], default=None,
+                    help="provenance written into every JSON object (default: fakeboard for a loopback --board, "
+                         "otherwise fpga)")
     ap.add_argument("--jsonl", default=None)
     ap.add_argument("--post", default=None, help="POST batches of JSON objects to this URL")
     ap.add_argument("--quiet", action="store_true", help="don't print results to stdout")
@@ -137,14 +144,15 @@ def main(argv=None):
                                       gc.get("persist_k_per_class") or [gc.get("persist_k", 1)] * 4)
     if models and calib is None and thr is None:  # --model only: the last one is also the default
         calib, thr, k = list(models.values())[-1]
-    dec = Decoder(facs, calib, thr, k, models)
+    source = a.source or ("fakeboard" if a.board.startswith("127.") or a.board == "localhost" else "fpga")
+    dec = Decoder(facs, calib, thr, k, models, source)
     socks = {}
     for port in (wire.PORT_RESULT, wire.PORT_ALERT):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 8 << 20)
         s.bind((a.local, port))
-        s.settimeout(0.05)
+        s.setblocking(False)
         socks[port] = s
     jsonl = open(a.jsonl, "a", buffering=1) if a.jsonl else None  # line-buffered: nothing lost on kill
     state = {"server_ok_at": time.monotonic(), "batch": [], "lock": threading.Lock(), "stop": False}
@@ -190,23 +198,27 @@ def main(argv=None):
     print(f"listening on {a.local}:7001/7002, heartbeat -> {a.board}:7003", file=sys.stderr)
     try:
         while True:
-            for port, s in socks.items():
-                try:
-                    buf, _ = s.recvfrom(65535)
-                except socket.timeout:
-                    continue
-                try:
-                    ptype, count, seq, aux = wire.parse_header(buf)
-                except ValueError:
-                    continue
-                if ptype == wire.T_RESULT:
-                    for r in np.frombuffer(buf, dtype=wire.RESULT_DTYPE, count=count, offset=16):
-                        emit(dec.result(r))
-                elif ptype == wire.T_ALERT:
-                    for al in np.frombuffer(buf, dtype=wire.ALERT_DTYPE, count=count, offset=16):
-                        emit(dec.alert(al))
-                elif ptype == wire.T_STATS:
-                    emit(dec.stats(buf))
+            # Wait on both sockets at once, then drain everything that's queued: no fixed per-socket timeout, so
+            # the JSON keeps up with the board (Lucas saw the old 50 ms-per-socket loop fall behind).
+            ready, _, _ = select.select(list(socks.values()), [], [], 0.5)
+            for s in ready:
+                while True:
+                    try:
+                        buf, _ = s.recvfrom(65535)
+                    except (BlockingIOError, InterruptedError):
+                        break
+                    try:
+                        ptype, count, seq, aux = wire.parse_header(buf)
+                    except ValueError:
+                        continue
+                    if ptype == wire.T_RESULT:
+                        for r in np.frombuffer(buf, dtype=wire.RESULT_DTYPE, count=count, offset=16):
+                            emit(dec.result(r))
+                    elif ptype == wire.T_ALERT:
+                        for al in np.frombuffer(buf, dtype=wire.ALERT_DTYPE, count=count, offset=16):
+                            emit(dec.alert(al))
+                    elif ptype == wire.T_STATS:
+                        emit(dec.stats(buf))
     except KeyboardInterrupt:
         state["stop"] = True
     finally:

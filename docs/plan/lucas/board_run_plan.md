@@ -37,3 +37,10 @@ checks including the swap): [`ml/BOARD_CHECKLIST.md`](../../../ml/BOARD_CHECKLIS
 T2.top → T2.bd1 → T2.board1, once countdown, head and regs are signed off under the three-tier standard (proven,
 bounded, simulated; `FPGA/TASKS.md` "Sign-off standard"). The ARM app (T2.ps1) is already done, so it isn't on the
 path.
+
+## Status
+
+- **Sun ~04:40:** first hardware run on the 50 MHz build. B1–B3 PASS (bit-exact, 71/71 ALERTs). B4 fails on
+  buffered-and-replayed results: `global_plan.md` O16; the lead's response is `FPGA/reports/LEAD_board_response.md`.
+- Every further run: `python -m hutd_ml.board_suite --data <full_week> --reset-cmd "..\FPGA\deploy\win_deploy_eog.bat"`
+  (`ml/BOARD_CHECKLIST.md`). SD card default model: `ml/artifacts/v4/weights.eog`.

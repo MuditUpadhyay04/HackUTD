@@ -6,11 +6,12 @@ import { runWorker } from "./infrastructure/jobs/worker";
 import { readRegisteredModel } from "./features/runtimes/model";
 
 const config = loadConfig();
-console.log("[API] Config loaded, provider:", config.provider ? { baseUrl: config.provider.baseUrl, model: config.provider.model } : "none");
+console.log("[API] Config loaded, provider:", config.provider ? { transport: config.provider.transport ?? "vllm", baseUrl: config.provider.baseUrl, model: config.provider.model } : "none", "openrouterKeys:", config.openrouter?.keys.length ?? 0);
 const store = createStore({ databaseUrl: config.databaseUrl, memory: config.memory });
 await store.init();
 const service = new Application(store, config, config.modelMetadataPath ? await readRegisteredModel(config.modelMetadataPath) : undefined);
 const app = createApp(service).listen({ port: config.port, hostname: config.host });
+if (config.dataRoots?.length) { console.log(`[datasets] loading dataset folders under ${config.dataRoots.join(", ")}`); void service.syncFolders(); }
 const controller = new AbortController();
 if (process.env.INLINE_WORKER !== "0") void runWorker(service, controller.signal);
 console.log(`Operator API listening on ${config.host}:${config.port}; storage=${config.memory ? "memory (NONPERSISTENT)" : "PostgreSQL"}`);

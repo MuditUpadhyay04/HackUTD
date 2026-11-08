@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Frame, ImportedDataset } from "@hackutd/contracts";
-import { buildRunSnapshot, parseRegisteredModel, planningInputForSnapshot } from "./service";
+import { boardIndex, buildRunSnapshot, parseRegisteredModel, planningInputForSnapshot } from "./service";
 
 const frame = (tsUnix: number, patch: Partial<Frame> = {}): Frame => ({ facilityId: "facility", tsUnix, inflowBpd: 240, levelPct: 50, pumpStatus: 1, pumpFlowBpd: 240, receiveFlowBpd: 240, dischargePsi: 100, pipelinePsi: 100, wellStatus: [1], wellWaterBpd: [240], ...patch });
 function dataset(frames: Frame[]): ImportedDataset {
@@ -90,5 +90,45 @@ describe("causal runtime projection", () => {
     expect(batches.map(b => b.length)).toEqual([500, 3]);
     expect(batches.flat().at(-1)?.tsUnix).toBe(502 * 300);
     expect(Array.isArray((batches[0][0].body as { channels: unknown }).channels)).toBe(true);
+  });
+});
+
+describe("board results as the detection source (test plan step 2)", () => {
+  const line = (ts: number, above: string[], active: string[], extra: Record<string, unknown> = {}) =>
+    ({ type: "result", facility: "facility", ts_unix: ts, status: "VALID", above_threshold: above, active, weights_ver: 4, source: "fpga",
+       probability: { pipeline_leak: active.includes("pipeline_leak") ? 0.97 : 0.1 }, ...extra });
+  const long = () => { const d = dataset(Array.from({ length: 8 }, (_, i) => frame(i * 300))); d.info.nowUnix = 2100; return d; };
+  const L = ["pipeline_leak"];
+
+  test("a leak the board flags becomes an incident from the board, with onset, provenance and model version", async () => {
+    const board = boardIndex([line(0, [], []), line(300, L, []), line(600, L, L), line(900, L, L), line(1200, [], []), line(1500, [], []), line(1800, [], []), line(2100, [], [])]);
+    const s = await buildRunSnapshot(long(), { runId: "run", at: 900, runtime: "software" }, { board });
+    const leak = s.alerts.find((i) => i.category === "pipeline_leak")!;
+    expect(leak).toMatchObject({ status: "ongoing", onsetUnix: 300, provenance: "fpga", modelVersion: "weights v4", confidence: 0.97 });
+    expect(s.runtime.scoresAvailable).toBe(true);
+    expect(s.runtime.reasons.join(" ")).toContain("board results (fpga, weights v4)");
+    // resolved after three usable board records without it: 1200, 1500, 1800
+    const later = await buildRunSnapshot(long(), { runId: "run", at: 2100, runtime: "software" }, { board });
+    expect(later.alerts.some((i) => i.category === "pipeline_leak")).toBe(false);
+    expect(later.history.find((i) => i.category === "pipeline_leak")).toMatchObject({ status: "resolved", endUnix: 1800 });
+    // checked by the board and clear: "ok"; at a cutoff the board never scored: "unknown", never healthy (hard rule 9)
+    expect(s.systems[0]!.facilities[0]!.health).toBe("leak");
+    expect(later.systems[0]!.facilities[0]!.health).toBe("ok");
+    const unscored = boardIndex([line(0, [], []), line(300, [], []), line(600, [], [])]);
+    expect((await buildRunSnapshot(long(), { runId: "run", at: 900, runtime: "software" }, { board: unscored })).systems[0]!.facilities[0]!.health).toBe("unknown");
+  });
+
+  test("an INVALID board record freezes the streak instead of resolving it", async () => {
+    const board = boardIndex([line(300, L, []), line(600, L, L), line(900, [], []), line(1200, [], [], { status: "INVALID" }), line(1500, [], [], { status: "INVALID" }), line(1800, [], [])]);
+    const s = await buildRunSnapshot(long(), { runId: "run", at: 1800, runtime: "software" }, { board });
+    expect(s.alerts.find((i) => i.category === "pipeline_leak")?.status).toBe("ongoing"); // only 2 usable records without it
+  });
+
+  test("board results for another dataset are ignored, and the run says so", async () => {
+    const board = boardIndex([{ ...line(300, L, L), facility: "OTHER" }]);
+    const s = await buildRunSnapshot(long(), { runId: "run", at: 900, runtime: "software" }, { board });
+    expect(s.alerts).toHaveLength(0);
+    expect(s.runtime.scoresAvailable).toBe(false);
+    expect(s.runtime.reasons.join(" ")).toContain("do not cover");
   });
 });

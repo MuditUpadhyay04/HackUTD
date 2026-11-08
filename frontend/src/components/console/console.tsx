@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import type { BoardStatus, DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { boardFacility, InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
+import { api, commandKey, unwrap } from "@/lib/api";
+import { boardFacility } from "./cards";
 import { NetworkCard } from "./network";
+import { AlertsTable, KpiStrip, NetworkGraph } from "./ops-board";
 import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
+import { SimulationPanel } from "./simulation";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
+import { AgentsPanel, agentLines, useAgentRun } from "./agents";
 import { Timeline } from "./timeline";
 
 const longDay = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
@@ -26,7 +30,15 @@ export function Console({
   snapshot,
   datasets,
   followsBoard = false,
+  controls,
+  notice,
+  onDismissNotice,
 }: {
+  /** One-line message from the workspace, e.g. a newly detected dataset. */
+  notice?: string | null;
+  onDismissNotice?: () => void;
+  /** Runtime and dataset upload, shown at the bottom of the sidebar. */
+  controls?: ReactNode;
   snapshot: Snapshot;
   datasets: DatasetInfo[];
   /** "Now" is the newest board timestamp (live board feed), so this is live, not a replay of the past. */
@@ -37,20 +49,56 @@ export function Console({
   // Brief and export must describe the same moment the screen shows, including a board-driven "now".
   const at = s.nowUnix < s.dataset.nowUnix ? s.nowUnix : undefined;
   const router = useRouter();
-  const pathname = usePathname();
   const [view, setView] = useState<View>(live ? "overview" : "replay");
   // Browser Back/Forward can move between live and past URLs without remounting: a past
   // snapshot must never sit under the "Now" overview.
   const [prevLive, setPrevLive] = useState(live);
   if (prevLive !== live) {
     setPrevLive(live);
-    if (!live && view !== "handoff") setView("replay");
+    if (!live && view !== "handoff" && view !== "agents") setView("replay");
   }
   const [incident, setIncident] = useState<Incident | null>(null);
   const [facilityId, setFacilityId] = useState<string | null>(null);
   const [approved, setApproved] = useState<Record<string, number>>({});
   const [tickets, setTickets] = useState<Record<string, number>>({});
-  const [flash, setFlash] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const agents = useAgentRun(s.runId);
+  const agentNote = agentLines(agents.run);
+  const openIncident = (id: string) => {
+    const a = [...s.alerts, ...s.history].find((x) => x.id === id);
+    if (a) setIncident(a);
+  };
+
+  // Approvals and tickets are saved on the operator API against this run, so a reload keeps them.
+  useEffect(() => {
+    let live = true;
+    api.api.runs({ id: s.runId }).actions.get().then((r) => {
+      if (!live || r.error || !Array.isArray(r.data)) return;
+      const ack: Record<string, number> = {}, tix: Record<string, number> = {};
+      for (const a of r.data) (a.kind === "acknowledge_advice" ? ack : tix)[a.incidentId] = s.nowUnix;
+      setApproved((p) => ({ ...ack, ...p }));
+      setTickets((p) => ({ ...tix, ...p }));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [s.runId, s.nowUnix]);
+
+  const saveAction = async (a: Incident, kind: "acknowledge_advice" | "inspection_ticket") => {
+    const set = kind === "acknowledge_advice" ? setApproved : setTickets;
+    set((p) => ({ ...p, [a.id]: s.nowUnix }));
+    setActionError(null);
+    if (s.revision == null) return; // not from the operator API (no run to save against)
+    try {
+      unwrap(
+        await api.api.runs({ id: s.runId }).actions.post(
+          { incidentId: a.id, revision: s.revision, kind, ...(kind === "acknowledge_advice" && a.plan?.systemPlanId ? { planId: a.plan.systemPlanId } : {}) },
+          { headers: { "idempotency-key": commandKey() } },
+        ),
+      );
+    } catch (e) {
+      set((p) => { const n = { ...p }; delete n[a.id]; return n; });
+      setActionError(`${kind === "acknowledge_advice" ? "Couldn't save the approval" : "Couldn't create the ticket"}: ${e instanceof Error ? e.message : "server error"}`);
+    }
+  };
 
   // Approvals and tickets only count at or after the replay time they were made.
   const approvedAt = (id: string) => (approved[id] !== undefined && approved[id] <= s.nowUnix ? approved[id] : undefined);
@@ -70,16 +118,12 @@ export function Console({
           : "ok";
 
   const goSystem = (id: string) => {
-    if (view === "handoff") setView(live ? "overview" : "replay");
+    if (view === "handoff" || view === "agents" || view === "simulation") setView(live ? "overview" : "replay");
     requestAnimationFrame(() => {
-      document.getElementById(`system-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setFlash(id);
-      window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1400);
+      document.getElementById(`pipes-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   };
 
-  // Keep the approved 5-across tank grid for up to 5 systems of up to 5 tanks; larger networks get 3 wider columns.
-  const wideTanks = s.systems.length > 5 || s.systems.some((x) => x.facilities.length > 5);
 
   // Summary numbers
   const states = failures.map((a) => countdownState(a, s.nowUnix));
@@ -91,9 +135,13 @@ export function Console({
   const nothingCost = sumKnown(failures.map((a) => a.options?.find((o) => o.kind === "do_nothing")?.cost));
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
-  const noData = facilities.filter((f) => f.health === "no_data" || f.health === "unknown");
+  // "no_data" or bad readings = a sensor problem. "unknown" with good readings = the readings are fine but the
+  // leak and wear checks could not run (no model loaded). Both stay grey, never healthy (hard rule 9),
+  // but only the first one is a sensor problem.
+  const noData = facilities.filter((f) => f.health === "no_data" || (f.health === "unknown" && f.dataQuality.quality !== "VALID"));
+  const unchecked = facilities.filter((f) => f.health === "unknown" && f.dataQuality.quality === "VALID");
   let headline: string;
-  if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
+  if (failures.length === 0) headline = noData.length || unchecked.length ? "No pumps are reported down." : "Every pump is running.";
   else if (sysWithFailures.length === 1) {
     const fleet = s.systems.find((x) => x.id === sysWithFailures[0])?.fleetSize ?? 0;
     const fleetClause = fleet === 0 ? "have no emergency trucks" : `share ${fleet === 1 ? "one truck" : `${count(fleet).toLowerCase()} trucks`}`;
@@ -105,12 +153,17 @@ export function Console({
   if (noData.length)
     headline += ` ${count(noData.length)} ${noData.length === 1 ? "facility has" : "facilities have"} no recent readings.`;
   if (inspections.length) headline += ` ${count(inspections.length)} ${inspections.length === 1 ? "problem needs" : "problems need"} an inspector.`;
+  if (unchecked.length)
+    headline +=
+      s.runtime && !s.runtime.scoresAvailable
+        ? " Leak and wear checks are off because no model is loaded."
+        : ` ${count(unchecked.length)} ${unchecked.length === 1 ? "facility hasn't" : "facilities haven't"} been checked for leaks or wear.`;
 
   const onView = (v: View) => {
     setView(v);
     if (v === "overview" && !live) {
       // Overview always means the latest reading.
-      router.push(`${pathname}?dataset=${encodeURIComponent(s.dataset.id)}`);
+      router.push(`/?dataset=${encodeURIComponent(s.dataset.id)}`);
     }
   };
 
@@ -124,6 +177,47 @@ export function Console({
           statusOf={statusOf}
           alertCount={s.alerts.length}
           onSystem={goSystem}
+          footer={controls}
+          systemLine={(sys) => {
+            const down = failures.filter((a) => a.systemId === sys.id);
+            const inspect = inspections.filter((a) => a.systemId === sys.id).length;
+            const free = trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix);
+            if (down.length) {
+              const first = down.map((a) => countdownState(a, s.nowUnix)).find((c) => c.kind === "counting");
+              return { text: `${down.length} down${first?.kind === "counting" ? ` · shuts ${clockFrom(first.at, s.nowUnix)}` : ""}`, tone: "crit" };
+            }
+            if (inspect) return { text: `${inspect} to inspect · ${free}/${sys.fleetSize} trucks`, tone: "warn" };
+            if (sys.facilities.some((f) => noData.includes(f))) return { text: "Missing readings" };
+            return { text: `Pumps running · ${free}/${sys.fleetSize} trucks` };
+          }}
+          status={[
+            { label: "Last reading", value: clockFrom(s.nowUnix, s.nowUnix) },
+            {
+              label: "Checks run on",
+              value:
+                s.board?.online && s.board.provenance === "fpga"
+                  ? "FPGA board"
+                  : s.board?.online
+                    ? "Software board"
+                    : s.runtime?.effective === "fpga"
+                      ? "FPGA board"
+                      : "Server software",
+              tone: s.board?.online ? ("ok" as const) : undefined,
+            },
+            ...(s.board
+              ? [{ label: "Board", value: s.board.online ? `Live, ${s.board.lastSeenUnix != null ? clockFrom(s.board.lastSeenUnix, s.nowUnix) : "now"}` : "Quiet", tone: s.board.online ? ("ok" as const) : ("warn" as const) }]
+              : []),
+            ...(s.runtime ? [{ label: "Leak and wear model", value: s.runtime.scoresAvailable ? (s.runtime.modelVersion ? s.runtime.modelVersion.replace(/^weights v/i, "Weights v") : "Loaded") : "Not loaded", tone: s.runtime.scoresAvailable ? undefined : ("warn" as const) }] : []),
+            {
+              label: "Trucks free",
+              value: `${s.systems.reduce((t, sys) => t + trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix), 0)} of ${s.systems.reduce((t, sys) => t + sys.fleetSize, 0)}`,
+            },
+            {
+              label: "Agents",
+              value: agents.run?.status === "running" ? "Working…" : agents.run?.trace ? `${agents.run.trace.totals.accepted} of ${agents.run.trace.totals.nodes} accepted` : agents.run?.status === "failed" ? "Last run failed" : "Not run yet",
+              tone: agents.run?.status === "failed" ? "crit" : undefined,
+            },
+          ]}
         />
       }
     >
@@ -139,13 +233,23 @@ export function Console({
       <main className="px-4 pt-7 pb-10 sm:px-7">
         <header>
           <h1 className="tracking-display font-display text-[30px] leading-[1.1] font-bold sm:text-[34px]">
-            {view === "handoff" ? "Shift handoff" : "Avon water network"}
+            {view === "handoff" ? "Shift handoff" : view === "agents" ? "Agents" : view === "simulation" ? "Simulation" : "Avon water network"}
           </h1>
           <p className="mt-1.5 text-[15px] text-muted-foreground">
-            {longDay.format(new Date(s.nowUnix * 1000))}, {clockFrom(s.nowUnix, s.nowUnix)} UTC.{" "}
-            {view === "handoff" ? "What the next operator needs to know." : headline}
+            {view !== "simulation" && <>{longDay.format(new Date(s.nowUnix * 1000))}, {clockFrom(s.nowUnix, s.nowUnix)} UTC.{" "}</>}
+            {view === "handoff" ? "What the next operator needs to know." : view === "agents" ? "Chip detects. Server plans. Nemotron explains." : view === "simulation" ? "The week as it happens: failures, trucks, money kept, and the data path to the board and back." : headline}
           </p>
         </header>
+        {notice && (
+          <p role="status" className="glass mt-4 flex items-center justify-between gap-3 px-4 py-2.5 text-[13.5px]">
+            <span>{notice}</span>
+            {onDismissNotice && (
+              <button type="button" onClick={onDismissNotice} className="text-[13px] font-medium text-water hover:underline">
+                Dismiss
+              </button>
+            )}
+          </p>
+        )}
 
         {view === "replay" && (
           <div className="mt-5">
@@ -159,77 +263,68 @@ export function Console({
           </div>
         )}
 
-        {view === "handoff" ? (
-          <div className="mt-6 grid max-w-[760px] gap-4">
+        {view === "simulation" ? (
+          <SimulationPanel datasetId={s.dataset.id} />
+        ) : view === "agents" ? (
+          <AgentsPanel agents={agents} nowUnix={s.nowUnix} onOpenIncident={openIncident} />
+        ) : view === "handoff" ? (
+          <div className="mt-6 grid gap-4">
             <NemotronBrief runId={s.runId} expanded />
-            <a
-              href={`/api/events?dataset=${encodeURIComponent(s.dataset.id)}${at ? `&at=${at}` : ""}`}
-              className="w-fit text-[14px] font-medium text-water hover:underline"
-            >
-              Download events.json
-            </a>
+            <div>
+              <a
+                href={`/api/backend/api/runs/${encodeURIComponent(s.runId)}/export`}
+                download="events.json"
+                className="inline-flex items-center rounded-md bg-white px-3 py-1.5 text-[13px] font-medium text-water shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] hover:bg-[#f7f9fc]"
+              >
+                Download events.json
+              </a>
+            </div>
           </div>
         ) : (
           <>
             {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
-            <div className="mt-[22px] grid grid-cols-2 gap-3.5 xl:grid-cols-4">
-              <StatCard label="Pumps down" value={String(failures.length)} tone={failures.length ? "crit" : undefined} />
-              <StatCard
-                label="First shutdown"
-                value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None"}
-                tone={next || allShut ? "crit" : undefined}
+            {actionError && (
+              <p role="alert" className="glass mt-4 px-5 py-3 text-[14px] text-crit">
+                {actionError}
+              </p>
+            )}
+            <div className="mt-5">
+              <KpiStrip
+                items={[
+                  { label: "Pumps down", value: String(failures.length), tone: failures.length ? "crit" : undefined },
+                  { label: "First shutdown", value: next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None", tone: next || allShut ? "crit" : undefined },
+                  { label: "Recommended plan", value: planCost == null ? "Unknown" : money(planCost) },
+                  { label: "If nobody acts", value: nothingCost == null ? "Unknown" : money(nothingCost) },
+                ]}
               />
-              <StatCard label="Recommended plan" value={planCost == null ? "Unknown" : money(planCost)} />
-              <StatCard label="If nobody acts" value={nothingCost == null ? "Unknown" : money(nothingCost)} />
             </div>
 
-            <SectionTitle title="Pumps down" note={failures.length > 1 ? "Soonest shutdown first" : undefined} />
-            {failures.length ? (
-              <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
-                {failures.map((a) => (
-                  <PumpCard key={a.id} incident={a} nowUnix={s.nowUnix} limits={s.limits} approvedAt={approvedAt(a.id)} onOpen={() => setIncident(a)} board={s.board} />
-                ))}
-              </div>
-            ) : (
-              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">{noData.length ? "No pumps are reported down. Some facilities have no recent readings; see Check sensors." : "No pumps are down. Every tank is cycling normally."}</div>
-            )}
+            <div className="mt-4">
+              <NetworkGraph
+                systems={s.systems}
+                alerts={s.alerts}
+                nowUnix={s.nowUnix}
+                trucksFree={(sys) => trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
+                onFacility={(f) => setFacilityId(f.id)}
+              />
+            </div>
+            <div className="mt-4">
+              <AlertsTable
+                failures={failures}
+                inspections={inspections}
+                noData={noData}
+                nowUnix={s.nowUnix}
+                approvedAt={approvedAt}
+                tickets={ticketsNow}
+                onIncident={setIncident}
+                onTicket={(a) => void saveAction(a, "inspection_ticket")}
+                onFacility={(f) => setFacilityId(f.id)}
+                agentNote={agentNote}
+              />
+            </div>
 
-            {noData.length > 0 && (
-              <>
-                <SectionTitle title="Check sensors" note="Missing readings are never shown as healthy" />
-                <SensorRows items={noData} onOpen={(f) => setFacilityId(f.id)} />
-              </>
-            )}
-
-            {inspections.length > 0 && (
-              <>
-                <SectionTitle title="Send an inspector" />
-                <InspectorRows
-                  items={inspections}
-                  tickets={ticketsNow}
-                  onOpen={setIncident}
-                  onTicket={(a) => setTickets((t) => ({ ...t, [a.id]: s.nowUnix }))}
-                  board={s.board}
-                  nowUnix={s.nowUnix}
-                />
-              </>
-            )}
-
-            <SectionTitle title="Network" note="Water from the wells, through each pump, to the disposal site. Flows in bpd (barrels per day)" />
-            <NetworkCard systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
-
-            <SectionTitle title="Tanks" note={`Red line is shutdown at ${s.limits.shutdownPct}%`} />
-            <div className={cn("grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3", wideTanks ? "xl:grid-cols-3" : "xl:grid-cols-5")}>
-              {s.systems.map((sys) => (
-                <SystemCard
-                  key={sys.id}
-                  system={sys}
-                  trucksFree={trucksFree(sys, s.fleets.find((f) => f.systemId === sys.id), s.nowUnix)}
-                  limits={s.limits}
-                  highlight={flash === sys.id}
-                  onTank={(f) => setFacilityId(f.id)}
-                />
-              ))}
+            <div className="mt-4">
+              <NetworkCard allSystems systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
             </div>
           </>
         )}
@@ -246,7 +341,7 @@ export function Console({
         boardTestWeights={isTestWeights(s.board?.weightsVersion)}
         boardSoftware={s.board?.provenance === "software"}
         onApprove={(a) => {
-          setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
+          void saveAction(a, "acknowledge_advice");
           setIncident(null);
         }}
         onClose={() => setIncident(null)}
@@ -267,15 +362,6 @@ export function Console({
         }}
       />
     </Window>
-  );
-}
-
-function SectionTitle({ title, note }: { title: string; note?: string }) {
-  return (
-    <h2 className="mt-[34px] tracking-[-0.015em] mb-3 flex items-baseline gap-2.5 font-display text-[20px] font-bold">
-      {title}
-      {note && <small className="text-[13px] font-normal tracking-normal text-faint">{note}</small>}
-    </h2>
   );
 }
 

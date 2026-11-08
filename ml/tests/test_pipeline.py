@@ -96,6 +96,30 @@ def test_listen_active_mirrors_board_persistence():
     assert out["above_threshold"] == [] and out["active"] == []
 
 
+@needs_data
+def test_board_suite_checker(tmp_path):
+    """The suite's live checker accepts listen.py JSON made from the engine's own output and catches one wrong logit."""
+    from hutd_ml import board_suite as bs
+    from hutd_ml.listen import Decoder
+    cfg = json.loads((ART / "v4" / "global_config.json").read_text())
+    exp, classes, alerts, _ = bs.engine_expected(DATA, ART / "v4" / "global_config.json", ART / "v4" / "weights.bin",
+                                                 4, 0, 400)
+    assert alerts  # the window holds alarms, so the ALERT comparison is exercised too
+    dec = Decoder([], None, cfg["logit_thr"], cfg["persist_k_per_class"])
+    lines = [json.dumps(dec.result({**r, "result_no": r["result_no"] + 1000})) for r in exp]
+    lines += [json.dumps({**dec.alert({**a, "result_no": a["result_no"] + 1000})}) for a in alerts]
+    good = tmp_path / "good.jsonl"
+    good.write_text("\n".join(lines) + "\n")
+    ok, out = bs.check_live(good, exp, classes, alerts, fresh=True)
+    assert ok, out
+    bad_rec = json.loads(lines[123])
+    bad_rec["logits"]["pipeline_leak"] += 1 / 256
+    bad = tmp_path / "bad.jsonl"
+    bad.write_text("\n".join(lines[:123] + [json.dumps(bad_rec)] + lines[124:]) + "\n")
+    ok, out = bs.check_live(bad, exp, classes, alerts, fresh=True)
+    assert not ok and any("logits" in ln for ln in out)
+
+
 def test_quantize_close_to_float():
     rng = np.random.default_rng(0)
     w = rng.normal(0, 5, size=(4, 31))
@@ -234,3 +258,28 @@ def test_deterministic(enc, tmp_path):
     a = golden.build(DATA, tmp_path / "a", "g0")
     b = golden.build(DATA, tmp_path / "b", "g0")
     assert a["sha256"] == b["sha256"]
+
+
+@needs_data
+def test_unseen_network_rehearsal(tmp_path):
+    """A practice week reshaped into an unseen network (judging rehearsal) keeps its physics and goes through the real
+    encoder: S6.. systems, other facility counts and names, 1..6 wells, another week, a mock-test cut."""
+    import pandas as pd
+    from hutd_ml import unseen
+    rep = unseen.make(DATA, tmp_path, seed=3, n_systems=6, n_fac=20, cut=0.6)
+    assert rep["systems"] == 6 and rep["facilities"] == 20 and rep["cut"]["ongoing"] >= 0
+    folder = tmp_path / "full_week"
+    net = json.loads((folder / "network.json").read_text())
+    assert [s["id"] for s in net["systems"]] == [f"S{i}" for i in range(6, 12)]
+    tel = pd.read_csv(folder / "telemetry.csv")
+    wells = tel[tel.metric == "water_bpd"].pivot(index="ts_unix", columns="asset_id", values="value")
+    inflow = tel[tel.metric == "inflow_bpd"].pivot(index="ts_unix", columns="asset_id", values="value")
+    for s in net["systems"]:
+        for f in s["facilities"]:
+            gap = (inflow[f["id"]] - wells[[w["id"] for w in f["wells"]]].sum(axis=1)).abs().max()
+            assert gap < 1.0, (f["id"], gap)       # inflow is still the sum of the wells
+    enc = encode.encode_dataset(folder)
+    assert len(enc.facilities) == 20 and len(enc.timestamps) == tel.ts_unix.nunique()
+    assert (enc.timestamps - enc.timestamps[0]).max() % 300 == 0
+    assert all(e["facility"].startswith(("S6", "S7", "S8", "S9", "S10", "S11")) for e in
+               json.loads((folder / "answer_key.json").read_text()))

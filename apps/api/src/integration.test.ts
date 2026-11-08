@@ -69,12 +69,25 @@ describe("operator API vertical slice", () => {
     const events = await exported.json();
     expect(events[0].category).toBe("pump_failure");
     expect(events[0]).not.toHaveProperty("confidence");
+    const agents = await post(`/runs/${r.id}/agents`, {});
+    expect(agents.status).toBe(409); // no provider: the orchestrator never fabricates agent output
+    const learning = await (await call("/agents/learning")).json();
+    expect(learning.champions).toEqual({ prompts: { triage: 1, plan_explainer: 1, evidence_reviewer: 1, handoff: 1, critic: 1 }, strategy: 1 });
+    expect(await (await call(`/runs/${r.id}/agent-runs`)).json()).toEqual([]);
+    expect((await call("/agent-runs/agents-missing")).status).toBe(404);
     const analysis = await (await post(`/runs/${r.id}/analyses`, {}, "brief-1")).json();
     await workOne(service);
     const brief = await (await call(`/analyses/${analysis.id}`)).json();
     expect(brief.state).toBe("completed"); expect(brief.source).toBe("draft");
     expect(brief.handoff.toLowerCase()).toContain("classifier");
     expect((await store.snapshot(r.id))?.cursor).toBeGreaterThan(ready.cursor);
+    expect((await api.handle(new Request("http://localhost/api/internal/providers"))).status).toBe(401);
+    const providers = await (await call("/internal/providers")).json();
+    expect(providers.next.lane).toBe("none");
+    expect(providers.brev.configured).toBe(false);
+    expect(providers.openrouter.keys).toEqual([]);
+    expect(JSON.stringify(providers)).not.toContain("test-token");
+    expect((await call("/internal/providers/probe", { method: "POST" })).status).toBe(200);
   });
   test("idempotency conflict, rewind isolation, unavailable FPGA and malformed files", async () => {
     const d = await service.upload(fixtureFiles());

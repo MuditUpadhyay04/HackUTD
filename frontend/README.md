@@ -22,15 +22,17 @@ npm run build && npm start
 
 ## Data
 
-The app looks for dataset folders in `../data-repo/history` (a clone of `nihaal419/HackUTD-ZeroDay`) and also in
-`../data-repo/test`. Any folder holding the three files shows up in the dataset picker. The judging `test/` folder is
-picked by default when present, then the mock test.
+The operator API loads dataset folders from `DATA_ROOT` (set it for the API, `bun run dev:api`): point it at a clone of
+`nihaal419/HackUTD-ZeroDay`. Any folder holding the three files, at most two levels down (`history/<name>/`, `test/`),
+shows up in the dataset picker, labeled with its folder name; new folders appear on the next page load. The judging
+`test/` folder is picked by default when present, then the mock test. Datasets can also be uploaded in the console.
 
-- Point somewhere else with `DATA_ROOT=/path/to/folders`.
+- Several roots: separate them with `:` (`;` on Windows).
 - `answer_key.json` is never read by the app (only by `scripts/check-engine.ts`).
 - "Now" is the last timestamp in `telemetry.csv`, not the clock.
 
-**On judging day:** drop the `test/` folder next to `history/` (or set `DATA_ROOT`), reload, and pick it. No code changes.
+**On judging day:** `git pull` the reference repo so `test/` sits next to `history/`, reload, and it is picked. No code
+changes. Full procedure: `docs/plan/mudit/judging_day.md`.
 
 ## Nemotron
 

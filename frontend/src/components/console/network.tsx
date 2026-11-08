@@ -2,18 +2,22 @@
 
 import { useState } from "react";
 import type { BoardStatus, FacilityState, Incident, SystemState } from "@/lib/engine/types";
-import { facilityName, num, systemNum } from "@/lib/format";
+import { facilityName, letterOf, num, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlarmChip, boardAlarm, boardFacility } from "./cards";
 
-const ROW = 70; // px per facility row in the schematic
+const ROW = 64; // px per facility row in the schematic
 const W = 940;
 const X = { wells: 34, tank: 156, pump: 240, pipeStart: 256, manifold: 700, disposal: 790 };
 
 type Status = "flowing" | "idle" | "down" | "leak" | "worn" | "nodata" | "shut";
 
-function pipeStatus(f: FacilityState): Status {
-  if (f.health === "no_data" || f.health === "unknown" || f.pump.flowBpd == null) return "nodata";
+
+/** "unknown" with good readings only means the leak and wear checks are off; the measured flow is still real. */
+const unchecked = (f: FacilityState) => f.health === "unknown" && f.dataQuality.quality === "VALID";
+
+export function pipeStatus(f: FacilityState): Status {
+  if (f.health === "no_data" || (f.health === "unknown" && !unchecked(f)) || f.pump.flowBpd == null) return "nodata";
   if (f.health === "failure") return "down";
   if (f.health === "shut_in") return "shut";
   if (f.health === "leak") return "leak";
@@ -21,7 +25,7 @@ function pipeStatus(f: FacilityState): Status {
   return f.pump.status === 1 && f.pump.flowBpd > 1 ? "flowing" : "idle";
 }
 
-const statusColor: Record<Status, string> = {
+export const statusColor: Record<Status, string> = {
   flowing: "#0a84ff",
   idle: "rgba(60,60,67,0.28)",
   down: "#ff3b30",
@@ -46,10 +50,13 @@ export function NetworkCard({
   onFacility,
   board,
   nowUnix = 0,
+  allSystems = false,
 }: {
   systems: SystemState[];
   alerts: Incident[];
   onFacility: (f: FacilityState) => void;
+  /** Ops board: every system stacked, no tabs. */
+  allSystems?: boolean;
   /** Live board data; only facilities with an alarm get a marker. */
   board?: BoardStatus | null;
   nowUnix?: number;
@@ -64,12 +71,25 @@ export function NetworkCard({
   const attention = new Set(alerts.map((a) => a.systemId));
   // Same rule as the sidebar: a system with no alert but a facility without readings shows as "no data".
   const noData = new Set(systems.filter((s) => s.facilities.some((f) => f.health === "no_data")).map((s) => s.id));
-  const rows = sys.facilities;
-  const h = Math.max(1, rows.length) * ROW + 24;
-  const midY = (i: number) => 12 + i * ROW + ROW / 2;
-  const maxFlow = Math.max(1, ...rows.map((f) => f.pump.maxFlowBpd));
-  const totalIn = rows.every((f) => f.pipeline.receiveFlowBpd != null) ? rows.reduce((t, f) => t + (f.pipeline.receiveFlowBpd ?? 0), 0) : null;
-  const trunkY = h / 2;
+  if (allSystems)
+    return (
+      <div className="glass overflow-hidden">
+        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2.5">
+          <span className="text-[13px] font-semibold">Pipelines</span>
+          <span className="text-[12.5px] text-muted-foreground">Wells, tank, pump, pipeline, disposal site. Flows in bpd</span>
+          <Legend />
+        </div>
+        {systems.map((x, i) => (
+          <div key={x.id} id={`pipes-${x.id}`} className={cn(i > 0 && "border-t border-line")}>
+            <p className="flex items-center gap-2 px-4 pt-2.5 text-[13px] font-semibold">
+              {attention.has(x.id) && <span className={cn("size-2 rounded-full", down.has(x.id) ? "bg-crit" : "bg-warn-fill")} aria-hidden />}
+              System {systemNum(x.id)}
+            </p>
+            <SystemPipes sys={x} onFacility={onFacility} alarmOf={alarmOf} simulated={simulated} />
+          </div>
+        ))}
+      </div>
+    );
 
   return (
     <div className="glass overflow-hidden">
@@ -107,6 +127,31 @@ export function NetworkCard({
         <Legend />
       </div>
 
+      <SystemPipes sys={sys} onFacility={onFacility} alarmOf={alarmOf} simulated={simulated} />
+    </div>
+  );
+}
+
+function SystemPipes({
+  sys,
+  onFacility,
+  alarmOf,
+  simulated,
+}: {
+  sys: SystemState;
+  onFacility: (f: FacilityState) => void;
+  alarmOf: (f: FacilityState) => Alarm | undefined;
+  simulated: boolean;
+}) {
+  const rows = sys.facilities;
+  const h = Math.max(1, rows.length) * ROW + 24;
+  const midY = (i: number) => 12 + i * ROW + ROW / 2;
+  const maxFlow = Math.max(1, ...rows.map((f) => f.pump.maxFlowBpd));
+  const totalIn = rows.every((f) => f.pipeline.receiveFlowBpd != null) ? rows.reduce((t, f) => t + (f.pipeline.receiveFlowBpd ?? 0), 0) : null;
+  const trunkY = h / 2;
+
+  return (
+    <>
       {/* Phones: one row per facility with its pipe drawn underneath, then the disposal site. */}
       <ul className="flex flex-col px-4 py-2 sm:hidden">
         {rows.map((f) => (
@@ -146,7 +191,7 @@ export function NetworkCard({
           ))}
         </svg>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -193,7 +238,7 @@ function FacilityRow({
             : st === "worn" && flow <= 1
               ? "Pump wearing out, off right now"
               : flow > 1
-              ? `${num(flow)} bpd`
+              ? `${num(flow)} bpd${recv != null ? `, ${num(recv)} arrives` : ""}`
               : "Pump off, tank filling";
 
   return (
@@ -213,7 +258,7 @@ function FacilityRow({
       <rect x={4} y={y - ROW / 2 + 4} width={X.manifold - 8} height={ROW - 8} rx={12} fill="transparent" stroke="transparent" strokeWidth={2} />
 
       {/* wells feeding the tank */}
-      <text x={X.wells - 22} y={y - 16} className="fill-[var(--text)] text-[13px] font-semibold">{f.letter}</text>
+      <text x={X.wells - 22} y={y - 16} className="fill-[var(--text)] text-[13px] font-semibold">{letterOf(f)}</text>
       {wells.map((w, k) => {
         const wx = X.wells + k * 13;
         return (
@@ -354,7 +399,7 @@ function CompactRow({
       <button type="button" onClick={onClick} className="w-full rounded-xl py-2.5 text-left transition-colors active:bg-black/[0.04]">
         <span className="flex items-baseline justify-between gap-3">
           <span className="text-[14px] font-semibold">
-            Facility {f.letter}
+            Facility {letterOf(f)}
             <span className="ml-2 font-normal text-muted-foreground tabular-nums">{level != null && st !== "nodata" ? `${level}%` : ""}</span>
           </span>
           <span className={cn("text-[13px] tabular-nums", st === "down" ? "font-semibold text-crit" : st === "leak" || st === "worn" ? "text-warn" : "text-muted-foreground")}>

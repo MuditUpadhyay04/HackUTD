@@ -1,98 +1,88 @@
-// Throwaway Photon test bot for Beat the Shutdown. Nothing permanent: delete this folder to remove it.
-// Text the project's line: "status" (default), "alerts", or "help". Replies come from the console's own API.
+// Beat the Shutdown on your phone (Photon / iMessage). Replies come from the operator API through console.mts.
+// Text "help" for the commands. "subscribe" turns on a text whenever a new pump failure or inspection appears,
+// including when a new dataset is uploaded. Advice only: nothing here approves or dispatches anything.
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { Spectrum } from "spectrum-ts";
 import { imessage } from "spectrum-ts/providers/imessage";
+import { CONSOLE_URL, alertText, command, ongoing, reply } from "./console.mts";
 
-const CONSOLE = (process.env.CONSOLE_URL || "http://localhost:3100").replace(/\/$/, "");
-const DATASET = process.env.DATASET?.trim() || "";
-const q = DATASET ? `?dataset=${encodeURIComponent(DATASET)}` : "";
+// Never let one failed send or file write take the line down.
+process.on("unhandledRejection", (e) => console.error(`[unhandled] ${e instanceof Error ? e.message : String(e)}`));
 
 if (!process.env.SPECTRUM_PROJECT_ID || !process.env.SPECTRUM_PROJECT_SECRET) {
   console.error("Missing SPECTRUM_PROJECT_ID / SPECTRUM_PROJECT_SECRET in .env (copy them from Photon > Configure).");
   process.exit(1);
 }
 
-const HELP = [
-  "Beat the Shutdown test line.",
-  "status: the shift handoff note",
-  "alerts: pumps down with countdown and plan, plus leaks",
-  "help: this list",
-].join("\n");
+const POLL_MS = Math.max(15, Number(process.env.POLL_SECONDS) || 60) * 1000;
+const STORE = new URL("./.data/subscribers.json", import.meta.url);
 
-async function getJson(path: string) {
-  const res = await fetch(`${CONSOLE}${path}`, { signal: AbortSignal.timeout(15000) });
-  if (!res.ok) throw new Error(`console answered ${res.status}`);
-  return res.json();
+// Who gets pushed alerts: conversations that texted "subscribe", plus ALERT_PHONES from .env (E.164, comma separated).
+async function loadSubscribers(): Promise<Set<string>> {
+  try { return new Set(JSON.parse(await readFile(STORE, "utf8")) as string[]); } catch { return new Set(); }
 }
-
-const label: Record<string, string> = {
-  pump_failure: "Pump down",
-  pipeline_leak: "Pipeline leak",
-  pump_degradation: "Pump wearing out",
-};
-const fac = (id: string) => id.replace(/^([^_]+)_FACILITY_(.+)$/i, "$1 $2");
-const hm = (h: number) => {
-  const m = Math.max(0, Math.round(h * 60));
-  return m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
-};
-
-async function status() {
-  const b = await getJson(`/api/brief${q}`);
-  const who = b.source === "nemotron" ? `(written by ${b.model ?? "Nemotron"})` : "(draft from the plan solver)";
-  return `${b.handoff}\n${who}`;
-}
-
-type Ev = {
-  status: string;
-  category: string;
-  facility_id: string;
-  hours_to_limit?: { p50: number } | null;
-  est_cost?: number;
-  recommended_actions?: { type: string; trucks?: number; wells?: string[]; start_after_min?: number }[];
-};
-
-async function alerts() {
-  const events: Ev[] = await getJson(`/api/events${q}`);
-  const open = events.filter((e) => e.status === "ongoing");
-  if (!open.length) return "No open problems right now.";
-  const order = (e: Ev) => (e.category === "pump_failure" ? (e.hours_to_limit?.p50 ?? 999) : 10_000);
-  return open
-    .sort((a, b) => order(a) - order(b))
-    .slice(0, 6)
-    .map((e) => {
-      const head = `${label[e.category] ?? e.category} at ${fac(e.facility_id)}`;
-      if (e.category !== "pump_failure") return `${head}: send an inspector.`;
-      const h = e.hours_to_limit?.p50;
-      const when = h == null ? "not filling" : h <= 0 ? "already shut in" : `shuts in in ${hm(h)}`;
-      const cost = typeof e.est_cost === "number" ? `, about $${Math.round(e.est_cost).toLocaleString("en-US")}` : "";
-      const acts = (e.recommended_actions ?? [])
-        .map((a) =>
-          a.type === "dispatch_truck"
-            ? `send ${a.trucks} truck${(a.trucks ?? 1) > 1 ? "s" : ""}`
-            : a.type === "shut_in_wells"
-              ? `shut in ${(a.wells ?? []).map((w) => w.split("_").pop()).join(", ")}${a.start_after_min ? ` in ${hm(a.start_after_min / 60)}` : " now"}`
-              : a.type === "none"
-                ? "no action needed"
-                : a.type,
-        )
-        .join(" + ");
-      return `${head}: ${when}. Plan: ${acts || "none"}${cost}.`;
-    })
-    .join("\n\n");
+async function saveSubscribers(ids: Set<string>) {
+  await mkdir(new URL("./.data/", import.meta.url), { recursive: true });
+  await writeFile(STORE, JSON.stringify([...ids], null, 2));
 }
 
 const app = await Spectrum({ providers: [imessage.config()] });
-console.log(`Bot running. Console: ${CONSOLE}${DATASET ? `, dataset ${DATASET}` : ""}. Text the line "help".`);
+const im = imessage(app);
+const subscribers = await loadSubscribers();
+for (const phone of (process.env.ALERT_PHONES ?? "").split(",").map((p) => p.trim()).filter(Boolean)) {
+  try { subscribers.add((await im.space.create(phone)).id); } catch (e) { console.error(`Couldn't open a chat with an ALERT_PHONES number: ${(e as Error).message}`); }
+}
+console.log(`Bot running. ${subscribers.size} subscribed. Text the line "help".`);
+
+// Pushed alerts: anything ongoing now that wasn't ongoing at the last check. The first check only records what's
+// already open, so starting the bot never floods anyone.
+let known: Set<string> | null = null;
+async function check() {
+  try {
+    const { snapshot, keys } = await ongoing();
+    const fresh = known ? [...keys].filter(([k]) => !known!.has(k)) : [];
+    known = new Set(keys.keys());
+    if (!fresh.length || !subscribers.size) return;
+    // Pump failures first, soonest shutdown first (the order the console uses).
+    fresh.sort(([, a], [, b]) => (a.category === "pump_failure" ? 0 : 1) - (b.category === "pump_failure" ? 0 : 1) || (a.countdown?.hours?.p50 ?? 999) - (b.countdown?.hours?.p50 ?? 999));
+    const body = `New in ${snapshot.dataset.label}:\n${fresh.slice(0, 4).map(([, i]) => alertText(i, snapshot)).join("\n\n")}${fresh.length > 4 ? `\n\n+${fresh.length - 4} more. Text "alerts".` : ""}${CONSOLE_URL ? `\n${CONSOLE_URL}` : ""}`;
+    for (const id of subscribers) {
+      try { await (await im.space.get(id)).send(body); } catch (e) { console.error(`[push] ${(e as Error).message}`); }
+    }
+    console.log(`[push] ${fresh.length} new to ${subscribers.size}`);
+  } catch (e) {
+    console.error(`[check] ${(e as Error).message}`);
+  }
+}
+void check();
+setInterval(check, POLL_MS);
 
 for await (const [space, message] of app.messages) {
-  if (message.content.type !== "text") continue;
-  const text = message.content.text.trim().toLowerCase();
-  console.log(`[in] ${text.slice(0, 40)}`);
-  let reply: string;
   try {
-    reply = text.startsWith("help") ? HELP : text.startsWith("alert") ? await alerts() : await status();
+    if (message.content.type !== "text") continue;
+    const text = message.content.text.trim();
+    const t = text.toLowerCase().replace(/[.!?]+$/, "");
+    const group = (space as { type?: string }).type === "group";
+    console.log(`[in] ${t.slice(0, 40)}`);
+    let answer: string | null;
+    if (t === "subscribe" || t === "start") {
+      subscribers.add(space.id);
+      await saveSubscribers(subscribers);
+      answer = "Subscribed. I'll text you when a pump goes down or something needs an inspector. Text stop to end.";
+    } else if (t === "stop" || t === "unsubscribe") {
+      subscribers.delete(space.id);
+      await saveSubscribers(subscribers);
+      answer = "Stopped. No more alert texts. Text subscribe to turn them back on.";
+    } else if (group && !command(text)) {
+      answer = null; // group chats: only answer commands, not every message
+    } else if (command(text) === "agents") {
+      await space.send("Running the agents. This takes up to a minute…");
+      answer = await reply(text);
+    } else {
+      answer = await reply(text);
+    }
+    if (answer) await space.send(answer);
   } catch (e) {
-    reply = `The console isn't answering right now (${e instanceof Error ? e.message : "error"}).`;
+    console.error(`[in] ${(e as Error).message}`);
   }
-  await space.send(reply);
 }

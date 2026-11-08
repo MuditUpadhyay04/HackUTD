@@ -1,11 +1,16 @@
 import { DomainError, type CountdownState, type DataQuality, type FacilityState, type Frame, type ImportedDataset, type Incident, type InferenceObservation, type PlanningJob, type Quality, type RuntimeMode, type Snapshot, type SystemPlanningInput, type SystemState } from "@hackutd/contracts";
 import { SoftwareRuntime, buildDatasetConfig, STATUS, type TelemetryRecord } from "../../../../../packages/fpga-sim/src/index.ts";
 import { parseRegisteredModel, type RegisteredModel } from "./model";
+import { boardKey, type BoardIndex } from "./board";
+export { boardIndex, readBoardIndex, type BoardIndex, type BoardResult, type BoardSource } from "./board";
 export { parseRegisteredModel, readRegisteredModel, type RegisteredModel } from "./model";
 import { solveSystemPlan } from "../planning/solver";
 import { validateSystemPlan } from "../planning/validator";
 
 const STEP = 300;
+const HEAD_NAMES = ["pipeline_leak", "pump_degradation", "pump_failure"] as const;
+/** Board mode: a head resolves after this many usable board records without it in `active` (ml/INTEGRATION.md §4). */
+const BOARD_RESOLVE_AFTER = 3;
 const METHOD = "host-inflow-only-rolling16-v1";
 const validNumber = (v: number | null | undefined): v is number => typeof v === "number" && Number.isFinite(v);
 const value = (v: number | null | undefined): number | null => validNumber(v) ? v : null;
@@ -68,7 +73,7 @@ export function planningInputForSnapshot(dataset: ImportedDataset, snapshot: Sna
 }
 
 /** Reconstructs a run strictly from records at or before its replay cutoff. */
-export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId: string; at: number; runtime: RuntimeMode; parentRunId?: string; revision?: number }, options?: { signal?: AbortSignal; model?: RegisteredModel; onResults?: (results: InferenceObservation[]) => Promise<void> }): Promise<Snapshot> {
+export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId: string; at: number; runtime: RuntimeMode; parentRunId?: string; revision?: number }, options?: { signal?: AbortSignal; model?: RegisteredModel; board?: BoardIndex; onResults?: (results: InferenceObservation[]) => Promise<void> }): Promise<Snapshot> {
   abort(options?.signal);
   const model = options?.model ? parseRegisteredModel(options.model) : null;
   const revision = input.revision ?? 1;
@@ -85,6 +90,15 @@ export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId:
   const acc = new Map<string, Acc>();
   for (const id of facilityMap.keys()) acc.set(id, { frames: [], quality: { quality: "DROPPED", reasons: ["no telemetry"] }, observed: false, complete: false, active: null, incidents: [], leftCensored: new Set(), inflows: [], shutIn: null, lastPumpTs: null, heads: Array.from({ length: 3 }, () => ({ active: false, positive: 0, negative: 0, firstPositive: 0, confidence: null, incident: null })) });
   const frames = dataset.frames.filter(f => f.tsUnix <= at && facilityMap.has(f.facilityId)).slice().sort((a, b) => a.tsUnix - b.tsUnix || a.facilityId.localeCompare(b.facilityId));
+  // Board mode (hard rule 11): detections come from board results (the FPGA or the bit-exact software board), used only
+  // when they cover this dataset's records up to the cutoff; otherwise they are ignored and the reasons say so.
+  const boardAll = options?.board;
+  const covered = boardAll?.size ? frames.filter(f => boardAll.has(boardKey(f.facilityId, f.tsUnix))) : [];
+  const board = covered.length ? boardAll : undefined;
+  const boardLast = covered.length ? boardAll!.get(boardKey(covered.at(-1)!.facilityId, covered.at(-1)!.tsUnix))! : null;
+  const boardLabel = boardLast ? `board results (${boardLast.source}${boardLast.weightsVer != null ? `, weights v${boardLast.weightsVer}` : ""})` : "";
+  const boardProvenance = boardLast?.source === "fpga" ? "fpga" as const : "software" as const;
+  const boardVersion = boardLast?.weightsVer != null ? `weights v${boardLast.weightsVer}` : "board";
   let pending: InferenceObservation[] = [];
   const flush = async () => {
     if (!pending.length || !options?.onResults) return;
@@ -111,7 +125,29 @@ export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId:
     a.observed = usable && fields.some(Boolean);
     a.complete = usable && fields.every(Boolean) && !result.reason.outOfRange && !result.reason.illegalEnum;
     if (result.status === STATUS.DROPPED || result.status === STATUS.INVALID) { a.shutIn = null; continue; }
-    if (model && result.logits && a.complete) {
+    const br = board?.get(boardKey(f.facilityId, f.tsUnix));
+    if (board) {
+      // Board mode: `active` already includes the trained per-class K. A missing, INVALID or DROPPED board record
+      // freezes every streak, like missing observations in the software path.
+      if (br && (br.status === "VALID" || br.status === "HELD")) {
+        for (let head = 0; head < 3; head++) {
+          const h = a.heads[head]; const name = HEAD_NAMES[head];
+          h.confidence = typeof br.probability?.[name] === "number" ? br.probability[name]! : null;
+          if (br.above.includes(name)) { if (!h.positive) h.firstPositive = f.tsUnix; h.positive++; } else h.positive = 0;
+          if (br.active.includes(name)) { h.active = true; h.negative = 0; } else if (++h.negative >= BOARD_RESOLVE_AFTER) h.active = false;
+          if (head < 2) {
+            if (h.active && !h.incident) {
+              const category = head === 0 ? "pipeline_leak" : "pump_degradation";
+              const onset = h.firstPositive || f.tsUnix;
+              h.incident = { id: `${input.runId}:${category}:${f.facilityId}:${onset}`, category, status: "ongoing", systemId: meta.system.id, facilityId: f.facilityId, assetId: head === 0 ? meta.facility.pipeline.id : meta.facility.pump.id, onsetUnix: onset, endUnix: null, confidence: h.confidence, evidence: [`${boardLabel}: ${name} active (over the trained threshold for K consecutive records on the board).`], dataQuality: q, provenance: boardProvenance, modelVersion: boardVersion };
+              a.incidents.push(h.incident);
+            } else if (!h.active && h.incident) {
+              h.incident.status = "resolved"; h.incident.endUnix = f.tsUnix; h.incident = null;
+            } else if (h.incident) { h.incident.confidence = h.confidence; h.incident.dataQuality = q; }
+          }
+        }
+      }
+    } else if (model && result.logits && a.complete) {
       for (let head = 0; head < 3; head++) {
         // Leak and wear signatures are meaningful only while the pump runs.
         // Missing/inapplicable observations freeze both positive and negative streaks.
@@ -143,7 +179,7 @@ export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId:
       if ((r.pumpStatus === 2 || a.heads[2].active) && !a.active) {
         const id = `${input.runId}:pump_failure:${f.facilityId}:${f.tsUnix}`;
         const inferred = r.pumpStatus !== 2;
-        a.active = { id, category: "pump_failure", status: "ongoing", systemId: meta.system.id, facilityId: f.facilityId, assetId: meta.facility.pump.id, onsetUnix: f.tsUnix, endUnix: null, confidence: inferred ? a.heads[2].confidence : null, evidence: [inferred ? `Registered model ${model!.id} pump-failure head exceeded threshold for ${model!.persistK} usable observations; software inference.` : "Pump status reports fault (2)."], provenance: "software", modelVersion: inferred ? model!.id : null, dataQuality: q };
+        a.active = { id, category: "pump_failure", status: "ongoing", systemId: meta.system.id, facilityId: f.facilityId, assetId: meta.facility.pump.id, onsetUnix: f.tsUnix, endUnix: null, confidence: inferred ? a.heads[2].confidence : null, evidence: [inferred ? (board ? `${boardLabel}: pump_failure active on the board.` : `Registered model ${model!.id} pump-failure head exceeded threshold for ${model!.persistK} usable observations; software inference.`) : "Pump status reports fault (2)."], provenance: inferred && board ? boardProvenance : "software", modelVersion: inferred ? (board ? boardVersion : model!.id) : null, dataQuality: q };
         if (a.lastPumpTs === null || f.tsUnix - a.lastPumpTs > STEP) a.leftCensored.add(id);
         a.incidents.push(a.active); a.inflows = [];
       } else if (r.pumpStatus !== 2 && !a.heads[2].active && a.active) {
@@ -178,7 +214,7 @@ export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId:
       const series = (get: (f: Frame) => number | null) => ({ t: buckets.map(b => b[b.length - 1].tsUnix), v: buckets.map(b => b.some(x => value(get(x)) === null) ? null : value(get(b[b.length - 1]))) });
       const ongoing = a.incidents.filter(x => x.status === "ongoing");
       const incidentIds = ongoing.map(x => x.id);
-      const state: FacilityState = { id: f.id, systemId: system.id, letter: f.id, lat: f.lat, lon: f.lon, tank: { id: f.tank.id, capacityBbl: f.tank.capacity_bbl, levelPct: level }, pump: { id: f.pump.id, status, flowBpd: fresh ? value(latest?.pumpFlowBpd) : null, maxFlowBpd: f.pump.max_flow_bpd, dischargePsi: fresh ? value(latest?.dischargePsi) : null, startLevelPct: f.pump.start_level_pct, stopLevelPct: f.pump.stop_level_pct }, pipeline: { id: f.pipeline.id, receiveFlowBpd: fresh ? value(latest?.receiveFlowBpd) : null, pressurePsi: fresh ? value(latest?.pipelinePsi) : null }, inflowBpd: inflow, wells, fillPctPerHour: inflow !== null && fresh && validNumber(latest?.pumpFlowBpd) ? (inflow - latest.pumpFlowBpd) / 24 / f.tank.capacity_bbl * 100 : null, revenuePerHour: revenue, observedShutIn: fresh && a.observed ? a.shutIn : null, health: a.active ? "failure" : !fresh || !a.observed ? "no_data" : a.shutIn ? "shut_in" : a.heads[0].incident ? "leak" : a.heads[1].incident ? "degradation" : "unknown", dataQuality: q, incidentIds, series: { level: series(x => x.levelPct), inflow: series(x => x.inflowBpd), pumpFlow: series(x => x.pumpFlowBpd), receiveFlow: series(x => x.receiveFlowBpd) } };
+      const state: FacilityState = { id: f.id, systemId: system.id, letter: f.id, lat: f.lat, lon: f.lon, tank: { id: f.tank.id, capacityBbl: f.tank.capacity_bbl, levelPct: level }, pump: { id: f.pump.id, status, flowBpd: fresh ? value(latest?.pumpFlowBpd) : null, maxFlowBpd: f.pump.max_flow_bpd, dischargePsi: fresh ? value(latest?.dischargePsi) : null, startLevelPct: f.pump.start_level_pct, stopLevelPct: f.pump.stop_level_pct }, pipeline: { id: f.pipeline.id, receiveFlowBpd: fresh ? value(latest?.receiveFlowBpd) : null, pressurePsi: fresh ? value(latest?.pipelinePsi) : null }, inflowBpd: inflow, wells, fillPctPerHour: inflow !== null && fresh && validNumber(latest?.pumpFlowBpd) ? (inflow - latest.pumpFlowBpd) / 24 / f.tank.capacity_bbl * 100 : null, revenuePerHour: revenue, observedShutIn: fresh && a.observed ? a.shutIn : null, health: a.active ? "failure" : !fresh || !a.observed ? "no_data" : a.shutIn ? "shut_in" : a.heads[0].incident ? "leak" : a.heads[1].incident ? "degradation" : (board ? board.has(boardKey(f.id, at)) : !!model) ? "ok" : "unknown", dataQuality: q, incidentIds, series: { level: series(x => x.levelPct), inflow: series(x => x.inflowBpd), pumpFlow: series(x => x.pumpFlowBpd), receiveFlow: series(x => x.receiveFlowBpd) } };
       facilities.push(state);
       history.push(...a.incidents.filter(x => x.status === "resolved"));
       for (const incident of ongoing) if (incident.category !== "pump_failure") { incident.dataQuality = q; alerts.push(incident); }
@@ -213,6 +249,6 @@ export async function buildRunSnapshot(dataset: ImportedDataset, input: { runId:
   alerts.sort((a, b) => Number(a.category !== "pump_failure") - Number(b.category !== "pump_failure") || (a.hoursToLimit?.p50 ?? Infinity) - (b.hoursToLimit?.p50 ?? Infinity) || (b.lostRevenuePerHour ?? 0) - (a.lostRevenuePerHour ?? 0) || a.id.localeCompare(b.id));
   const expected = facilityMap.size; const received = [...acc.values()].filter(a => a.frames.at(-1)?.tsUnix === at && a.observed).length;
   const complete = [...acc.values()].every(a => a.frames.at(-1)?.tsUnix === at && a.complete);
-  const reasons = [...(input.runtime === "auto" ? hardwareReasons.map(x => `Software fallback: ${x}`) : []), ...(model ? [] : ["Classifier unavailable: no registered model with validated scale and thresholds; leak and degradation detection unavailable"]), "Software inference is not FPGA bit-exact; host countdown uses inflow only"];
-  return { runId: input.runId, revision, cursor: 0, parentRunId: input.parentRunId ?? null, dataset: dataset.info, nowUnix: at, board: null, runtime: { requested: input.runtime, effective: "software", state: "degraded", reasons, scoresAvailable: !!model, modelVersion: model?.id ?? null }, coverage: { expected, received, complete }, recommendation: { state: planningIncomplete ? "unavailable" : "ready", inputRevision: revision, currentRevision: revision }, limits: { warningPct: dataset.network.defaults.tank_limits_pct.warning, shutdownPct: dataset.network.defaults.tank_limits_pct.shutdown }, systems, alerts, history, fleets, totals: { facilities: expected, atRisk: new Set(alerts.map(x => x.facilityId)).size, revenueAtRiskPerHour: alerts.reduce((sum, x) => sum + (x.lostRevenuePerHour ?? 0), 0), planCost } };
+  const reasons = [...(input.runtime === "auto" ? hardwareReasons.map(x => `Software fallback: ${x}`) : []), ...(board ? [`Detections from ${boardLabel}; latest board result ${Math.round((at - boardLast!.tsUnix) / 60)} min before the cutoff`] : options?.board?.size ? ["Board results do not cover this dataset or cutoff; they were not used"] : []), ...(board || model ? [] : ["Classifier unavailable: no registered model with validated scale and thresholds; leak and degradation detection unavailable"]), board ? "Countdown and plans: host, inflow only" : "Software inference is not FPGA bit-exact; host countdown uses inflow only"];
+  return { runId: input.runId, revision, cursor: 0, parentRunId: input.parentRunId ?? null, dataset: dataset.info, nowUnix: at, board: null, runtime: { requested: input.runtime, effective: "software", state: "degraded", reasons, scoresAvailable: !!board || !!model, modelVersion: board ? boardVersion : model?.id ?? null }, coverage: { expected, received, complete }, recommendation: { state: planningIncomplete ? "unavailable" : "ready", inputRevision: revision, currentRevision: revision }, limits: { warningPct: dataset.network.defaults.tank_limits_pct.warning, shutdownPct: dataset.network.defaults.tank_limits_pct.shutdown }, systems, alerts, history, fleets, totals: { facilities: expected, atRisk: new Set(alerts.map(x => x.facilityId)).size, revenueAtRiskPerHour: alerts.reduce((sum, x) => sum + (x.lostRevenuePerHour ?? 0), 0), planCost } };
 }

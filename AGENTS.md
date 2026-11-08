@@ -19,8 +19,8 @@ Always read this file before working here and use the key resources below as ref
 - **Gurneal (also called Jimmy):** web interface and full stack, with Jason helping.
 - **Jason:** primary owner of agents; additional contributors may join.
 - Coordinate model/tensor/weight-format changes with Mudit and Lucas, and agent/dashboard API changes with Jason and Gurneal.
-- **The FPGA is the fixed point:** FPGA spec v4 is locked and the RTL is built to it (a few modules still finishing review); neither changes for anyone else's convenience. Make every other part (ingest, ML, server, agents, console) adapt to them; never propose an FPGA/RTL change unless something is broken, and then Lucas decides (`global_plan.md`, "How this file works").
-- **Final say when owners disagree:** spec, FPGA and RTL → **Lucas**; ML (model, features, weights, ingest, board tooling) → **Mudit**; server, agents and Nemotron → **Jason** (`global_plan.md`, "How this file works").
+- **The FPGA is the fixed point:** FPGA spec v4 is locked and the RTL is built to it (every module signed off, running on the board); neither changes for anyone else's convenience. Make every other part (ingest, ML, server, agents, console) adapt to them; never propose an FPGA/RTL change unless something is broken, and then Lucas decides (`global_plan.md`, "How this file works").
+- **Final say when owners disagree:** spec, FPGA and RTL → **Lucas**; ML (model, features, weights, ingest, board tooling) → **Mudit**; server → **Jason**; agents and Nemotron → **Mudit + Jason** jointly (`global_plan.md`, "How this file works").
 
 ## Working architecture
 
@@ -29,7 +29,8 @@ Current architecture, contracts and open items: `global_plan.md` §3–§9 (inte
 1. `ml/hutd_ml/replay.py` (CSV → 48 B binary, on the board PC) sends records to the Eclypse Z7 (spec v4, locked),
    or to `ml/hutd_ml/fakeboard.py` when there's no board.
 2. `ml/hutd_ml/listen.py` turns the results into JSON (contract C11).
-3. The operator API (`apps/api/`) owns runs, incidents, the shared-fleet planner and the Nemotron coordinator.
+3. The operator API (`apps/api/`) owns runs, incidents, the shared-fleet planner and the Nemotron agents: a deterministic
+   orchestrator with scoped sub-agents and an offline prompt-learning loop (C12, C13 PROPOSED; `docs/plan/jason/agent-loop-plan.md`).
 4. The web console (`frontend/`) is presentation only.
 
 `ml/hutd_ml/features_int.py` is the normative integer reference for the board (hard rule 11).
@@ -51,7 +52,7 @@ fourth independent equipment fault.
 | Area | Toolchain | Start here |
 | --- | --- | --- |
 | Operator API, contracts, web console (`apps/`, `packages/`, `frontend/`, `db/`) | Bun workspace (root `package.json`, `bun.lock`), Next.js | root `README.md`; `docs/plan/jason/backend-demo-runbook.md` |
-| FPGA (`FPGA/`) | Vivado / Vitis on Lucas's PC; Icarus + SymbiYosys; Python model | `FPGA/AGENTS.md`, `FPGA/TASKS.md`, `HANDOFF.md`. `main` has the FPGA docs and spec; RTL, proofs, testbenches, model and scripts are on branch `FPGA` until Lucas merges them after T2.top. The board and Vitis workspace are only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the checks behind `docs/plan/lucas/review_notes.md`. |
+| FPGA (`FPGA/`) | Vivado / Vitis on Lucas's PC; Icarus + SymbiYosys; Python model | `FPGA/AGENTS.md`, `FPGA/TASKS.md`, `HANDOFF.md`; on the board machine, `FPGA/docs/BOARD_SESSION.md` first. `main` has the FPGA docs and spec; RTL, proofs, testbenches, model and scripts are on branch `FPGA` until Lucas merges them after T2.top. The board and Vitis workspace are only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the checks behind `docs/plan/lucas/review_notes.md`. |
 | ML, ingest, board tooling (`ml/`) | Python 3.10+, `ml/requirements.txt` | `ml/README.md`, `ml/INTEGRATION.md`; tests: `cd ml && HUTD_DATA=<full_week> python -m pytest -q tests` |
 
 **Branches:**
