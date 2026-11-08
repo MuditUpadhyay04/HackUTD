@@ -1,7 +1,8 @@
 """Write golden vectors to FPGA/tb/vectors/ (format: FPGA/model/README.md, "Vector files").
 
-    python FPGA/model/gen_vectors.py            # everything (needs the practice dataset: $EOG_DATA)
-    python FPGA/model/gen_vectors.py --no-large # skip the git-ignored per-module *_week files
+    python FPGA/model/gen_vectors.py            # everything (needs the practice dataset $EOG_DATA and
+                                                # Mudit's branch ml for the golden cases: $EOG_ML, see cases.ml_dir)
+    python FPGA/model/gen_vectors.py --no-large # skip the git-ignored per-module *_week / *_g1 files
 
 Every case runs through the whole Engine from reset, so each module's .in.hex is exactly the previous stage's
 .out.hex for that case. All files are LF-only and deterministic (seeded).
@@ -24,7 +25,7 @@ EVENTS = {"validate": {"touch", "cfg"}, "features": {"cfg"}, "countdown": {"cfg"
           "top": {"touch", "cfg", "wts", "swap", "ack", "hb", "hb_expire"}}
 CFG_USERS = {"validate", "features", "countdown", "alarm", "top"}
 WTS_USERS = {"head", "top"}
-LARGE = {"week"}  # per-module files of these cases are git-ignored (top_ is committed)
+LARGE = {"week", "g1"}  # per-module files of these cases are git-ignored (top_ is committed)
 
 index = []
 
@@ -247,7 +248,9 @@ def gen_regs():
 
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--no-large", action="store_true", help="skip the git-ignored per-module *_week files")
+    ap.add_argument("--no-large", action="store_true", help="skip the git-ignored per-module *_week, *_g1 files")
+    ap.add_argument("--no-golden", action="store_true", help="skip Mudit's golden sets (g0, g1, g2, g0v0, g2v0)")
+    ap.add_argument("--ml", help="Mudit's ml/ folder (default $EOG_ML or ml/ml next to this repo)")
     ap.add_argument("--out", help="output directory (default FPGA/tb/vectors)")
     a = ap.parse_args(argv)
     global OUT
@@ -257,7 +260,7 @@ def main(argv):
     os.makedirs(OUT, exist_ok=True)
     for c in C.synthetic_cases():
         emit_case(c)
-    practice = C.practice_cases()
+    practice = C.practice_cases() + ([] if a.no_golden else C.golden_cases(a.ml))
     traced = None
     for c in practice:
         r = emit_case(c, large=not a.no_large, trace=(c.name == "onsets"))

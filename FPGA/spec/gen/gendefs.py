@@ -44,7 +44,7 @@ w("")
 w("// ---- reason bits (RESULT.reason, numerics.md section 6) ----")
 R = [("FIELD_HELD", 0), ("GAP_HELD", 1), ("HIST_RESET", 2), ("OUT_OF_RANGE", 3), ("ILLEGAL_ENUM", 4), ("FEAT_SAT", 5),
      ("PUMP_INCONS", 6), ("WELL_INCONS", 7), ("DUPLICATE", 8), ("OUT_OF_ORDER", 9), ("UNKNOWN_FAC", 10),
-     ("FRAMING", 12)]
+     ("FIELD_ABSENT", 11), ("FRAMING", 12), ("NO_MODEL", 13), ("FIELD_LOST", 14)]   # 11/13/14: ruling #23
 for n, v in R:
     w(f"localparam integer EOG_R_{n} = {v};")
 w("")
