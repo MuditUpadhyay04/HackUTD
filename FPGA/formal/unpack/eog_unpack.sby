@@ -1,0 +1,40 @@
+# SymbiYosys job for eog_unpack (Verify role, task T1.unpack.fv). Properties: fv_eog_unpack.sv (P1-P5, B_*, covers).
+#   bash scripts/formal.sh unpack          # all tasks, report in reports/formal_unpack.txt
+#
+# eog_unpack has no multiplier and no observation ports; see the harness header for the shadow model.
+#
+# prove : k-induction with the fairness envelope FAIR = 1, GS = 1, GR = 2 (s_valid never 0 for 2 cycles in a row,
+#         out_ready never 0 for 3). Depth DEPTH_PROVE: long enough that every window contains the completion and
+#         transfer of the records the DUT may hold at its start, which pins the DUT's hidden beat position, partial
+#         record and REC_NO counter against the shadow.
+# bmc   : no envelope (any s_valid / out_ready / s_last / reset pattern), from reset.
+# cover : spec covers (two full records back to back; framing error then a good record) + sanity covers.
+
+[tasks]
+prove
+bmc
+cover
+
+[options]
+prove: mode prove
+prove: depth 40
+bmc:   mode bmc
+bmc:   depth 30
+cover: mode cover
+cover: depth 24
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal -sv eog_fv_props.sv
+read_verilog -formal -sv -I . eog_unpack.sv
+read_verilog -formal -sv -I . fv_eog_unpack.sv
+prove: chparam -set FAIR 1 -set GS 1 -set GR 2 fv_eog_unpack
+prep -top fv_eog_unpack
+
+[files]
+../common/eog_fv_props.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_unpack.sv
+fv_eog_unpack.sv
