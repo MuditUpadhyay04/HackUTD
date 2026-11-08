@@ -35,7 +35,8 @@ export async function migrate(sql: SQL): Promise<void> {
 
 /** gzip-compressed JSON for the bulk parts of a dataset (frames, samples, source files). */
 export const packJson = (value: unknown): Buffer => Buffer.from(Bun.gzipSync(Buffer.from(JSON.stringify(value))));
-export const unpackJson = (bytes: Uint8Array): any => JSON.parse(new TextDecoder().decode(Bun.gunzipSync(bytes)));
+// copy into an ArrayBuffer-backed array: newer @types/bun reject a Uint8Array<ArrayBufferLike> here
+export const unpackJson = (bytes: Uint8Array): any => JSON.parse(new TextDecoder().decode(Bun.gunzipSync(new Uint8Array(bytes))));
 
 /** Move frames/samples/sourceFiles of rows written before 003 out of body. One row per transaction; safe to rerun. */
 async function compactDatasets(sql: SQL): Promise<void> {

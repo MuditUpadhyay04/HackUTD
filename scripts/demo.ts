@@ -24,7 +24,9 @@ const controlPort = 3099;
 const apiPort = 3002;
 const webPort = 3020;
 const streamSeconds = Number(process.env.DEMO_STEP ?? "1") || 1;
-const batchPps = Number(process.env.DEMO_PPS ?? "4000") || 4000;
+// Batch pace in DATA packets/s (30 records each). Measured lossless: the software board ~300 (it is Python and drops
+// its input above that), the FPGA ~1,000 (board suite T1, 30,240/30,240). Faster loses data and the story is wrong.
+const batchPpsFor = (source: "fpga" | "fakeboard") => Number(process.env.DEMO_PPS ?? "") || (source === "fpga" ? 1000 : 300);
 
 const children: Subprocess[] = [];
 let replay: Subprocess | null = null;
@@ -59,17 +61,18 @@ function datasetFolder(): string {
 
 function boardAddress(): { board: string; local: string; source: "fpga" | "fakeboard" } {
   if (process.env.DEMO_BOARD === "fpga") {
-    const local = process.env.DEMO_LOCAL ?? ipv4("en0") ?? ipv4("en1");
-    if (!local) throw new Error("No Wi-Fi address for the board PC. Set DEMO_LOCAL.");
+    // The board always answers to 192.168.1.50 (the PC's wired address, ML-6); en0/en1 are macOS names only.
+    const local = process.env.DEMO_LOCAL ?? "192.168.1.50";
     return { board: process.env.DEMO_FPGA ?? "192.168.1.10", local, source: "fpga" };
   }
-  const board = ipv4("en0") ?? ipv4("en1");
+  // Software board: a second loopback address on Linux/Windows; on macOS (only 127.0.0.1 is up) the Wi-Fi address.
+  const board = process.platform === "darwin" ? ipv4("en0") ?? ipv4("en1") : "127.0.0.2";
   if (!board) throw new Error("No network address for the software board. Connect Wi-Fi, or set DEMO_BOARD=fpga on the board PC.");
   return { board, local: "127.0.0.1", source: "fakeboard" };
 }
 
 function python(): string {
-  return process.env.HUTD_PY || "python3";
+  return process.env.HUTD_PY || (process.platform === "win32" ? "python" : "python3");
 }
 
 function track(child: Subprocess): Subprocess {
@@ -77,8 +80,8 @@ function track(child: Subprocess): Subprocess {
   return child;
 }
 
-function startReplay(next: Mode, link: { board: string; local: string }): Subprocess {
-  const pace = next === "stream" ? ["--step-seconds", String(streamSeconds)] : ["--step-seconds", "0", "--pps", String(batchPps)];
+function startReplay(next: Mode, link: { board: string; local: string; source: "fpga" | "fakeboard" }): Subprocess {
+  const pace = next === "stream" ? ["--step-seconds", String(streamSeconds)] : ["--step-seconds", "0", "--pps", String(batchPpsFor(link.source))];
   return track(spawn([
     python(), "-m", "hutd_ml.replay",
     "--data", dataset,
@@ -127,7 +130,7 @@ function status() {
     mode,
     dataset: basename(dataset),
     source: link.source,
-    pace: mode === "stream" ? `${streamSeconds}s per reading` : `${batchPps} packets/s`,
+    pace: mode === "stream" ? `${streamSeconds}s per reading` : `${batchPpsFor(link.source)} packets/s`,
     replay: replayState,
   };
 }
