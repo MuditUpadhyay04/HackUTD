@@ -52,7 +52,7 @@ fourth independent equipment fault.
 | Area | Toolchain | Start here |
 | --- | --- | --- |
 | Operator API, contracts, web console (`apps/`, `packages/`, `frontend/`, `db/`) | Bun workspace (root `package.json`, `bun.lock`), Next.js | root `README.md`; `docs/plan/jason/backend-demo-runbook.md` |
-| FPGA (`FPGA/`) | Vivado / Vitis on Lucas's PC; Icarus + SymbiYosys; Python model | `FPGA/AGENTS.md`, `FPGA/TASKS.md`, `HANDOFF.md`. `main` has the FPGA docs and spec; RTL, proofs, testbenches, model and scripts are on branch `FPGA` until Lucas merges them after T2.top. The board and Vitis workspace are only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the checks behind `docs/plan/lucas/review_notes.md`. |
+| FPGA (`FPGA/`) | Vivado / Vitis on Lucas's PC; Icarus + SymbiYosys; Python model | `FPGA/AGENTS.md`, `FPGA/TASKS.md`, `HANDOFF.md`; on the board machine, `FPGA/docs/BOARD_SESSION.md` first. `main` has the FPGA docs and spec; RTL, proofs, testbenches, model and scripts are on branch `FPGA` until Lucas merges them after T2.top. The board and Vitis workspace are only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the checks behind `docs/plan/lucas/review_notes.md`. |
 | ML, ingest, board tooling (`ml/`) | Python 3.10+, `ml/requirements.txt` | `ml/README.md`, `ml/INTEGRATION.md`; tests: `cd ml && HUTD_DATA=<full_week> python -m pytest -q tests` |
 
 **Branches:**

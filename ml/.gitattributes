@@ -1,0 +1,2 @@
+# keep Windows line endings: cmd mis-finds goto labels in LF-only batch files
+*.bat -text
