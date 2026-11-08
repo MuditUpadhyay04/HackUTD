@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { DatasetInfo, FleetState, Incident, OperatorAction, Snapshot, SystemState } from "@/lib/engine/types";
+import type { BoardStatus, DatasetInfo, FleetState, Incident, OperatorAction, Snapshot, SystemState } from "@/lib/engine/types";
 import { api, commandKey, unwrap } from "@/lib/api";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { getBoard } from "@/lib/live/board";
 import { boardFacility, InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
 import { NetworkCard } from "./network";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
@@ -42,6 +43,10 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
   const [flash, setFlash] = useState<string | null>(null);
   const [actionError, setActionError] = useState("");
   const adviceReady = s.recommendation.state === "ready" && s.recommendation.inputRevision === s.recommendation.currentRevision;
+  const [board, setBoard] = useState<BoardStatus | null>(null);
+  useEffect(() => {
+    void getBoard(s).then((b) => setBoard(b ?? null));
+  }, [s.runId, s.revision, s.nowUnix]);
   useEffect(() => {
     const abort = new AbortController();
     api.api.runs({ id: s.runId }).actions.get({ fetch: { signal: abort.signal } }).then(unwrap).then((actions) => {
@@ -144,8 +149,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         current={s.dataset}
         replay={!live || view === "replay"}
         onReplay={(on) => onView(on ? "replay" : "overview")}
-        atUnix={at}
-        board={s.board}
+        atUnix={undefined}
+        board={board}
       />
 
       <main className="px-4 pt-7 pb-10 sm:px-7">
@@ -189,7 +194,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
           </div>
         ) : (
           <>
-            {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
+            {(() => { const b = board; return b && (b.mode === "AUTONOMOUS" || b.replayedAlerts > 0) && <BoardBanner board={b} nowUnix={s.nowUnix} />; })()}
             <div className="mt-[22px] grid grid-cols-2 gap-3.5 xl:grid-cols-4">
               <StatCard label="Pumps down" value={String(failures.length)} tone={failures.length ? "crit" : undefined} />
               <StatCard
@@ -289,7 +294,8 @@ function SectionTitle({ title, note }: { title: string; note?: string }) {
 }
 
 /** One sentence when the board ran without the server or replayed buffered alerts. */
-function BoardBanner({ board, nowUnix }: { board: BoardStatus; nowUnix: number }) {
+function BoardBanner({ board, nowUnix }: { board: BoardStatus | null; nowUnix: number }) {
+  if (!board) return null;
   const own = board.mode === "AUTONOMOUS";
   const since = board.autonomousSinceUnix != null ? ` at ${clockFrom(board.autonomousSinceUnix, nowUnix)}` : "";
   const n = board.replayedAlerts;

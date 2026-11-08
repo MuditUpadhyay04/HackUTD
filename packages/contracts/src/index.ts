@@ -1,5 +1,5 @@
 /** Application contracts. Browser-safe: no server code or SDK dependencies. */
-export type Category = "pump_failure" | "pipeline_leak" | "pump_degradation";
+export type Category = "pump_failure" | "pipeline_leak" | "pump_degradation" | "facility_shut_in";
 export type Quality = "VALID" | "HELD" | "INVALID" | "DROPPED";
 export type RuntimeMode = "auto" | "software" | "fpga";
 export interface NetworkWell { id: string; baseline_water_bpd: number; oil_bpd: number; gas_mcfd: number }
@@ -38,6 +38,9 @@ export interface DatasetInfo { id: string; label: string; startUnix: number; now
 export interface ImportedDataset { info: DatasetInfo; network: Network; ops: Operations; samples: TelemetrySample[]; frames: Frame[]; sourceFiles?: { network: string; ops: string; telemetry: string } }
 export interface DataQuality { quality: Quality; reasons: string[] }
 export interface Series { t: number[]; v: (number | null)[] }
+export interface BoardScores { pipeline_leak: number; pump_degradation: number; pump_failure: number; facility_shut_in: number }
+export interface BoardFacility { facilityId: string; updatedUnix: number; scores: BoardScores | null; overThreshold: string[]; source: "rule" | "model" | "both" | "none"; sinceReset: number; alarm: "night_shift" | "e_stop" | "none"; alarmState: "raised" | "cleared" | "acknowledged" | null; alarmSinceUnix: number | null; replayed: boolean; degradationTrend: Series | null | undefined }
+export interface BoardStatus { source: "live" | "simulated"; online: boolean; mode: "AUTONOMOUS" | "NORMAL"; lastSeenUnix: number | null; weightsVersion: number | null; autonomousSinceUnix: number | null; replayedAlerts: number; facilities: BoardFacility[] }
 export type FacilityHealth = "ok" | "failure" | "shut_in" | "leak" | "degradation" | "no_data" | "unknown";
 export interface WellState { id: string; producing: boolean; waterBpd: number; baselineWaterBpd: number; oilBpd: number; gasMcfd: number; revenuePerHour: number; costPerBblAvoided: number }
 export interface FacilityState {
@@ -77,6 +80,7 @@ export interface FleetState { systemId: string; size: number; assignments: Truck
 export interface Snapshot {
   runId: string; revision: number; cursor: number; parentRunId: string | null;
   dataset: DatasetInfo; nowUnix: number;
+  board: BoardStatus | null;
   runtime: { requested: RuntimeMode; effective: "software" | "fpga"; state: "ready" | "degraded" | "rebuilding"; reasons: string[]; scoresAvailable: boolean; modelVersion: string | null };
   coverage: { expected: number; received: number; complete: boolean };
   recommendation: { state: "ready" | "stale" | "pending" | "unavailable"; inputRevision: number; currentRevision: number };

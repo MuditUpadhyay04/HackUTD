@@ -326,11 +326,13 @@ function CompactRow({
 }) {
   const st = pipeStatus(f);
   const color = statusColor[st];
-  const flow = Number.isFinite(f.pump.flowBpd) ? f.pump.flowBpd : 0;
-  const recv = Number.isFinite(f.pipeline.receiveFlowBpd) ? f.pipeline.receiveFlowBpd : 0;
+  const flowVal = f.pump.flowBpd;
+  const flow = flowVal != null && Number.isFinite(flowVal) ? flowVal : 0;
+  const recvVal = f.pipeline.receiveFlowBpd;
+  const recv = recvVal != null && Number.isFinite(recvVal) ? recvVal : 0;
   const moving = flow > 1 && st !== "down" && st !== "nodata";
   const thick = moving ? 3 + 5 * Math.min(1, flow / maxFlow) : 3;
-  const level = Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct) : null;
+  const level = f.tank.levelPct != null ? Math.round(f.tank.levelPct) : null;
   const text =
     st === "down"
       ? "Pump down, no flow"

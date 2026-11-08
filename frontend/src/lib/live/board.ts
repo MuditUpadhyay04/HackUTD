@@ -106,8 +106,8 @@ function simulate(s: Snapshot, mode: string): BoardStatus | null {
       const fail = has("pump_failure");
       const shut = f.health === "shut_in";
       const scores = {
-        pipeline_leak: leak ? Math.min(0.98, 0.6 + leak.confidence * 0.35) : 0.03,
-        pump_degradation: worn ? Math.min(0.95, 0.55 + worn.confidence * 0.35) : 0.05,
+        pipeline_leak: leak ? Math.min(0.98, 0.6 + (leak.confidence ?? 0) * 0.35) : 0.03,
+        pump_degradation: worn ? Math.min(0.95, 0.55 + (worn.confidence ?? 0) * 0.35) : 0.05,
         pump_failure: fail ? 0.98 : 0.02,
         facility_shut_in: shut ? 0.97 : 0.01,
       };
@@ -121,10 +121,10 @@ function simulate(s: Snapshot, mode: string): BoardStatus | null {
       let degradationTrend: Series | undefined;
       if (worn) {
         const { t, v } = f.series.pumpFlow;
-        const pts = t.map((tt, i) => [tt, v[i]] as const).filter(([, x]) => x > 50);
+        const pts = t.map((tt, i) => [tt, v[i]] as const).filter(([, x]) => (x ?? 0) > 50);
         degradationTrend = {
           t: pts.map(([tt]) => tt),
-          v: pts.map(([, x]) => Math.min(1, Math.max(0, ((1 - x / f.pump.maxFlowBpd) - 0.01) * 8))),
+          v: pts.map(([, x]) => Math.min(1, Math.max(0, ((1 - (x ?? 0) / (f.pump.maxFlowBpd ?? 1)) - 0.01) * 8))),
         };
       }
       return {

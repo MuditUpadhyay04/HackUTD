@@ -3,7 +3,7 @@
 import { useRef, type ReactNode } from "react";
 import { Check, Truck } from "lucide-react";
 import type { BoardFacility, BoardScores, FacilityState, Incident, PlanOption } from "@/lib/engine/types";
-import { assetName, categoryLabel, clockFrom, countdownState, dayClock, duration, planText, facilityTitle, humanize, money, num, systemNum } from "@/lib/format";
+import { assetName, categoryLabel, clockFrom, countdownState, dayClock, duration, planText, facilityTitle, facilityName, humanize, money, num, systemNum } from "@/lib/format";
 import { Dialog as Sheet, DialogContent as SheetContent, DialogDescription as SheetDescription, DialogHeader as SheetHeader, DialogTitle as SheetTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { LevelChart } from "./level-chart";
@@ -43,17 +43,6 @@ export function IncidentSheet({
             incident={incident}
             facility={facility}
             nowUnix={nowUnix}
-            board={
-              boardFacility && (
-                <BoardSection
-                  board={boardFacility}
-                  source={boardSource}
-                  nowUnix={nowUnix}
-                  showTrend={incident.category === "pump_degradation"}
-                  onsetUnix={incident.onsetUnix}
-                />
-              )
-            }
           />
         ))}
       </SheetContent>
@@ -141,8 +130,6 @@ function FailureDetail({
       </section>
 
       {facility && <WellsTable facility={facility} highlight={a.plan?.shutIns.map((s) => s.wellId) ?? []} />}
-
-      {board}
 
       <section className="px-5 sm:px-8 py-7">
         <h3 className="mb-2 font-display text-[16px] font-semibold">Why we think the pump is down</h3>
@@ -652,12 +639,12 @@ function BoardSection({
           <h3 className="mb-2 font-display text-[16px] font-semibold">Wear score trend</h3>
           <MiniChart
             t={trend.t}
-            line={trend.v.map((v) => v * 100)}
+            line={trend.v.map((v) => (v ?? 0) * 100)}
             domain={[0, 100]}
             onsetUnix={onsetUnix}
             nowUnix={nowUnix}
             unit="%"
-            label={`Wear score from ${pct(trend.v[0])}% to ${pct(trend.v[trend.v.length - 1])}% between ${clockFrom(trend.t[0], nowUnix)} and ${clockFrom(trend.t[trend.t.length - 1], nowUnix)}`}
+            label={`Wear score from ${pct(trend.v[0] ?? 0)}% to ${pct(trend.v[trend.v.length - 1] ?? 0)}% between ${clockFrom(trend.t[0], nowUnix)} and ${clockFrom(trend.t[trend.t.length - 1], nowUnix)}`}
           />
           <p className="mt-1 text-[13px] text-muted-foreground">
             The board&apos;s pump wearing out score over time. Higher means more wear.{simulated ? " Simulated board." : ""}

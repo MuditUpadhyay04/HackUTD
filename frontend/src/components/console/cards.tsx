@@ -218,13 +218,6 @@ export function InspectorRows({
               </button>
             )}
           </span>
-          <BoardLine
-            board={board}
-            facilityId={a.facilityId}
-            category={a.category}
-            nowUnix={nowUnix ?? a.onsetUnix}
-            className="col-start-2 sm:col-span-3 sm:col-start-2"
-          />
         </div>
       ))}
     </div>

@@ -63,6 +63,7 @@ export const categoryLabel = {
   pump_failure: "Pump down",
   pipeline_leak: "Pipeline leak",
   pump_degradation: "Pump wearing out",
+  facility_shut_in: "Facility shut in",
 } as const;
 
 /**
