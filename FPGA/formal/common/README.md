@@ -26,11 +26,17 @@ loops) are structural and left to lint/integration.
 ## `eog_fv_stage #(RW, MAX_INFLIGHT, II_MAX, LAT_MAX, SWEEP) (...)`
 
 Ports: `clk, rst_n, f_past_valid, in_valid, in_ready, in_recno[RW-1:0], out_valid, out_ready, out_recno[RW-1:0],
-excl` → outputs `f_in_cnt, f_out_cnt` (RW bits), `f_in_flight` (8 bits).
+excl, dut_inflight[7:0], dut_oldest[31:0]` → outputs `f_in_cnt, f_out_cnt` (RW bits), `f_in_flight` (8 bits).
+`dut_inflight`/`dut_oldest` take the DUT's formal-only observation ports `f_inflight`/`f_oldest_recno`
+(spec conventions §7).
 
 - `st_recno_in` (assume): the input `REC_NO` equals the number of inputs accepted since reset.
 - `st_order`: every output's `REC_NO` equals the number of outputs already transferred (in order, none skipped).
 - `st_no_ghost`: no output without an accepted, not-yet-output input (same-cycle pass-through allowed).
+- `st_link_n`, `st_link_r`: the DUT's `f_inflight` equals the checker's count, and its `f_oldest_recno` is the next
+  expected `REC_NO`. Without this link, k-induction can start from a state where the DUT has silently dropped a
+  record, and no port-only property closes.
+- `st_cnt`: checker-internal consistency (`f_in_cnt − f_out_cnt == f_in_flight`).
 - `st_inflight`: at most `MAX_INFLIGHT` records held (1 for one-record-at-a-time stages); this also keeps induction
   finite.
 - `st_ii` (`II_MAX > 0`): while `in_valid = 1` and `out_ready = 1`, never `II_MAX` consecutive cycles without an
@@ -39,9 +45,12 @@ excl` → outputs `f_in_cnt, f_out_cnt` (RW bits), `f_in_flight` (8 bits).
 - `st_lat` (`LAT_MAX > 0`): while `out_ready = 1`, the oldest in-flight record shows `out_valid` within `LAT_MAX`
   cycles of becoming the oldest.
 
-`RW` may be smaller than 32 (compare the low bits of `REC_NO`; e.g. 8) to keep counters small; the harness must then
+`RW` (8..32) may be smaller than 32 (compare the low bits of `REC_NO`; e.g. 8) to keep counters small; the harness must then
 wire `in_data[REC_NO lsb +: RW]`. Use `f_in_cnt`/`f_out_cnt` to build per-record shadows (e.g. "the record with
 `REC_NO == anyconst k`").
+
+Self-test: `fv_selftest.sv` also carries three mutants (`-DMUT_DROP`, `-DMUT_DUP`, `-DMUT_STALL`); a `bmc` at depth
+40 fails each of them on `st_link_n` (checked Sat Nov 7 22:38).
 
 ## Harness pattern (`formal/<m>/fv_eog_<m>.sv`)
 

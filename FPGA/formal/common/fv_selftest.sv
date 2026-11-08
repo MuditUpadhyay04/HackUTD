@@ -15,6 +15,11 @@ module selftest_stage #(
     output logic        out_valid,
     input  logic        out_ready,
     output logic [15:0] out_data      // [15:8] recno, [7:0] a*b
+`ifdef FORMAL
+    ,
+    output logic [7:0]  f_inflight,   // conventions §7 observation ports
+    output logic [31:0] f_oldest_recno
+`endif
 );
     localparam logic [1:0] S_IDLE = 2'd0, S_BUSY = 2'd1, S_OUT = 2'd2;
     logic [1:0]  st;
@@ -43,16 +48,27 @@ module selftest_stage #(
                     out_data <= {hold[15:8], p};
                     st       <= S_OUT;
                 end else cnt <= cnt - 1'b1;
+`ifdef MUT_DROP
+                S_OUT: if (out_ready || hold[15:8] == 8'd2) st <= S_IDLE;   // mutation: drops record 2
+`elsif MUT_DUP
+                S_OUT: if (out_ready && hold[15:8] != 8'd2) st <= S_IDLE; else if (out_ready) begin hold[15:8] <= 8'd3; end
+`elsif MUT_STALL
+                S_OUT: if (out_ready && hold[15:8] != 8'd2) st <= S_IDLE; // mutation: record 2 never leaves
+`else
                 S_OUT: if (out_ready) st <= S_IDLE;
+`endif
                 default: st <= S_IDLE;
             endcase
         end
     end
 
 `ifdef FORMAL
-    // internal invariant to help induction (the pattern RTL authors may follow)
+    assign f_inflight     = (st == S_IDLE) ? 8'd0 : 8'd1;
+    assign f_oldest_recno = {24'd0, hold[15:8]};
+    // internal invariants to help induction (the pattern RTL authors may follow)
+    always_comb if (rst_n && st == S_OUT) assert (out_data[15:8] == hold[15:8]);
     always_comb if (rst_n && st == S_BUSY) assert (cnt <= DELAY[3:0]);
-    always_comb assert (st != 2'd3);
+    always_comb if (rst_n) assert (st != 2'd3);
 `endif
 endmodule
 
@@ -69,7 +85,11 @@ module fv_selftest (
     logic f_past_valid;
     eog_fv_init u_init (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid));
 
-    selftest_stage #(.DELAY(3)) dut (.*);
+    logic [7:0]  dut_inflight;
+    logic [31:0] dut_oldest;
+    selftest_stage #(.DELAY(3)) dut (.clk(clk), .rst_n(rst_n), .in_valid(in_valid), .in_ready(in_ready),
+        .in_data(in_data), .out_valid(out_valid), .out_ready(out_ready), .out_data(out_data),
+        .f_inflight(dut_inflight), .f_oldest_recno(dut_oldest));
 
     eog_fv_axis #(.W(16), .ASSUME(1)) u_in  (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
         .valid(in_valid), .ready(in_ready), .data(in_data));
@@ -81,7 +101,7 @@ module fv_selftest (
         .clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid),
         .in_valid(in_valid), .in_ready(in_ready), .in_recno(in_data[15:8]),
         .out_valid(out_valid), .out_ready(out_ready), .out_recno(out_data[15:8]),
-        .excl(1'b0), .f_in_cnt(f_in_cnt), .f_out_cnt(f_out_cnt), .f_in_flight(f_in_flight));
+        .excl(1'b0), .dut_inflight(dut_inflight), .dut_oldest(dut_oldest), .f_in_cnt(f_in_cnt), .f_out_cnt(f_out_cnt), .f_in_flight(f_in_flight));
 
     // Port-only shadow (harnesses must not use hierarchical references): the last accepted input.
     logic [15:0] f_last_in;

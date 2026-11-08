@@ -84,6 +84,9 @@ endmodule
 //   RW            width of REC_NO compared (32 in the spec; a harness may compare fewer low bits to keep
 //                 the counters small, e.g. 8 â€” wrap-around is consistent on both sides).
 //
+//   dut_inflight / dut_oldest  the DUT's formal observation ports (spec conventions §7): records held, and
+//                 the REC_NO of the oldest one. Asserted equal to the checker's own view (st_link_*).
+//
 // Outputs f_in_cnt / f_out_cnt (low RW bits) and f_in_flight so a harness can build per-record shadows.
 module eog_fv_stage #(
     parameter integer RW           = 32,
@@ -102,6 +105,8 @@ module eog_fv_stage #(
     input  logic          out_ready,
     input  logic [RW-1:0] out_recno,
     input  logic          excl,
+    input  logic [7:0]    dut_inflight,   // the DUT's formal observation ports (conventions §7)
+    input  logic [31:0]   dut_oldest,
     output logic [RW-1:0] f_in_cnt,
     output logic [RW-1:0] f_out_cnt,
     output logic [7:0]    f_in_flight
@@ -128,6 +133,9 @@ module eog_fv_stage #(
         end
     end
 
+    logic [RW-1:0] f_diff;
+    assign f_diff = f_in_cnt - f_out_cnt;
+
     // Input REC_NO is the acceptance counter.
     always_comb if (rst_n && in_valid) st_recno_in: assume (in_recno == f_in_cnt);
 
@@ -137,8 +145,15 @@ module eog_fv_stage #(
             st_order:    assert (out_recno == f_out_cnt);
             st_no_ghost: assert (f_in_flight != 0 || in_fire);
         end
-        if (f_past_valid && rst_n)
+        if (f_past_valid && rst_n) begin
             st_inflight: assert (f_in_flight <= MAX_INFLIGHT);
+            // checker-internal consistency (keeps k-induction from starting in impossible counter states)
+            st_cnt:      assert (f_diff == {{(RW-8){1'b0}}, f_in_flight});
+            // link the checker to the DUT's own count (conventions §7): makes "nothing lost" inductive
+            st_link_n:   assert (dut_inflight == f_in_flight);
+            if (f_in_flight != 0)
+                st_link_r: assert (dut_oldest[RW-1:0] == f_out_cnt);
+        end
     end
 
     // Cycles since reset, saturating (for the sweep exclusion).
