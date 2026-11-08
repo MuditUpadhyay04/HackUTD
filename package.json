@@ -5,6 +5,7 @@
   "scripts": {
     "dev:api": "bun --watch apps/api/src/index.ts",
     "dev:web": "bun run --cwd frontend dev --hostname 127.0.0.1",
+    "demo": "bun scripts/demo.ts",
     "build:web": "bun run --cwd frontend build",
     "test": "bun test apps/api packages --timeout 30000",
     "typecheck": "bunx tsc --noEmit -p apps/api/tsconfig.json",
