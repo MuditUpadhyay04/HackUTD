@@ -18,7 +18,7 @@
 //   in_ready = 0 meanwhile.
 module eog_alarm #(
     parameter integer N_FAC      = 32,
-    // II is part of the common parameter set (conventions §6); this stage needs no cycle budget (II <= 6).
+    // II is part of the common parameter set (conventions §6); this stage needs no cycle budget (II <= 3).
     /* verilator lint_off UNUSEDPARAM */
     parameter integer II         = 16,
     /* verilator lint_on UNUSEDPARAM */
@@ -250,6 +250,7 @@ module eog_alarm #(
             al_data[EOG_AL_CLASSES   +: EOG_AL_CLASSES_W]   = {4'd0, out_q[EOG_BA_CLASSES +: EOG_BA_CLASSES_W]};
             al_data[EOG_AL_CD_P10    +: EOG_AL_CD_P10_W]    = out_q[EOG_BA_CD +: 16];
         end else if (sweeping) begin
+            // ACKED: TS, RESULT_NO, RULES, CLASSES 0, CD_P10 0xFFFF; SOURCE = latch type only (TASKS #4)
             al_data[EOG_AL_FAC_ID    +: EOG_AL_FAC_ID_W]    = {{(EOG_AL_FAC_ID_W-FW){1'b0}}, sw_slot};
             al_data[EOG_AL_KIND      +: EOG_AL_KIND_W]      = EOG_AK_ACKED;
             al_data[EOG_AL_SOURCE    +: EOG_AL_SOURCE_W]    = {3'd0, sw_es, 4'd0};
