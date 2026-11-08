@@ -18,7 +18,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | DONE | `formal/common/` (checker modules, abstract mul, self-test), `scripts/env.sh`, `scripts/wsl.sh`; 5d34900; `reports/formal_common.txt`, `reports/formal_axi_mul.txt` |
 | T0.4 | Spec v4: align with Mudit's `features_int.py` (numerics.md §1 D6–D12, Lucas's calls Sun 00:10) | T0.1 | Claude (Lucas's session) | DONE | `spec/` v4, `spec/README.md` changelog |
 | T0.0 | **Mudit:** apply `spec/numerics.md` §11 to `ml/hutd_ml`, regenerate weights + golden sets G0/G1/G2 | T0.4 | Mudit | TODO | branch `ml` |
-| T0.2b | Update `model/` (`eog_ref.py`, `cases.py`, `gen_vectors.py`, `test_model.py`) to spec v4; add `check_mudit.py` (byte-for-byte RESULT/ALERT agreement with Mudit's engine, see `model/README.md`); regenerate `tb/vectors/` | T0.4 (finish on T0.0) | | TODO | `model/`, `tb/vectors/` |
+| T0.2b | Update `model/` (`eog_ref.py`, `cases.py`, `gen_vectors.py`, `test_model.py`) to spec v4; add `check_mudit.py` (byte-for-byte RESULT/ALERT agreement with Mudit's engine, see `model/README.md`); regenerate `tb/vectors/` | T0.4 (finish on T0.0) | fpga-model agent | CLAIMED | `model/`, `tb/vectors/` |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
 
@@ -28,19 +28,19 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 8b25855, merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover PASS) |
 | T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | DONE | 0a5a100, merged 1565f11; `reports/formal_div.txt`, `reports/sim_div.log` (PASS 19,123 divisions) |
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
-| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.unpack.rtl` bc4a760 (lint/iverilog/yosys clean, 1 beat/cycle at out_ready = 1, 841 flops) |
-| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
+| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | DONE | bc4a760, merged into FPGA via `eog/integrate-unpack`; `reports/formal_unpack.txt`; sim PASS 108,846 records / 653,031 beats (13 cases x 3 runs) |
+| T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 99fef58, merged via `eog/integrate-unpack`; `reports/formal_unpack.txt` (prove = abc pdr unbounded, bmc depth 14, cover PASS) |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) |
 | T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.features.rtl` 9441fc4 (lint/iverilog/yosys clean; latency 13, II 14; smoke PASS all 12 features vector cases). Note: the RTL agent read the verifier's WIP harness after its RTL was final (last commit is a no-op refactor); the verifier never saw the RTL, so the proof stays independent |
 | T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.memory.rtl | `eog_memory` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) |
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.countdown.rtl` 2723d23 (lint/iverilog/yosys clean; latency 57, accept gap ≤ 9 at defaults, up to 8 in flight; smoke PASS all 12 countdown vector cases incl. onsets/R1; ~18.5k flops in generic synth, estimate) |
+| T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.countdown.rtl` 2723d23 (lint/iverilog/yosys clean; latency 57, accept gap ≤ 9 at defaults, up to 8 in flight; smoke PASS all 12 countdown vector cases incl. onsets/R1; ~18.5k flops in generic synth, estimate) **v4 rework done at 9dc2ca5** (lint/iverilog/yosys clean; P = 4 in flight at II 16, P = 1 at II ≥ 59; latency 57; formal-only opt-in `EOG_FV_RECNO_SEQ`); waiting for v4 vectors |
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.head.rtl` c700642 passes its v2 checks (lint/iverilog/yosys clean; 16 eog_mul, latency 12, II 13; smoke PASS all 12 head vector cases; xc7 estimate 16 DSP48E1, ~1.9k LUT, 1,550 FF); rework for spec v3 (`wb_rst_n`, question 16) requested |
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
-| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK v4 | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.alarm.rtl` 3da09f1 (lint/iverilog/yosys clean, latency 1, II 2 + 1 per ALERT) **v4 rework done at a130317** (lint/iverilog/yosys clean; latency 1, II 2/3); waiting for v4 vectors |
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | | TODO | |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | | TODO | |
@@ -88,3 +88,12 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 17 | head | `swap_req` while `swap_pending` = 1, including the cycle the swap executes | Merges with the pending swap (one swap); the ARM waits for `swap_pending` = 0 before writing the next image | T1.head.rtl | Accepted |
 | 18 | head | Pending swap vs accepting the next record in the same idle cycle | The swap wins; `in_ready` = 0 for that one cycle (II still ≤ 16) | T1.head.rtl | Accepted |
 | 19 | head | `CH3` for DROPPED records | Copied from `FEAT[3]` like every status (upstream already zeroes FEAT for DROPPED), as the head spec and the model do | T1.head.rtl | Accepted |
+| 20 | unpack | P5 "with out_ready = 1" window | out_ready = 1 in the last-beat cycle and the 2 after; s_ready never low 2 cycles in a row, counted from the first cycle after reset | T1.unpack.fv | Accepted |
+| 21 | unpack | "accept a beat every cycle while out_ready = 1" | out_ready = 1 for 3 consecutive cycles → s_ready = 1 (one bubble allowed when back-pressure releases) | T1.unpack.fv | Accepted |
+| 22 | unpack | "holds at most one record … second buffer optional" | At most 2 records held, counting a partial one | T1.unpack.fv | Accepted |
+| 23 | unpack | May a record be presented in the cycle its last beat is accepted? | Allowed (the RTL presents it the next cycle) | T1.unpack.fv | Accepted |
+| 24 | unpack | Beats during reset | `s_valid && s_ready` while `rst_n` = 0 is not a transfer | T1.unpack.fv | Accepted |
+| 25 | alarm | v4: HIST_RESET on an INVALID record | Clears the persistence counters only; NS/ES conditions and latches stay, so the next VALID/HELD record with the condition false emits CLEARED | T1.alarm.rtl | Proposed; T0.2b/check_mudit must confirm against Mudit's `reset_history` (his code wins) |
+| 26 | alarm | v4: ACKED SOURCE bit 2 (autonomous) | 0, as in #4 (ACKED carries only bit 4 = latch type) | T1.alarm.rtl | Proposed; confirm against Mudit's code in T0.2b |
+| 27 | countdown | v4: K·Δ width (spec says 24 × 17) | Full 32-bit K_CD × 17 (exact for any K_CD; identical for K_CD < 2^24, which ingest enforces) | T1.countdown.rtl | Accepted (no numerics change in the valid range) |
+| 28 | countdown | v4: HIST_RESET clears the ring on status codes 2/5/6/7 | Yes, literal "non-DROPPED"; those codes are never produced | T1.countdown.rtl | Accepted |
