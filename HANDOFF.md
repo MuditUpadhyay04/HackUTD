@@ -74,6 +74,15 @@ What was left on disk, and what this session did with it:
   (see the start-folder gotcha below). All were told to commit WIP often. If a session dies, check each worktree's
   `git log` and `git status`, then relaunch on top of whatever is there.
 
+**Second cutoff (~00:30 CST Nov 8):** the old account hit its 5-hour limit again and 7 of the 8 agents stopped. On a
+new account they were resumed in place with their context (SendMessage). Progress committed at that point:
+validate.fv 2aa31de (WIP harness + sby, prove passes on a stub; it never stopped), memory.fv 76e0072 → a51db02
+(harness + INDEX-driven tb), features.fv 055a9ee (harness; sby + tb uncommitted), features.rtl 9441fc4 (smoke PASS
+on all features vector cases), head.rtl c700642 (16 multipliers, II 13), countdown.rtl 29922fe (bit-exact on all
+12 countdown cases). alarm.fv and head.fv had nothing committed yet; their files were untracked in their
+worktrees. The features verifier's throwaway stub was sitting at `FPGA/rtl/eog_features.sv` inside its worktree,
+and it was told to move it out. Never merge that file.
+
 **Next:**
 1. As each agent reports: set its TASKS.md row to REVIEW (with its commit). When both halves of a module are
    REVIEW, integrate: `git switch -c eog/integrate-<m> FPGA`, merge both branches, run `lint.sh`, `sim.sh` and
