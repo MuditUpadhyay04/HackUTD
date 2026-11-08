@@ -22,7 +22,7 @@ CONFIG/GLOBAL/weight words; the DATA window requires full-word writes (`WSTRB = 
 | `0x1000`–`0x17FC` | CONFIG | RW | Facility CONFIG table: slot f at `0x1000 + 64·f`, word i = bytes 4i..4i+3 of the 64 B record. **While a slot is enabled (`FLAGS[0] = 1`) only a write to its word 0 that clears `FLAGS[0]` is accepted; every other write to that slot is ignored.** Every accepted write to slot f pulses `fac_touch[f]` (its history restarts). Word 0 bytes 0–1 (`FAC_ID`) read back as f |
 | `0x4000`–`0x4118` | WEIGHTS | RW | the **inactive** bank's 71-word window (numerics.md §8): words 0–69 = weight blob bytes 0–279, word 70 = version. `CTRL.swap_req` makes it active at the next record boundary |
 
-STATS words: 0 records in, 1 results out, 2 VALID, 3 HELD, 4 INVALID, 5 dropped duplicate, 6 dropped out of order,
+STATS words: 0 records in (records leaving `eog_unpack`, either source; ruling #59), 1 results out, 2 VALID, 3 HELD, 4 INVALID, 5 dropped duplicate, 6 dropped out of order,
 7 dropped unknown facility, 8 dropped framing, 9 history resets, 10 alerts raised, 11 alerts dropped (ALERT FIFO
 full), 12 DATA-window overruns, 13 output stall cycles (`eog_pack` output valid and not ready), 14 ms since last
 heartbeat (live value, not a counter), 15 uptime in ms.

@@ -40,7 +40,9 @@ Words 0–69 = Mudit's weight blob bytes 0–279 (little-endian): `S_OUT` = byte
 ## Behavior
 
 Header copied. `CH3 = FEAT[3]`. `RULES`, `CD` copied. `LOGITS` per numerics.md §8 for VALID/HELD with `VER ≠ 0`,
-else 0. `WVER` = `active_ver` at accept time. `dbg_valid` pulses for every VALID/HELD record whose `FAC == dbg_fac`.
+else 0. `WVER` = `active_ver` at accept time. `dbg_valid` pulses for every VALID/HELD record whose `FAC == dbg_fac`. While a record is held (from the cycle after
+accept until its output transfer) `dbg_feat` and `dbg_rec_no` show that record's FEAT and REC_NO, and `dbg_logits`
+equals `out_data` LOGITS while `out_valid` (#94).
 
 Reset (spec v3, word numbers per v4):
 - `wb_rst_n` = 0 resets the weight store: both banks' word 70 (VER) reads 0 (no model), `active_bank` = 0, and

@@ -49,11 +49,14 @@
 //                   the four words holding W[0..3][i]. A class whose W[k][i] is written 0 and whose other features
 //                   are 0 must give exactly sat16((B + rnd) >>> S_OUT): if the RTL fetched W[k][i] from any other
 //                   byte (another class, feature, half or an unwritten word), the solver puts a nonzero value there
-//   H8_when         dbg_valid with REC_NO r only for a VALID/HELD record with FAC == dbg_fac, while it is in flight
-//                   (accepted, output not yet transferred, transfer cycle included), at most once
+//   H8_when         dbg_valid with REC_NO r only for a VALID/HELD record with FAC == dbg_fac, while it is held
+//                   (cycle after accept .. output transfer, transfer cycle included)
 //   H8_data         at that pulse dbg_rec_no = its REC_NO and dbg_feat = its 31 features
-//   H8_logit(_b)    dbg_logits = its output LOGITS (whichever comes first)
-//   H8_live         a qualifying record has had its pulse by the cycle its output transfers (bmc tasks)
+//   H8_hold         (#94) while a record is held, dbg_rec_no / dbg_feat show its REC_NO / FEAT
+//   H8_logit        (#94) dbg_logits = out_data LOGITS whenever out_valid
+//   H8_once         at most one pulse per record (bmc tasks: H8_HIST)
+//   H8_logit_b      a pulse before out_valid carried the logits the record later outputs (bmc tasks: H8_HIST)
+//   H8_live         a qualifying record has had its pulse by the cycle its output transfers (bmc tasks: H8_HIST)
 //   covers          C_swap (a swap between two records, both with a model), C_sat (a saturated logit), C_sat5 (a
 //                   saturated logit predicted from nonzero terms), C_nomodel, C_coalesce (a request while pending,
 //                   then one swap), C_rb (a readback checked), C_srst (a record with a model after a soft reset),
@@ -75,9 +78,9 @@
 //   LAT_MAX       st_lat bound (spec: 128)
 //   SWAP_MAX      H2_live bound (the spec says "next record boundary" without a number; 16 = II_MAX)
 //   II_EXCL_SWAP  1 excludes cycles with a pending swap from st_ii (the spec does not; default 0 = strict)
-//   H8_LIVE       1 checks H8_live. 0 in prove: a record may wait at the output (out_ready = 0) longer than any
-//                 induction depth, so "pulse seen" cannot be related to an accept outside the window; bmc tasks
-//                 check it from reset
+//   H8_HIST       1 checks the history-dependent H8_once, H8_logit_b and H8_live. 0 in prove: a record may wait at
+//                 the output (out_ready = 0) longer than any induction depth, so "pulse already seen" cannot be
+//                 related to an accept outside the window; the bmc tasks check them from reset
 //
 // Input assumptions (upstream contract, eog_countdown -> eog_head; eog_regs -> weight and debug ports):
 //   STATUS in {VALID, HELD, INVALID, DROPPED}; REASON[NO_MODEL] = 0 (only the head sets it). FEAT, RULES and CD are
@@ -102,7 +105,7 @@ module fv_eog_head #(
     parameter integer LAT_MAX      = 128,
     parameter integer SWAP_MAX     = 16,
     parameter integer II_EXCL_SWAP = 0,
-    parameter integer H8_LIVE      = 1
+    parameter integer H8_HIST      = 1
 ) (
     input logic         clk,          // top-level inputs are free: the solver drives them
     input logic         rst_n,
@@ -438,46 +441,41 @@ module fv_eog_head #(
     always_comb if (f_past_valid && p_rb_chk && active_bank == p_bank) RB: assert ((wb_rdata & RB_MASK) == (p_rb_exp & RB_MASK));
 
     // ------------------------------------------------------------------------- tracked record (anyconst)
+    // Record f_k (low 8 bits of REC_NO). It is held from the cycle after its accept until (and including) its output
+    // transfer; that comes from the stage checker's counters, which st_link_* tie to the DUT. f_td (its bus C word,
+    // captured at accept) is pinned to port-visible values by HDR/CPY while it is at the output and by H8_hold (#94)
+    // in every held cycle, so the checks below are decided from port-visible state and k-induction closes even when
+    // the record waits at the output (out_ready = 0) longer than the induction depth.
     (* anyconst *) logic [7:0] f_k;
-    logic                f_tv;      // record f_k accepted since the last engine reset
-    logic                f_tlive;   // ... and its output not yet transferred
-    logic                f_tq;      // ... and it qualifies for a debug capture (VALID/HELD, FAC == dbg_fac)
-    logic                f_dseen;   // its capture pulse has happened
+    logic [662:0]        f_td;      // its bus C word, captured at accept
+    logic [7:0]          f_tver;    // active_ver in its accept cycle
+    logic                f_dseen;   // its capture pulse has happened (history checks, H8_HIST)
     logic [63:0]         f_dlog;    // dbg_logits at that pulse
-    logic [662:0]        f_td;
-    logic [7:0]          f_tver;
     logic [NSH*32-1:0]   f_snap_v;
     logic [NSH-1:0]      f_snap_k;
 
-    logic        o_track, d_track;
+    logic [7:0]  k_off;
+    logic        k_live, o_track, d_track, k_qual;
     logic [63:0] o_logits;
-    assign o_track  = f_past_valid && rst_n && out_valid && f_tv && out_data[EOG_BL_REC_NO +: 8] == f_k;
+    assign k_off    = f_k - f_out_cnt;
+    assign k_live   = f_past_valid && rst_n && (k_off < f_in_flight);
+    assign o_track  = f_past_valid && rst_n && out_valid && out_data[EOG_BL_REC_NO +: 8] == f_k;
     assign d_track  = f_past_valid && rst_n && dbg_valid && dbg_rec_no[7:0] == f_k;
     assign o_logits = out_data[EOG_BL_LOGITS +: EOG_BL_LOGITS_W];
+    // it qualifies for a debug capture (dbg_fac is constant while a record is in flight)
+    assign k_qual   = is_vh(f_td[EOG_BC_STATUS +: EOG_BC_STATUS_W]) && f_td[EOG_BC_FAC +: 5] == dbg_fac;
 
-    initial begin
-        f_tv    = 1'b0;
-        f_tlive = 1'b0;
-    end
+    initial f_dseen = 1'b0;
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
-            f_tv    <= 1'b0;
-            f_tlive <= 1'b0;
-        end else if (in_fire && in_data[EOG_BC_REC_NO +: 8] == f_k) begin
-            f_tv     <= 1'b1;
-            f_tlive  <= 1'b1;
-            f_tq     <= is_vh(i_status) && in_data[EOG_BC_FAC +: 5] == dbg_fac;
+        if (rst_n && in_fire && in_data[EOG_BC_REC_NO +: 8] == f_k) begin
             f_dseen  <= 1'b0;
             f_td     <= in_data;
             f_tver   <= active_ver;
             f_snap_v <= active_bank ? sh_v1 : sh_v0;
             f_snap_k <= active_bank ? sh_k1 : sh_k0;
-        end else begin
-            if (o_track && out_ready) f_tlive <= 1'b0;
-            if (d_track) begin
-                f_dseen <= 1'b1;
-                f_dlog  <= dbg_logits;
-            end
+        end else if (d_track) begin
+            f_dseen <= 1'b1;
+            f_dlog  <= dbg_logits;
         end
     end
 
@@ -510,16 +508,21 @@ module fv_eog_head #(
             if (f_tver == 8'd0 || !t_vh)
                 H4_zero: assert (o_logits == 64'd0);
             H4_nm: assert (out_data[EOG_BL_REASON + EOG_R_NO_MODEL] == t_nm);
-            if (f_dseen)
+            if (H8_HIST != 0 && f_dseen)
                 H8_logit_b: assert (o_logits == f_dlog);
-            if (H8_LIVE != 0 && out_ready && f_tq)
+            if (H8_HIST != 0 && out_ready && k_qual)
                 H8_live: assert (f_dseen || d_track);
         end
+        // #94: dbg_logits = out_data LOGITS while out_valid; dbg_feat / dbg_rec_no show the held record
+        if (f_past_valid && rst_n && out_valid)
+            H8_logit: assert (dbg_logits == o_logits);
+        if (k_live && f_in_flight == 8'd1)
+            H8_hold: assert (dbg_rec_no == f_td[EOG_BC_REC_NO +: 32] && dbg_feat == f_td[EOG_BC_FEAT +: EOG_BC_FEAT_W]);
         if (d_track) begin
-            H8_when: assert (f_tv && f_tlive && f_tq && !f_dseen);
+            H8_when: assert (k_live && k_qual);
             H8_data: assert (dbg_rec_no == f_td[EOG_BC_REC_NO +: 32] && dbg_feat == f_td[EOG_BC_FEAT +: EOG_BC_FEAT_W]);
-            if (o_track)
-                H8_logit: assert (dbg_logits == o_logits);
+            if (H8_HIST != 0)
+                H8_once: assert (!f_dseen);
         end
     end
 
