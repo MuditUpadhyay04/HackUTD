@@ -14,18 +14,18 @@ file during a wave (agents report status in their final message) to avoid merge 
 | ID | Task | Needs | Owner | Status | Output |
 | --- | --- | --- | --- | --- | --- |
 | T0.1 | Freeze the spec (decisions D1–D5, conventions, numerics, regmap, 12 module specs, `rtl/eog_defs.svh`) | — | Claude (Lucas's session) | DONE | `spec/` v1 |
-| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | fpga-model agent (lead session) | CLAIMED | `model/`, `tb/vectors/` |
+| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | fpga-model agent (lead session) | DONE | `model/`, `tb/vectors/`; b873096, merged f9c083b; `python FPGA/model/test_model.py` 13 passed / 0 failed (R1 worst \|p50 − trips_at\| 2.0 min at all 13 onsets) |
 | T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | DONE | `formal/common/` (checker modules, abstract mul, self-test), `scripts/env.sh`, `scripts/wsl.sh`; 5d34900; `reports/formal_common.txt`, `reports/formal_axi_mul.txt` |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
 
 | ID | Module (spec) | Role | Needs | Owner | Status | Report |
 | --- | --- | --- | --- | --- | --- | --- |
-| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.mul.rtl` 3919c2e (lint/iverilog/yosys clean) |
-| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | |
+| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | DONE | 3919c2e, merged caf9580; `reports/formal_mul.txt`, `reports/sim_mul.log` (PASS 736,704 products, 36 configurations) |
+| T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 8b25855, merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover PASS) |
 | T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | DONE | 0a5a100, merged 1565f11; `reports/formal_div.txt`, `reports/sim_div.log` (PASS 19,123 divisions) |
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 0ee19ef, merged 1565f11; `reports/formal_div.txt` (prove/bmc/cover PASS) |
-| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
+| T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.unpack.rtl` bc4a760 (lint/iverilog/yosys clean, 1 beat/cycle at out_ready = 1, 841 flops) |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) |
 | T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |

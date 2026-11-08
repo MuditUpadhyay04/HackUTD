@@ -56,3 +56,6 @@ spec questions, and the exact steps for the board machine.
 - Never edit Lucas's live doc (claude.ai); the repo copy is `docs/plan/lucas/fpga_hardware_plan.md`.
 - No unmeasured claims. Every PASS you report has a report file behind it.
 - Keep `FPGA/TASKS.md` the single source of task status.
+- Read `HANDOFF.md` (repo root) before step 0 when it exists: a previous lead session may have work in flight. Keep it
+  current (done / in flight / worktree map / gotchas) and push `FPGA` after each merge or batch of agent launches,
+  so a session cut off by a usage limit can be resumed by the next one.
