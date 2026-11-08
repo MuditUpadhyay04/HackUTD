@@ -59,7 +59,7 @@ export function runFacts(snapshot: Snapshot, board: BoardFact[] = []): RunFacts 
   return { runId: snapshot.runId, revision: snapshot.revision, nowUnix: snapshot.nowUnix, now: clock(snapshot.nowUnix), scoresAvailable: snapshot.runtime?.scoresAvailable ?? false,
     coverageComplete: snapshot.coverage?.complete ?? false, recommendationReady: fresh,
     incidents: [...(snapshot.alerts ?? []), ...(snapshot.history ?? [])].map(incident),
-    board: board.filter((b) => b.tsUnix <= snapshot.nowUnix) };
+    board: boardAt(board, snapshot.nowUnix) };
 }
 
 /** Rule 7: pump failures first, soonest shutdown first, ties to higher lost revenue per hour; then the rest. */
@@ -80,15 +80,21 @@ export function groundingForRun(facts: RunFacts, data: unknown = facts): Groundi
   };
 }
 
-/** Latest board result per facility at or before the run cutoff (C11 JSON lines from listen.py). */
+/** Board results (C11 JSON lines from listen.py), one per facility and timestamp; runFacts picks the latest at or before the cutoff. */
 export function boardFacts(lines: unknown[], source: BoardFact["source"] = "unverified"): BoardFact[] {
-  const latest = new Map<string, BoardFact>();
+  const out = new Map<string, BoardFact>();
   for (const line of lines) {
     const r = line as { type?: string; facility?: string; ts_unix?: number; status?: string; active?: unknown[]; above_threshold?: unknown[]; rules?: unknown[]; countdown_min?: { p50?: number } };
     if (r?.type !== "result" || typeof r.facility !== "string" || typeof r.ts_unix !== "number") continue;
-    const prev = latest.get(r.facility);
-    if (!prev || prev.tsUnix <= r.ts_unix) latest.set(r.facility, { facilityId: r.facility, status: String(r.status ?? "UNKNOWN"), heads: [...(r.active ?? r.above_threshold ?? [])].map(String),
+    out.set(`${r.facility}@${r.ts_unix}`, { facilityId: r.facility, status: String(r.status ?? "UNKNOWN"), heads: [...(r.active ?? r.above_threshold ?? [])].map(String),
       rules: [...(r.rules ?? [])].map(String), countdown: typeof r.countdown_min?.p50 === "number" ? duration(r.countdown_min.p50 / 60) : null, tsUnix: r.ts_unix, source });
   }
+  return [...out.values()].sort((a, b) => a.facilityId.localeCompare(b.facilityId) || a.tsUnix - b.tsUnix);
+}
+
+/** The latest board result per facility at or before `nowUnix` (never a result from after the cutoff). */
+export function boardAt(board: BoardFact[], nowUnix: number): BoardFact[] {
+  const latest = new Map<string, BoardFact>();
+  for (const b of board) if (b.tsUnix <= nowUnix && (latest.get(b.facilityId)?.tsUnix ?? -Infinity) <= b.tsUnix) latest.set(b.facilityId, b);
   return [...latest.values()].sort((a, b) => a.facilityId.localeCompare(b.facilityId));
 }

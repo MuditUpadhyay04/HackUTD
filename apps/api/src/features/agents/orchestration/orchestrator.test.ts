@@ -15,9 +15,12 @@ describe("deterministic facts", () => {
   });
   test("board facts keep the latest result per facility at or before the cutoff", () => {
     const board = boardFacts([{ type: "result", facility: "S4_FACILITY_A", ts_unix: 1, status: "VALID", active: [] }, { type: "result", facility: "S4_FACILITY_A", ts_unix: 2, status: "VALID", active: ["pump_failure"], countdown_min: { p50: 167 } },
+      { type: "result", facility: "S4_FACILITY_A", ts_unix: 1791460500, status: "VALID", active: [] },
       { type: "result", facility: "S4_FACILITY_C", ts_unix: 1791460300, status: "VALID", active: ["pump_failure"] }, { type: "alert", facility: "S4_FACILITY_A" }], "fakeboard");
-    expect(board[0]).toMatchObject({ facilityId: "S4_FACILITY_A", heads: ["pump_failure"], countdown: "2h47m", source: "fakeboard" });
-    expect(runFacts(snapshot, board).board.map((b) => b.facilityId)).toEqual(["S4_FACILITY_A"]);
+    expect(board).toHaveLength(4);
+    const now = runFacts(snapshot, board).board;
+    expect(now).toHaveLength(1);
+    expect(now[0]).toMatchObject({ facilityId: "S4_FACILITY_A", tsUnix: 2, heads: ["pump_failure"], countdown: "2h47m", source: "fakeboard" });
   });
 });
 
