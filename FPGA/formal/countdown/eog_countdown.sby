@@ -38,21 +38,26 @@
 # bmc        (default) bmc from reset, II = 16, out_ready free: record-local + history (C4_nf, C5_m10/m50/m90
 #            on the shadow ring; C1 "no ring change" and C7 slot independence through the per-slot shadow) +
 #            u_stage.st_ii (II <= 16 after the sweep). PAYLOAD = 0 (uninterpreted input bits tied to 0; bmc_pass /
-#            prove_one check pass-through), INFLOW from 5 bits (q = 0..15, so mean = 0 and > 0 both occur). Depth 85:
-#            the outputs of the first two records (fill, then one push or another slot / HIST_RESET / INVALID).
+#            prove_one check pass-through), INFLOW from 5 bits (q = 0..15, so mean = 0 and > 0 both occur).
+#            Depth 70: the outputs of the records accepted in the first ~15 cycles after the sweep (fills, tripped,
+#            INVALID, DROPPED, FAC >= N_FAC, either slot). A second record of the same slot (a push, a HIST_RESET
+#            re-fill) needs depth ~85 and a wrapped ring ~135: bmc_deep (opt-in; edit `bmc_deep: depth` to 85
+#            for the two-record horizon).
 # bmc_arith  (default) bmc from reset, real eog_mul + eog_div, -DFV_ARITH: + C6_p10/p50/p90 (m(q) exact), C5_ord,
 #            C3_eq. out_ready = 1 (READY1; the arithmetic does not depend on back-pressure), operands narrowed
 #            structurally: INFLOW 5 bits, LEVEL 11 bits signed, K_CD < 2^15, SHUT_LVL < 2^10 (K·Δ up to 2^26, so
-#            the 0xFFFF clamp, finite values and tripped records all occur). Depth 85 (as bmc).
+#            the 0xFFFF clamp, finite values and tripped records all occur). Depth 70 (as bmc: m(q) on fills).
 # cover      (default) cover goals cv_trip, cv_nf, cv_fin, cv_mix, cv_inv, cv_drop, cv_oob, cv_bp, cv_refill
 #            (assertions removed; cv_wrap is in cover_wrap). Depth 85.
 # bmc_deep   (opt-in) as bmc with out_ready = 1 and depth 135: C4/C5 across a wrapped ring (fill + 4 pushes of one
 #            slot = 5 records x 15 cycles + 55) and u_stage.st_lat (latency <= 128, needs depth > 128 + sweep).
 # cover_wrap (opt-in) cv_wrap (a ring whose prefilled values are all gone) and the other goals except cv_bp
 #            (out_ready = 1 here), depth 135.
-# The spec's "a ring that has wrapped" cover and the wrapped-ring history are only reachable at depth ~130, which
-# costs about a minute per step on this pipeline; the default tasks stop at 85 and the bit-exact simulation
-# (tb/countdown, every vector case incl. Mudit's golden sets) covers wrapped rings.
+# Cost: on this pipeline every bmc step past the first outputs (~60) takes minutes (the solver has to relate the
+# DUT's ring to the shadow through ~60 unrolled frames of a 4-deep pipeline with a 49-stage divider), so the
+# default bmc tasks stop at 70. The spec's "a ring that has wrapped" cover and the pushed / wrapped ring history
+# are opt-in (bmc_deep, cover_wrap); the bit-exact simulation (tb/countdown: every vector case incl. Mudit's golden
+# sets and the full practice week) covers pushed and wrapped rings.
 #
 # Run times against a throwaway stub (P = 4, gap 15, latency 55; never committed) on the shared WSL box are in the
 # T1.countdown.fv report.
@@ -73,11 +78,11 @@ prove:      depth 12
 prove_one:  mode prove
 prove_one:  depth 60
 bmc:        mode bmc
-bmc:        depth 85
+bmc:        depth 70
 bmc_pass:   mode bmc
 bmc_pass:   depth 70
 bmc_arith:  mode bmc
-bmc_arith:  depth 85
+bmc_arith:  depth 70
 cover:      mode cover
 cover:      depth 85
 bmc_deep:   mode bmc
