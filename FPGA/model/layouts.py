@@ -96,8 +96,9 @@ D, CFG, G, RES, AL = (REC[k] for k in ("D", "CFG", "G", "RES", "AL"))
 #                    8+i well status slot i, 16+i well water slot i.
 P_INFLOW, P_LEVEL, P_PUMP_ST, P_PUMP_FLOW, P_DIS, P_RECV, P_PIPE = range(7)
 P_WELL_ST, P_WELL_WATER = 8, 16
-# CONFIG LO/HI index j: 0 inflow, 1 level, 2 pump flow, 3 receive flow, 4 discharge, 5 pipeline psi, 6 unused.
-LH_INFLOW, LH_LEVEL, LH_PUMP_FLOW, LH_RECV, LH_DIS, LH_PIPE = range(6)
+# CONFIG LO/HI index j = the DATA present bit j (spec v4, numerics.md §2; index 2 bounds the pump status).
+# (The CONFIG LO/HI comment in eog_defs.svh still shows the v1 order; numerics.md §2 is normative.)
+LH_INFLOW, LH_LEVEL, LH_PUMP_ST, LH_PUMP_FLOW, LH_DIS, LH_RECV, LH_PIPE = range(7)
 
 
 def _parse_defs():
@@ -123,7 +124,9 @@ ONE = DEFS["EOG_ONE"]
 EMA_FAST, EMA_SLOW = DEFS["EOG_EMA_FAST"], DEFS["EOG_EMA_SLOW"]
 CD_SCALE = DEFS["EOG_CD_SCALE"]
 CD_NONE = DEFS["EOG_CD_NONE"]
-N_FAC, N_WELL, N_FEAT, N_CLS, CD_N = (DEFS["EOG_" + n] for n in ("N_FAC", "N_WELL", "N_FEAT", "N_CLS", "CD_N"))
+N_FAC, N_WELL, N_FEAT, N_CLS, CD_N, CD_LOG2, WIN_WORDS = (
+    DEFS["EOG_" + n] for n in ("N_FAC", "N_WELL", "N_FEAT", "N_CLS", "CD_N", "CD_LOG2", "WIN_WORDS"))
+assert CD_N == 1 << CD_LOG2
 SPEC_VERSION = DEFS["EOG_SPEC_VERSION"]
 
 

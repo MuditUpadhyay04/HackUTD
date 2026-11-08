@@ -11,9 +11,8 @@ All randomness is seeded.
 """
 import random
 
-from eog_ref import encode_weights
-from ingest import (DEFAULT_HI, DEFAULT_LO, Dataset, dataset_dir, encode_record, facility_row, global_record,
-                    present_all)
+from eog_ref import N_WIMG, encode_weights
+from ingest import Dataset, dataset_dir, encode_record, facility_row, global_record, metadata_bounds, present_all
 from layouts import CFG, D, N_CLS, N_FEAT, P_PUMP_ST, P_WELL_ST, P_WELL_WATER
 
 TS0 = 1791158400  # synthetic cases start here (any value works; this one is just a plausible epoch time)
@@ -28,7 +27,7 @@ class Case:
 # ------------------------------------------------------------------------------------------------ weights
 def w_zero():
     """No model (VER = 0)."""
-    return [0] * 69
+    return [0] * N_WIMG
 
 
 def w_hand():
@@ -156,6 +155,10 @@ class SimFac:
     def row(self, **kw):
         return facility_row(self.slot, self.B, self.Q, self.W, self.C, self.P0, 85, 92, **kw)
 
+    def bounds(self):
+        """Metadata LO/HI (present-bit order), WELL_LO/HI of this facility (A14)."""
+        return metadata_bounds(self.B, self.Q, 3276.7, self.B / self.W)
+
     def step(self):
         """Advance 5 minutes; returns the field dict for encode_record (all fields present)."""
         r = self.rng
@@ -198,48 +201,61 @@ def _nets(rng):
 
 
 def case_fields():
-    """Absent fields, illegal enums, out of range, hold limits, consistency flags, shut-in, reserved fields."""
+    """Absent fields, illegal enums, out of range (metadata and custom bounds incl. the pump-status bound), hold
+    runs, INVALID, consistency flags, shut-in, level rules, reserved fields."""
     rng = random.Random(11)
     fs = _nets(rng)
-    use = (0, 1, 2)
-    rows = {0: fs[0].row(), 1: fs[1].row(lo=DEFAULT_LO, hi=(32767, 9500, 32767, 32767, 32767, 32767, 0),
-                                       well_hi=1000), 2: fs[2].row()}
-    glb = global_record(SHUTIN_WATER_MAX=4)
+    use = (0, 1, 2, 5)
+    lo1, hi1, _wl, _wh = fs[1].bounds()
+    lo5, hi5, _wl, _wh = fs[5].bounds()
+    lo5 = lo5[:1] + (1000,) + lo5[2:]                        # level below 10 % out of range
+    hi5 = hi5[:2] + (1,) + hi5[3:6] + (11000,)               # pump status <= 1 (2 out of range), pipeline <= 1100 psi
+    rows = {0: fs[0].row(), 1: fs[1].row(hi=hi1[:1] + (9500,) + hi1[2:], well_hi=1000), 2: fs[2].row(),
+            5: fs[5].row(lo=lo5, hi=hi5)}
+    glb = global_record()
     W = P_WELL_WATER
     S = P_WELL_ST
     # step -> {slot: mutation}
     plan = {
+        0: {2: dict(absent=[0], pump_st=0, pump_flow=100)},  # first record, inflow absent: INVALID, no PUMP_INCONS
         3: {0: dict(absent=[0])},                      # inflow absent once -> FIELD_HELD
-        5: {0: dict(absent=[1])}, 6: {0: dict(absent=[1])},   # level held twice
-        8: {0: dict(absent=[3])}, 9: {0: dict(absent=[3])}, 10: {0: dict(absent=[3])},  # 3rd -> lost, INVALID
-        11: {0: dict(absent=[4])},                     # first record of the new history: absent -> lost again
-        13: {1: dict(pump_st=3)}, 14: {1: dict(pump_st=7)}, 15: {1: dict(pump_st=255)},  # illegal enum, held, lost
+        4: {5: dict(pump_st=2)}, 5: {0: dict(absent=[1]), 5: dict(pump_st=2)},  # pump status 2 > HI[2]: held
+        6: {0: dict(absent=[1]), 5: dict(pump_st=2)},  # level held twice; slot 5: third -> reset, INVALID
+        7: {5: dict(pipe=11001)}, 8: {0: dict(absent=[3]), 5: dict(pipe=11000)},  # pipeline bound (HI[6]) and edge
+        9: {0: dict(absent=[3]), 5: dict(level=999)}, 10: {0: dict(absent=[3]), 5: dict(level=1000)},  # LO[1]
+        11: {0: dict(absent=[4])},                     # after the hold-overflow reset: dis held from record 10
+        13: {1: dict(pump_st=3)}, 14: {1: dict(pump_st=7)}, 15: {1: dict(pump_st=255)},  # illegal enum x3
         17: {2: dict(well_st=[1] * 7 + [2])}, 18: {2: dict(well_st=[3] + [1] * 7)},
-        20: {1: dict(level=9501)}, 21: {0: dict(inflow=-2)}, 22: {0: dict(dis=-1)}, 23: {1: dict(well_water=[1001])},
-        24: {2: dict(well_water=[-2] + [1000] * 7)}, 25: {0: dict(level=10001)},
+        20: {1: dict(level=9501)}, 21: {0: dict(inflow=-361)}, 22: {0: dict(dis=-1), 1: dict(level=9500)},
+        23: {1: dict(well_water=[1001]), 0: dict(inflow=-360)}, 24: {2: dict(well_water=[-51] + [1000] * 7)},
+        25: {0: dict(level=10501), 2: dict(well_water=[-50] + [1000] * 7)}, 26: {0: dict(level=10500)},
         27: {0: dict(pump_st=0, pump_flow=100)},       # PUMP_INCONS
         28: {0: dict(well_st=[0, 1, 1], well_water=[500, 1600, 1600])},  # WELL_INCONS
         29: {2: dict(pump_st=2, pump_flow=0, recv_flow=0)},              # PUMP_FAULT rule
-        31: {1: dict(present=0)},                      # everything absent -> INVALID
+        31: {1: dict(present=0)},                      # everything absent -> all held (HELD)
         33: {0: dict(rsv0=1)}, 34: {1: dict(rsv1=0x80)}, 35: {2: dict(rsv2=0xDEADBEEF)},  # FRAMING
         36: {1: dict(well_st=[1, 3, 2, 1, 0, 0, 3, 3], well_water=[800, -5, 9999, -1, 0, 0, 0, 0])},  # >= n_wells
         38: {0: dict(absent=[0, 1, 2, 3, 4, 5, 6])},   # all facility fields held
         40: {2: dict(absent=[S + 3, W + 5, W + 7])},   # well fields held
-        42: {0: dict(well_st=[0, 0, 0], well_water=[0, 3, 4])},   # SHUT_IN with water <= SHUTIN_WATER_MAX
-        43: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 5])},   # not SHUT_IN (5 > 4), WELL_INCONS
+        42: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 0])},   # SHUT_IN
+        43: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 1])},   # not SHUT_IN (water 1), WELL_INCONS
         44: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 0], level=9200)},  # SHUT_IN + LVL_SHUTDOWN, CD = 0
-        45: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 0], level=9300, absent=[S + 1])},  # SHUT_IN needs WELLS_OK
-        46: {0: dict(level=8600)}, 47: {0: dict(level=8499)},     # warning edge
+        45: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 0], level=9300, absent=[S + 1])},  # SHUT_IN on held status
+        46: {0: dict(level=8500)}, 47: {0: dict(level=8499)},     # warning edge (>=)
         48: {2: dict(absent=[1], level=0)}, 49: {2: dict(absent=[1])}, 50: {2: dict(absent=[1])},  # level lost
         52: {1: dict(pump_st=2, pump_flow=4)},         # fault with flow -> PUMP_INCONS + PUMP_FAULT
+        54: {5: dict(present=0)}, 55: {5: dict(present=0)}, 56: {5: dict(present=0)},  # held, held, INVALID
+        57: {5: dict(present=0)},                      # nothing to hold after the reset: INVALID again
+        58: {5: dict(absent=[2])},                     # pump status missing (no history yet): INVALID
     }
     steps = [("hb",)]
     for t in range(60):
         for s in use:
             d = fs[s].step()
             steps.append(("rec", rec(s, TS0 + 300 * t, d, **plan.get(t, {}).get(s, {})), True))
-    return Case("fields", "synthetic: absent/illegal/out-of-range fields, hold 1-2 then lost, consistency flags, "
-                "shut-in with SHUTIN_WATER_MAX=4, level rules, reserved fields (FRAMING), well slots >= n_wells",
+    return Case("fields", "synthetic: absent/illegal/out-of-range fields (metadata bounds, custom LO/HI incl. the "
+                "pump-status bound LO/HI[2]), hold runs and the overflow reset, INVALID (first record, after a "
+                "reset), consistency flags, shut-in, level rules, reserved fields (FRAMING), well slots >= n_wells",
                 glb, rows, w_hand(), steps)
 
 
