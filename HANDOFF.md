@@ -4,8 +4,10 @@ Living status file for Claude sessions working as the FPGA lead (`/fpga-lead`). 
 `FPGA/TASKS.md`** (the single source of task status). Every lead session updates this file and pushes the `FPGA`
 branch after each merged module or batch of agent launches, so the next session can pick up from here.
 
-Not the same file as `FPGA/reports/HANDOFF.md`. That one is the lead's final deliverable for the board machine
-(what is proven and simulated, plus the steps on Lucas's PC), and it is written at the end of wave 2.
+Not the same file as `FPGA/reports/RTL_DONE_HANDOFF.md`. That one is the lead's final deliverable: the handoff to
+the original laptop (Lucas's PC, with Vivado and the board). It covers what is proven and simulated, resource and
+timing estimates, open spec questions, and the exact steps to run there (T2.bd1, T2.board1, wave 3). It is written
+once RTL is done (all T1 DONE plus T2.top), as `FPGA/KICKOFF.md` §3 requires.
 
 - **Last updated:** 2026-11-07 ~23:55 CST, session `04653333` (takes over from session `bd64467f`).
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
@@ -28,7 +30,7 @@ Instructions: `FPGA/KICKOFF.md` → `.claude/commands/fpga-lead.md`. Agent roles
    to Lucas.
 3. **Wave 2:** T2.top (`rtl/eog_top.sv`, top proof, full-week sim vs model) once every T1 row is DONE. T2.ps1 (ARM
    app) can start any time. T2.bd1, T2.board1 and wave 3 need Vivado + the board, so they run on Lucas's PC only.
-4. **Finish:** write `FPGA/reports/HANDOFF.md` for the board machine.
+4. **Finish:** write `FPGA/reports/RTL_DONE_HANDOFF.md` for the original laptop (board machine).
 
 Priority when capacity is short: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
 Run at most 8 agents at once.
@@ -70,7 +72,7 @@ What was left on disk, and what this session did with it:
 3. Queue after that: T1.unpack.fv, T1.countdown.fv, T1.pack.rtl/.fv, T1.regs.rtl/.fv, T2.ps1.
 4. Integrate each module as both halves reach REVIEW. validate, memory, alarm and unpack already have their RTL in
    REVIEW and are waiting only for their verifiers.
-5. T2.top once all T1 rows are DONE, then write `FPGA/reports/HANDOFF.md`.
+5. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
 
 ## Worktrees (`HackUTD/.claude/worktrees/…`)
 

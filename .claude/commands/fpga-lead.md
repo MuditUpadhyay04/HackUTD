@@ -45,7 +45,8 @@ without Lucas.
 ## 3. Wave 2 (code only on this machine)
 
 T2.top when every T1 row is DONE; T2.ps1 any time after T0.1. T2.bd1, T2.board1 and wave 3 need the board and
-Vivado: they run on Lucas's PC. Finish by writing `FPGA/reports/HANDOFF.md`: what is proven (property IDs per
+Vivado: they run on Lucas's PC. Finish by writing `FPGA/reports/RTL_DONE_HANDOFF.md` (the handoff to the original
+laptop with the board; not the repo-root `HANDOFF.md`): what is proven (property IDs per
 module), what is simulated (vector sets, record counts), resource/timing estimates labeled as estimates, open
 spec questions, and the exact steps for the board machine.
 

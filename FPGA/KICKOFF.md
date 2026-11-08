@@ -40,7 +40,8 @@ To run a single task by hand instead: start a session in its own worktree
 ## 3. What stays on Lucas's PC
 
 Vivado/Vitis 2026.1, the board (JTAG + Ethernet at 192.168.1.10), and tasks T2.bd1, T2.board1, T3.*. The lead
-finishes with `FPGA/reports/HANDOFF.md` describing what to run there.
+finishes with `FPGA/reports/RTL_DONE_HANDOFF.md` describing what to run there. (The repo-root `HANDOFF.md` is a
+different file: the live lead-session state, for resuming a session on this machine.)
 
 ## 4. Decisions baked into spec v1 (reversible by Lucas)
 
