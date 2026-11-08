@@ -10,7 +10,7 @@ set "ROOT=%~dp0.."
 set "PY=%USERPROFILE%\anaconda3\python.exe"
 if not exist "%PY%" set PY=python
 if not defined HUTD_REF set "HUTD_REF=%USERPROFILE%\hackutd\zeroday"
-if not defined REPLAY_STEP set "REPLAY_STEP=0.1"
+if not defined REPLAY_STEP set "REPLAY_STEP=0.5"
 set "DS=%~1"
 if "%DS%"=="" if exist "%HUTD_REF%\test\telemetry.csv" set "DS=%HUTD_REF%\test"
 if "%DS%"=="" for /d %%D in ("%HUTD_REF%\history\mock_test_*") do set "DS=%%D"

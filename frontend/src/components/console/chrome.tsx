@@ -6,6 +6,7 @@ import { useTransition, type ReactNode } from "react";
 import type { BoardStatus, DatasetInfo, SystemState } from "@/lib/engine/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { systemNum } from "@/lib/format";
+import { ThemeToggle } from "./theme-toggle";
 import { cn } from "@/lib/utils";
 import { NemotronMark } from "./nemotron";
 
@@ -65,7 +66,15 @@ export function Sidebar({
   statusOf,
   alertCount,
   onSystem,
+  systemLine,
+  status = [],
+  footer,
 }: {
+  footer?: ReactNode;
+  /** One short status line under each system, e.g. "2 down · shuts 17:33". */
+  systemLine?: (s: SystemState) => { text: string; tone?: "crit" | "warn" };
+  /** Facts about the whole console shown under the systems. */
+  status?: { label: string; value: string; tone?: "crit" | "warn" | "ok" }[];
   view: View;
   onView: (v: View) => void;
   systems: SystemState[];
@@ -115,20 +124,30 @@ export function Sidebar({
               key={s.id}
               type="button"
               onClick={() => onSystem(s.id)}
-              className="flex shrink-0 items-center gap-2.5 rounded-lg px-2.5 py-[7px] text-[13.5px] whitespace-nowrap text-text transition-colors hover:bg-black/[0.04]"
+              className="flex shrink-0 items-start gap-2.5 rounded-lg px-2.5 py-[7px] text-left text-[13.5px] whitespace-nowrap text-text transition-colors hover:bg-black/[0.04]"
             >
               <span
                 className={cn(
-                  "size-2 shrink-0 rounded-full",
+                  "mt-[6px] size-2 shrink-0 rounded-full",
                   st === "crit" ? "bg-crit" : st === "warn" ? "bg-warn-fill" : st === "nodata" ? "bg-[#8e8e93]" : "bg-[#34c759]",
                 )}
                 aria-hidden
               />
-              System {systemNum(s.id)}
+              <span className="min-w-0">
+                System {systemNum(s.id)}
+                {systemLine && (() => {
+                  const l = systemLine(s);
+                  return (
+                    <span className={cn("hidden max-w-[170px] truncate text-[12px] leading-tight lg:block", l.tone === "crit" ? "font-medium text-crit" : l.tone === "warn" ? "font-medium text-warn" : "text-faint")}>
+                      {l.text}
+                    </span>
+                  );
+                })()}
+              </span>
               <span className="sr-only">
                 {st === "crit" ? ", pump down" : st === "warn" ? ", needs an inspector" : st === "nodata" ? ", no data" : ", normal"}
               </span>
-              <span className="ml-auto pl-3 text-[12.5px] text-faint">
+              <span className="ml-auto pt-px pl-3 text-[12.5px] text-faint">
                 <span className="sr-only">. </span>
                 {s.facilities.length}
                 <span className="sr-only"> {s.facilities.length === 1 ? "facility" : "facilities"}</span>
@@ -137,6 +156,26 @@ export function Sidebar({
           );
         })}
       </nav>
+
+      {status.length > 0 && (
+        <>
+          <p className="hidden px-2.5 pt-5 pb-1.5 text-[11px] font-semibold text-faint lg:block">Status</p>
+          <dl className="hidden px-2.5 text-[12.5px] lg:block">
+            {status.map((x) => (
+              <div key={x.label} className="flex items-baseline justify-between gap-3 py-[5px]">
+                <dt className="text-muted-foreground">{x.label}</dt>
+                <dd className={cn("truncate text-right font-medium tabular-nums", x.tone === "crit" ? "text-crit" : x.tone === "warn" ? "text-warn" : x.tone === "ok" ? "text-[#248a3d]" : "text-text")}>{x.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </>
+      )}
+      {footer && (
+        <div className="hidden px-2.5 lg:block">
+          <p className="pt-5 pb-2 text-[11px] font-semibold text-faint">Data</p>
+          {footer}
+        </div>
+      )}
     </aside>
   );
 }
@@ -213,7 +252,7 @@ export function Toolbar({
           <SelectValue>{current.label}</SelectValue>
           {/* Mockup A's up/down popup chevron in place of the shared down arrow (hidden above). */}
           <svg width="9" height="12" viewBox="0 0 9 12" className="size-auto" style={{ width: 9, height: 12 }} aria-hidden>
-            <path d="M1.5 4.5 4.5 1.5l3 3M1.5 7.5l3 3 3-3" fill="none" stroke="#3c3c43" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M1.5 4.5 4.5 1.5l3 3M1.5 7.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </SelectTrigger>
         <SelectContent>
@@ -227,11 +266,15 @@ export function Toolbar({
       {pending && <span className="text-[13px] text-faint">Loading…</span>}
 
       {board === undefined ? (
-        nemotron
+        <>
+          {nemotron}
+          <ThemeToggle />
+        </>
       ) : (
         <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <BoardChip board={board} />
           {nemotron}
+          <ThemeToggle />
         </div>
       )}
     </div>
@@ -252,14 +295,14 @@ function BoardChip({ board }: { board: BoardStatus | null }) {
           : "online";
   const simulated = board?.source === "simulated";
   const label =
-    state === "online" ? "Board online" : state === "own" ? "Board on its own" : state === "software" ? "Software runtime" : "Board offline";
+    state === "online" ? "Board online" : state === "own" ? "Board on its own" : state === "software" ? "Software board" : "Board offline";
   const detail =
     state === "offline"
-      ? "Showing the console's own detections"
+      ? "The server is running the checks in software"
       : state === "own"
         ? "The board lost the server and is watching on its own"
         : state === "software"
-          ? "The board isn't connected; the server's software copy of the board model is classifying"
+          ? "Results come from the software copy of the board (fakeboard), not the FPGA"
         : board?.weightsVersion != null
           ? board.weightsVersion === 240
             ? "Untrained test weights (v240)"
@@ -279,7 +322,7 @@ function BoardChip({ board }: { board: BoardStatus | null }) {
       <span className="min-w-0">
         {label}
         {simulated && <span className="font-medium text-warn"> (simulated)</span>}
-        {state === "offline" && <span className="sr-only text-faint lg:not-sr-only">, using the console&apos;s own detections</span>}
+        {state === "offline" && <span className="sr-only text-faint lg:not-sr-only">, server running the checks</span>}
         {detail && state !== "offline" && <span className="sr-only">. {detail}</span>}
       </span>
     </span>
