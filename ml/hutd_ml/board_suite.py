@@ -57,7 +57,7 @@ class Bench:
         self.n += 1
         if self.a.fakeboard:
             self.stop()
-            log = open(self.out / f"{name}_fakeboard.log", "w")
+            log = open(self.out / f"{name}_fakeboard.log", "w", encoding="utf-8")
             self.fb = subprocess.Popen([sys.executable, "-m", "hutd_ml.fakeboard"], cwd=ML, stdout=log, stderr=log)
             deadline = time.monotonic() + 15
             while time.monotonic() < deadline and not (self.out / f"{name}_fakeboard.log").stat().st_size:
@@ -108,9 +108,9 @@ def run_golden(bench, tid, fresh):
                 "--pps", "0" if tid == "T1" else str(bench.pps),
                 "--out", str(bench.out / f"{tid}_{ver}_{s}")] + extra
         t0 = time.monotonic()
-        p = subprocess.run(args, cwd=ML, capture_output=True, text=True)
+        p = subprocess.run(args, cwd=ML, capture_output=True, text=True, encoding="utf-8", errors="replace")
         dt = time.monotonic() - t0
-        (bench.out / f"{tid}_{ver}_{s}.log").write_text(p.stdout + p.stderr)
+        (bench.out / f"{tid}_{ver}_{s}.log").write_text(p.stdout + p.stderr, encoding="utf-8")
         keep = [ln for ln in p.stdout.splitlines() if ln.startswith(("WEIGHTS", "RESULTs", "ALERTs", "FIRST", "sent "))]
         if tid == "T1":
             sent = next((ln for ln in keep if ln.startswith("sent ")), "")
@@ -135,7 +135,7 @@ def run_golden(bench, tid, fresh):
 def engine_expected(folder, start_cfg, start_w, start_ver, first, last, swap=None):
     """What the board must produce for replay.py's records [first, last): RESULTs, per-record active classes and
     ALERTs. `swap` = (step, config, weights, version): weights and GLOBAL change after that step, like replay.py."""
-    c = json.loads(Path(start_cfg).read_text())
+    c = json.loads(Path(start_cfg).read_text(encoding="utf-8"))
     enc = encode.encode_dataset(folder, **{k: c[k] for k in CFG_KEYS if k in c})
     steps = enc.records.reshape(len(enc.timestamps), len(enc.facilities))
     eng = fi.Engine(enc.global_config, enc.facility_config,
@@ -148,7 +148,7 @@ def engine_expected(folder, start_cfg, start_w, start_ver, first, last, swap=Non
             classes.append(None if st is None else st["classes"])
             alerts += al
         if swap and i == swap[0]:
-            c2 = json.loads(Path(swap[1]).read_text())
+            c2 = json.loads(Path(swap[1]).read_text(encoding="utf-8"))
             g2 = encode.build_global_config(**{k: c2[k] for k in CFG_KEYS if k in c2})
             w2 = model_int.to_weights(Path(swap[2]).read_bytes(), swap[3])
             eng.weights = w2
@@ -164,7 +164,7 @@ def bits_of(names, table):
 
 def check_live(jsonl, exp, classes, exp_alerts, fresh):
     """Compares listen.py's JSON with the offline engine. Returns (ok, lines)."""
-    L = [json.loads(x) for x in Path(jsonl).read_text().splitlines() if x.strip()]
+    L = [json.loads(x) for x in Path(jsonl).read_text(encoding="utf-8").splitlines() if x.strip()]
     got = sorted((d for d in L if d["type"] == "result"), key=lambda d: d["result_no"])
     lines, ok = [], True
     if len(got) != len(exp):
@@ -239,7 +239,7 @@ def run_live(bench, tid, folder, fresh, swap=False):
     name = f"{tid}_{Path(folder).name}"
     jsonl = bench.out / f"{name}.jsonl"
     jsonl.unlink(missing_ok=True)
-    lst_log = open(bench.out / f"{name}_listen.log", "w")
+    lst_log = open(bench.out / f"{name}_listen.log", "w", encoding="utf-8")
     lst = subprocess.Popen([sys.executable, "-m", "hutd_ml.listen", "--data", str(folder), "--board", bench.board,
                             "--local", bench.local, "--model", str(ART / "v3"), "--model", str(ART / "v4"),
                             "--jsonl", str(jsonl), "--quiet"], cwd=ML, stdout=lst_log, stderr=lst_log)
@@ -257,14 +257,14 @@ def run_live(bench, tid, folder, fresh, swap=False):
             "--weights-version", str(start[1]), "--config", str(ART / start[0] / "global_config.json"),
             "--step-seconds", "0", "--pps", str(bench.pps)] + extra
     t0 = time.monotonic()
-    p = subprocess.run(args, cwd=ML, capture_output=True, text=True)
-    (bench.out / f"{name}_replay.log").write_text(p.stdout + p.stderr)
+    p = subprocess.run(args, cwd=ML, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    (bench.out / f"{name}_replay.log").write_text(p.stdout + p.stderr, encoding="utf-8")
     exp, classes, exp_alerts, n_fac = engine_expected(
         folder, ART / start[0] / "global_config.json", ART / start[0] / "weights.bin", start[1], 0, n_steps,
         swap=(swap_at, ART / "v4" / "global_config.json", ART / "v4" / "weights.bin", 4) if swap else None)
     want, last, still = len(exp), -1, time.monotonic()
     while time.monotonic() - t0 < 600:  # wait until listen.py has everything or stops growing for 6 s
-        have = jsonl.read_text().count('"type": "result"') if jsonl.exists() else 0
+        have = jsonl.read_text(encoding="utf-8").count('"type": "result"') if jsonl.exists() else 0
         if have >= want:
             break
         if have != last:
@@ -282,7 +282,7 @@ def run_live(bench, tid, folder, fresh, swap=False):
         return False, lines + [p.stderr.strip().splitlines()[-1] if p.stderr.strip() else "replay failed"]
     ok, more = check_live(jsonl, exp, classes, exp_alerts, fresh)
     if swap:
-        got = [json.loads(x) for x in jsonl.read_text().splitlines() if '"type": "result"' in x]
+        got = [json.loads(x) for x in jsonl.read_text(encoding="utf-8").splitlines() if '"type": "result"' in x]
         vers = {}
         for d in got:
             vers.setdefault(d["weights_ver"], []).append(d["ts_unix"])
@@ -343,8 +343,8 @@ def main(argv=None):
             f"{'software board' if a.fakeboard else 'hardware'}, data `{data.name}`, ml `{ML}`\n\n"
             "| Test | Verdict | Seconds | Details |\n| --- | --- | --- | --- |\n")
     body = "".join(f"| {r['test']} | **{r['verdict']}** | {r['seconds']} | {'<br>'.join(r['details'])} |\n" for r in rows)
-    (out / "report.md").write_text(head + body)
-    (out / "report.json").write_text(json.dumps(rows, indent=1))
+    (out / "report.md").write_text(head + body, encoding="utf-8")
+    (out / "report.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
     failed = [r["test"] for r in rows if r["verdict"].startswith("FAIL")]
     print(f"\n{len(rows) - len(failed)}/{len(rows)} passed{'; FAILED: ' + ', '.join(failed) if failed else ''}. "
           f"Report: {out / 'report.md'}")

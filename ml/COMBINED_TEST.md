@@ -34,7 +34,7 @@ internet, which Nemotron needs):
 git fetch origin && git checkout main && git pull
 ```
 
-(Until PR #12 is merged, use `git checkout ml` instead.)
+You need the **whole repo** at `main` `752c071` or later, not just the `ml/` folder: the agents live in `apps/api/`.
 
 ```bash
 python -c "import numpy, pandas; print(numpy.__version__, pandas.__version__)"
@@ -64,7 +64,9 @@ curl -A hutd-check -H "Authorization: Bearer <key>" https://hackutd-26-llm.jason
 
 If `bun install` fails on Windows (the native `libfx` package supports macOS / Linux only), skip to **3b**.
 
-## 1. The gate: v4 board suite
+`--reset-cmd` below: use the same re-program command as for the board suite. On `main` there is no `FPGA/deploy`, so point it at the FPGA checkout's `deploy\win_deploy_eog.bat`.
+
+## 1. The gate: v4 board suite (passed on hardware, Sun 08:05)
 
 From `ml/`:
 
@@ -119,8 +121,9 @@ accepted. When the triage or handoff output never passes, the orchestrator write
 | HTTP 429 or timeouts from Nemotron | Rate limit (10 requests/s, burst 20): rerun the failed stage with `--skip A,...` and `--board-jsonl` |
 | After re-programming, no CONFIG_ACK | The link drops for a few seconds; the suite waits for ping, then 5 s |
 
-**3b. Store and forward** (if Bun can't run on the board PC). Run only the board stage, then send the two board
-files to Mudit:
+**3b. Store and forward** (if Bun can't run on the board PC). The board suite's own L1 / L3 files work as they are:
+`board_suite_*/L1_full_week.jsonl` and `board_suite_*/L3_mock_test_*.jsonl`. They lack the source label, but
+`--source fpga` labels them. Or run only the board stage of the combined suite, then send the two board files to Mudit:
 
 ```bash
 python -m hutd_ml.combined_suite --data <full_week> --reset-cmd "..\FPGA\deploy\win_deploy_eog.bat" --skip N1,N2,D1
