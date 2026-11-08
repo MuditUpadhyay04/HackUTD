@@ -36,7 +36,7 @@ far used v1 numerics, so:
   HIST_RESET, DROPPED `SINCE_RESET`/`WVER` = 0). No version bump. T0.2b and every v4 rework must apply them.
 - Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
 
-- **Last updated:** 2026-11-08 ~02:15 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
+- **Last updated:** 2026-11-08 ~02:55 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
 - **Repo:** `C:\Users\gurne\Documents\Lucas HackUTD\HackUTD\HackUTD` (the inner folder; the outer `HackUTD\` is
@@ -102,24 +102,21 @@ What was left on disk, and what this session did with it:
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
 
-**Fourth cutoff (~01:30, account switch):** 6 agents stopped and were resumed in place. **In flight (8), as of ~01:45:**
-- **T0.2b** model (resumed; v4 rewrite was uncommitted on disk, told to commit first). Vectors still pending.
-- **validate:** RTL rework (0542991+) and verifier (b3dea18+).
-- **countdown:** verifier (d391176+, given the v4 RTL's port facts). RTL **v4 rework done 9dc2ca5**, idle until vectors.
-- **alarm:** verifier (b2c9db5+, given the v4 RTL's port facts). RTL **v4 rework done a130317**, idle until vectors.
-- **head:** RTL (364fe4c, v3+v4) and verifier (resumed, told about v4).
-- **features:** RTL small v4 rework (resumed from 9441fc4).
-- **features:** verifier (resumed for v4; told the `glb` port is gone). RTL **v4 rework done 0a84769**, idle.
-- **validate:** RTL **v4 + rulings #23–25 done 4876df8**, idle. Verifier still in flight.
-- **memory:** RTL rework (new agent, medium effort, from 560ee3b). Verifier queued.
-- Idle and waiting for vectors: countdown RTL (also needs rulings #20/#21), alarm RTL (also needs #22),
-  features RTL, validate RTL. Resume each with "v4 vectors on FPGA, `git merge FPGA`, smoke-test" (+ its rulings).
-- **When T0.2b reports:** merge `eog/T0.2b` into FPGA, run `python FPGA/model/gen_vectors.py` in the main checkout
-  (gitignored `*_week` files), then message every v4 agent to `git merge FPGA` and run its sims.
+**State at ~02:55 (Nov 8):**
+- **DONE on spec v4:** T0.2b (model = Mudit @ d1ba779 byte for byte, check_mudit full PASS), validate, features; plus
+  mul, div, unpack (unaffected by v4). See TASKS.md for hashes and reports.
+- **Integrating:** alarm (`.claude/worktrees/integrate-alarm`, branch `eog/integrate-alarm`): lint ok, sim PASS
+  200,130 records / 1,236 ALERTs; formal running. On PASS: commit the report there, then in the main checkout
+  `git merge --no-ff eog/integrate-alarm`, set both rows DONE.
+- **RTL REVIEW, waiting on its verifier:** countdown 8b386e5 (verifier running), head 5358207 (verifier running),
+  memory ac38fd3 (verifier running), pack 9e684bc (verifier running).
+- **In flight:** verifiers for countdown, head, memory, pack; regs RTL + verifier (new, medium effort).
+- Integration recipe for the rest: a worktree per module (`git worktree add -b eog/integrate-<m>
+  .claude/worktrees/integrate-<m> FPGA`), merge the RTL and verifier branches, generate the git-ignored vectors there
+  (`EOG_DATA=… EOG_ML=…/ml/ml python FPGA/model/gen_vectors.py`), then `lint.sh`/`sim.sh`/`formal.sh <m>`.
+- After the last merge: `check_all.sh` (slow now: validate and alarm formal take 6–20 min), then T2.top.
 
-**Queue (launch as slots free):** features verifier (resume; small v4 rework from b0f7bd1), memory RTL (fresh agent on 560ee3b)
-+ verifier (resume; small v4 rework), pack RTL + verifier (new, v4), regs RTL + verifier (new, v4; DBGSEL/DBG and
-the 71-word window), then T2.ps1.
+**Queue:** T2.ps1 (ARM app; can start any time), then T2.top once every T1 row is DONE.
 
 **Then:** integrate each module when both halves are REVIEW (`git switch -c eog/integrate-<m> FPGA`, merge both,
 `lint.sh`/`sim.sh`/`formal.sh <m>`, merge to FPGA, DONE, `check_all.sh`, push). T2.top when all T1 rows are DONE,

@@ -42,7 +42,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.alarm.rtl` ea519d9 (v4 + ruling #22; bit-exact on all 18 v4 alarm cases incl. ALERT stream; latency 1, II 2/3); integration `eog/integrate-alarm`: lint ok, sim PASS 200,130 records / 1,236 ALERTs, formal running |
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.alarm.fv` 0cf99c7 (v4; 11/11 mutants caught) |
-| T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | CLAIMED | v4 from the start |
+| T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.pack.rtl` 9e684bc (v4; latency 1, 4 beats/record at 1 beat/cycle; smoke PASS all 19 pack_* cases incl. week/g1; #25 is owned upstream, pack copies) |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | CLAIMED | v4 from the start |
 | T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | CLAIMED | v4 from the start |
 | T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | CLAIMED | v4 from the start |
@@ -125,3 +125,5 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 54 | alarm | Pmod/LED output timing | May lag state by 1 cycle; `hb_toggle` 1–2 cycles after `hb_pulse`; `ms_since_hb`/`autonomous` exact | T1.alarm.fv | Accepted |
 | 55 | alarm | Records open in the stage | At most 2, counting ALERTs not yet pushed (RTL keeps 0/1) | T1.alarm.fv | Accepted |
 | 56 | alarm, countdown, memory | Codes 2/5–7 with HIST_RESET | Per stage: alarm changes no state (#10); countdown (#34) and memory (#44) clear. Never produced by validate; the model does the same | T1.alarm.fv, T0.2b | Accepted |
+| 57 | pack | The vectors never produce a batch-only `m_last` (IN_LAST is set wherever m_last is) | Add a pack case with IN_LAST = 0 on most records (model follow-up); formal K3 covers it meanwhile | T1.pack.rtl | Open (model follow-up) |
+| 58 | pack | `tap_valid` timing | Same cycle as the beat-3 transfer | T1.pack.rtl | Accepted |
