@@ -42,4 +42,4 @@ Current architecture and contracts: `global_plan.md` §3–§6 (as of Sat Nov 7,
 ## Checkout/tooling
 
 - As of November 7, this checkout has research artifacts but no application manifest or established build/lint/test commands. Inspect new executable configuration before choosing a toolchain; do not copy organizer-only commands from the external reference as if they run here.
-- The FPGA build and deploy scripts (`vivado/build.tcl`, `deploy\*.bat`, Vitis workspace) live on Lucas's PC, not in this checkout. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the review checks behind `docs/plan/lucas/review_notes.md`.
+- FPGA work lives in `FPGA/` (RTL, proofs, testbenches, specs, scripts, plus the Vivado/deploy scripts copied from Lucas's PC). Read `FPGA/AGENTS.md` before working there; its task board is `FPGA/TASKS.md`. The Vitis workspace, Vivado outputs and the board itself are still only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the review checks behind `docs/plan/lucas/review_notes.md`.
