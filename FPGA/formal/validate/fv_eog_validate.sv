@@ -6,22 +6,21 @@
 // DUT is seen through its spec ports and the two formal-only observation ports of conventions §7 (f_inflight,
 // f_oldest_recno). Run: `bash scripts/formal.sh validate` (formal/validate/eog_validate.sby).
 //
-// Readings this harness takes where the v4 text leaves room (raised as spec questions in the T1.validate.fv
-// report; each property that depends on one says so with "[Qn]"):
-//   [Q1] d = TS - last_ts is the exact difference (33-bit signed), as features_int.py's Python ints; a 32-bit
-//        wrapping difference would turn a jump of >= 2^31 s into OUT_OF_ORDER.
-//   [Q2] Power-up / soft reset clears the slot state and is NOT flagged (numerics.md §3: "a slot's first record
-//        after power-up or soft reset is not flagged"); only fac_touch sets pending_reset. The module spec's
-//        "fac_touch[f] (or reset) sets pending_reset[f]" is read as "reset clears has_ts".
-//   [Q3] INVALID records: each value is the observed-OK value, else 0 (held values are not output); FLD_OK[j] /
-//        WELLS_OK = observed OK. VALID/HELD: FLD_OK = 7'h7F, WELLS_OK = 1 (every value usable). Module spec
-//        "for INVALID: the OK value where available, else 0".
-//   [Q4] PUMP_INCONS / WELL_INCONS only on VALID/HELD records (features_int.py computes them after the INVALID
-//        return); this replaces TASKS #12. On VALID/HELD every value is usable, so #12's FLD_OK terms are moot.
-//   [Q5] DROPPED records: every value field, FLD_OK, WELLS_OK, PREV_LEVEL, PREV_OK = 0 (v1 step 9, not restated
-//        in v4); SINCE_RESET per V1-V3.
-//   [Q6] PREV_LEVEL / PREV_OK on INVALID records are not checked (the spec defines them for VALID/HELD only).
-//   TASKS #13 (PREV_LEVEL = 0 when PREV_OK = 0) and #14 (n_wells = min(CFG.N_WELLS, N_WELL)) are kept.
+// Spec answers this harness follows (TASKS.md "Spec questions"; features_int.py @ d1ba779 decides where it can):
+//   #23  reason bits 11 FIELD_ABSENT (a required field's present bit is clear) and 14 FIELD_LOST (some required
+//        field has no value to use: INVALID) are restored, with features_int.py's rules (ml/README.md).
+//   #24  a slot's first record (no last_ts: after power-up/soft reset or a fac_touch) is a new history:
+//        HIST_RESET = 1, reason bit 2.
+//   #25 / #39  every DROPPED record has SINCE_RESET = 0, and its values, FLD_OK, WELLS_OK, PREV_* are 0.
+//   #35  d = TS - last_ts is the exact 33-bit signed difference.
+//   #38  PUMP_INCONS / WELL_INCONS only on VALID/HELD.
+//   #37 (proposed; [Q3] at the properties that use it) INVALID records: each value is the observed-OK value,
+//        else 0 (held values are not output); FLD_OK[j] / WELLS_OK = observed OK. VALID/HELD: FLD_OK = 7'h7F,
+//        WELLS_OK = 1. features_int.py returns no per-field values for INVALID records (stages = None), so the
+//        T0.2b vectors decide; the module spec says "for INVALID: the OK value where available, else 0".
+//   #40 (proposed; [Q6]) PREV_LEVEL / PREV_OK on INVALID records are not checked.
+//   #13 (PREV_LEVEL = 0 when PREV_OK = 0) and #14 (n_wells = min(CFG.N_WELLS, N_WELL)) still hold.
+//   features_int.py also clamps HOLD_MAX to 2.
 //
 // Sizes: N_FAC = 2, N_WELL = 2 (so 7 + 2*2 = 11 fields per slot). CONFIG rows are per-slot anyconst
 // (conventions §5: an enabled row never changes; formal keeps every row constant, row rewrites are covered by
@@ -51,9 +50,9 @@
 //   stage contract  u_in.*, u_out.ax_*, u_stage.st_*                                      prove
 //   V1  FRAMING      V1, V1_only                                                           prove
 //   V2  UNKNOWN_FAC  V2, V2_only                                                           prove
-//   V3  DUP / OOO    V3_rsn, V3_only (record); V3_dup, V3_ooo, V3_acc (time, since)         prove; bmc
-//   V4  DROPPED      V4 (no HIST_RESET; payload 0 [Q5])                                     prove
-//   V5  gap          V5_gap, V5_300, V5_new, V5_touch, V5_first                             bmc
+//   V3  DUP / OOO    V3_rsn, V3_only (record); V3_dup, V3_ooo, V3_acc (time)                prove; bmc
+//   V4  DROPPED      V4 (no HIST_RESET, SINCE_RESET 0 #25, payload 0 #39)                   prove
+//   V5  gap          V5_gap, V5_300, V5_new, V5_first (first record = new history, #24)     bmc
 //   V6  hold bound   V6_ovf, V6_held, V6_run                                                bmc
 //   V7  INVALID      V7_rec, V7_fok (record); V7 (missing = neither OK nor held)            prove; bmc
 //   V8  SINCE_RESET  V8                                                                    bmc
@@ -61,7 +60,7 @@
 //   V10 wells        V10                                                                   prove
 //   V11 last_ts      V11 (drop decision uses the last non-DROPPED TS)                       bmc
 //   V12 independence V12 (= REF on f_slot's records)                                        bmc
-//   extra            HDR ST RSN STS HELD_rsn VAL_obs VAL_inv0 HR HLD0 GAP INC_* ENUM_RANGE  prove
+//   extra            HDR ST RSN STS HELD_rsn VAL_obs VAL_inv0 HR HLD0 GAP INC_* CAUSE LOST   prove
 //                    HV (held value = last OK value), REF_* (every output bit)              bmc
 //
 // Ordering of fac_touch (lead clarification): a touch of slot f in the cycle a slot-f record is accepted, or
@@ -124,11 +123,13 @@ module fv_validate_ref #(
     output logic [1:0]         d_hold        // min(G.HOLD_MAX, 2)
 );
 `include "eog_defs.svh"
+    localparam integer R_FIELD_ABSENT = 11;  // restored by TASKS #23 (not in the v4 eog_defs.svh)
+    localparam integer R_FIELD_LOST   = 14;
 
     logic [383:0]       r;
     logic [15:0]        fac_raw;
     logic [31:0]        ts;
-    logic signed [32:0] dts;                 // [Q1] exact difference
+    logic signed [32:0] dts;                 // #35: exact difference
     logic [7:0]         nwc, hm;
     logic               tchk, dup, ooo, t_norm, t_gap, t_rst, clr1, drop;
     logic [15:0]        drop_rsn;
@@ -152,7 +153,8 @@ module fv_validate_ref #(
     assign t_norm = tchk & (dts == 33'sd300);
     assign t_gap  = tchk & (((dts == 33'sd600) & (d_hold >= 2'd1)) | ((dts == 33'sd900) & (d_hold >= 2'd2)));
     assign t_rst  = tchk & ~dup & ~ooo & ~t_norm & ~t_gap;       // missing steps > hold, or not a multiple
-    assign clr1   = t_rst | s_pend;                              // history cleared before the fields
+    assign clr1   = t_rst | s_pend | ~s_has_ts;                  // history cleared before the fields
+                                                                   // (#24: also on the first record)
     assign drop   = d_framing | d_unknown | dup | ooo;
     assign upd    = ~drop;
     always_comb begin
@@ -195,7 +197,7 @@ module fv_validate_ref #(
 
     // 5: hold run; overflow -> history reset, every held field becomes missing
     logic [2:0]       hr_next;
-    logic             ovf, hist, invalid, held_any, enum_any, range_any, pinc, winc;
+    logic             ovf, hist, invalid, held_any, absent_any, enum_any, range_any, pinc, winc;
     logic [NFLD-1:0]  f_held, f_miss;
     logic [2:0]       status;
     logic [7:0]       since_o, well_act;
@@ -213,6 +215,7 @@ module fv_validate_ref #(
         f_miss   = d_req & ~d_obs & ~f_held;
         invalid  = |f_miss;                                       // 7
         held_any = |f_held;
+        absent_any = |(d_req & ~d_present);
         enum_any  = |(d_req & d_present & ~d_legal);
         range_any = |(d_req & d_present & d_legal & ~d_inr);
         status   = invalid ? EOG_ST_INVALID : (held_any | t_gap) ? EOG_ST_HELD : EOG_ST_VALID;   // 8
@@ -235,7 +238,7 @@ module fv_validate_ref #(
             winc = winc | (d_req[7 + i] & (f_out[16*(7 + i) +: 16] != 16'd1) &
                            ($signed(f_out[16*(7 + N_WELL + i) +: 16]) > 16'sd0));
         end
-        // 9: consistency flags, VALID/HELD only [Q4]
+        // 9: consistency flags, VALID/HELD only (#38)
         pinc = ~invalid & (f_out[32 +: 2] != 2'd1) & ($signed(f_out[48 +: 16]) > 16'sd0);
         winc = ~invalid & winc;
     end
@@ -251,8 +254,7 @@ module fv_validate_ref #(
         if (drop) begin
             v[EOG_BV_STATUS +: EOG_BV_STATUS_W] = EOG_ST_DROPPED;
             v[EOG_BV_REASON +: EOG_BV_REASON_W] = drop_rsn;
-            // FRAMING / UNKNOWN_FAC: SINCE_RESET 0; DUPLICATE / OUT_OF_ORDER: the slot's current value
-            v[EOG_BV_SINCE_RESET +: EOG_BV_SINCE_RESET_W] = (d_framing | d_unknown) ? 8'd0 : s_since;
+            // every DROPPED record: SINCE_RESET 0 (#25), all values 0 (#39)
         end else begin
             v[EOG_BV_STATUS +: EOG_BV_STATUS_W] = status;
             v[EOG_BV_REASON + EOG_R_FIELD_HELD]   = held_any;
@@ -262,6 +264,8 @@ module fv_validate_ref #(
             v[EOG_BV_REASON + EOG_R_ILLEGAL_ENUM] = enum_any;
             v[EOG_BV_REASON + EOG_R_PUMP_INCONS]  = pinc;
             v[EOG_BV_REASON + EOG_R_WELL_INCONS]  = winc;
+            v[EOG_BV_REASON + R_FIELD_ABSENT]     = absent_any;
+            v[EOG_BV_REASON + R_FIELD_LOST]       = invalid;
             v[EOG_BV_SINCE_RESET +: EOG_BV_SINCE_RESET_W] = since_o;
             v[EOG_BV_HIST_RESET]                  = hist;
             v[EOG_BV_INFLOW +: 16]                = f_out[16*0 +: 16];
@@ -314,6 +318,8 @@ module fv_eog_validate #(
 `include "eog_defs.svh"
     localparam integer NFLD = 7 + 2 * N_WELL;
     localparam integer RW   = 8;             // REC_NO bits compared by eog_fv_stage
+    localparam integer R_FIELD_ABSENT = 11;  // restored by TASKS #23 (not in the v4 eog_defs.svh)
+    localparam integer R_FIELD_LOST   = 14;
 
     logic f_past_valid;
     eog_fv_init u_init (.clk(clk), .rst_n(rst_n), .f_past_valid(f_past_valid));
@@ -530,7 +536,7 @@ module fv_eog_validate #(
     // Field-level facts of the record, folded into vectors (one assertion each, no labels inside loops).
     logic [NFLD-1:0] p_obs_val;     // OK -> value carried unchanged (every non-DROPPED record)
     logic [NFLD-1:0] p_inv0;        // INVALID, required, not OK -> value 0 [Q3]
-    logic            req_nobs, well_nobs, enum_x, range_x, winc_vh;
+    logic            req_nobs, well_nobs, absent_x, enum_x, range_x, winc_vh;
     logic [7:0]      p_v10;         // well slot i >= n_wells: WELL_ACT[i] = 0, WELL_WATER[i] = 0
     integer          j;
     always_comb begin
@@ -542,6 +548,7 @@ module fv_eog_validate #(
             p_v10[j] = (j < d_n_wells && j < N_WELL) || (!o_wact[j] && o_wwat[16*j +: 16] == 16'd0);
         req_nobs  = |(d_req & ~d_obs);
         well_nobs = |(d_req[NFLD-1:7] & ~d_obs[NFLD-1:7]);
+        absent_x  = |(d_req & ~d_present);
         enum_x    = |(d_req & d_present & ~d_legal);
         range_x   = |(d_req & d_present & d_legal & ~d_inr);
         winc_vh   = 1'b0;   // a configured slot whose (usable) values show status 0 and water > 0
@@ -558,8 +565,8 @@ module fv_eog_validate #(
                            o_ts == c_x[EOG_BU_REC + EOG_D_TS +: 32]);
             // ST: STATUS is one of the RESULT codes 0, 1, 3, 4 (2 is never produced)
             ST:    assert (o_st == EOG_ST_VALID || o_st == EOG_ST_HELD || o_st == EOG_ST_INVALID || drop);
-            // RSN: bits 11, 13-15 are 0 (numerics §6); validate never sets FEAT_SAT (5)
-            RSN:   assert (!o_rsn[EOG_R_FEAT_SAT] && o_rsn[11] == 1'b0 && o_rsn[15:13] == 3'd0);
+            // RSN: validate never sets FEAT_SAT (5) or NO_MODEL (13, eog_head); bit 15 is never used
+            RSN:   assert (!o_rsn[EOG_R_FEAT_SAT] && !o_rsn[13] && !o_rsn[15]);
             // V1: FRAME_ERR or a nonzero reserved field -> DROPPED, exactly FRAMING, SINCE_RESET 0
             if (d_framing) V1: assert (drop && o_rsn == (16'd1 << EOG_R_FRAMING) && o_since == 8'd0);
             else           V1_only: assert (!o_rsn[EOG_R_FRAMING]);
@@ -574,8 +581,8 @@ module fv_eog_validate #(
                 V3_rsn: assert (o_rsn == (16'd1 << EOG_R_DUPLICATE) || o_rsn == (16'd1 << EOG_R_OUT_OF_ORDER));
             if (!drop)
                 V3_only: assert (!o_rsn[EOG_R_DUPLICATE] && !o_rsn[EOG_R_OUT_OF_ORDER]);
-            // V4: DROPPED never has HIST_RESET; its value fields, FLD_OK, WELLS_OK and PREV_* are 0 [Q5]
-            if (drop) V4: assert (!o_hr && o_payload == '0);
+            // V4: DROPPED never has HIST_RESET; SINCE_RESET 0 (#25); value fields, FLD_OK, WELLS_OK, PREV_* 0 (#39)
+            if (drop) V4: assert (!o_hr && o_since == 8'd0 && o_payload == '0);
             // PRV0: PREV_OK = 0 -> PREV_LEVEL = 0 (TASKS #13)
             PRV0:  assert (o_pok || o_plev == 16'd0);
             // V10: WELL_ACT[i] = 0 and WELL_WATER[i] = 0 for i >= n_wells (n_wells = min(N_WELLS, N_WELL), #14)
@@ -605,15 +612,18 @@ module fv_eog_validate #(
             VAL_obs:  assert (&p_obs_val);
             // VAL_inv0: INVALID -> a required field that is not OK reads 0 [Q3]
             VAL_inv0: assert (&p_inv0);
-            // ENUM_RANGE: ILLEGAL_ENUM iff a required present field has an illegal enum (pump status not 0-2,
-            // well status not 0-1); OUT_OF_RANGE iff a required present legal field is outside LO/HI[j]
-            // (pump status: LO[2]/HI[2]) or WELL_LO/WELL_HI
-            ENUM_RANGE: assert (o_rsn[EOG_R_ILLEGAL_ENUM] == enum_x && o_rsn[EOG_R_OUT_OF_RANGE] == range_x);
+            // CAUSE: FIELD_ABSENT iff a required field's present bit is clear (#23); ILLEGAL_ENUM iff a required
+            // present field has an illegal enum (pump status not 0-2, well status not 0-1); OUT_OF_RANGE iff a
+            // required present legal field is outside LO/HI[j] (pump status: LO[2]/HI[2]) or WELL_LO/WELL_HI
+            CAUSE: assert (o_rsn[R_FIELD_ABSENT] == absent_x && o_rsn[EOG_R_ILLEGAL_ENUM] == enum_x &&
+                           o_rsn[EOG_R_OUT_OF_RANGE] == range_x);
+            // LOST: FIELD_LOST iff INVALID (#23: some required field had no value to use)
+            LOST:  assert (o_rsn[R_FIELD_LOST] == inv);
             // GAP: GAP_HELD is never VALID
             if (o_rsn[EOG_R_GAP_HELD]) GAP: assert (o_st != EOG_ST_VALID);
             // HLD0: hold = min(HOLD_MAX, 2) = 0 -> nothing is held (any held field overflows the run)
             if (d_hold == 2'd0) HLD0: assert (!o_rsn[EOG_R_FIELD_HELD] && !o_rsn[EOG_R_GAP_HELD]);
-            // INC [Q4]: VALID/HELD: PUMP_INCONS = PUMP_ST != 1 & PUMP_FLOW > 0; WELL_INCONS = a configured slot
+            // INC (#38): VALID/HELD: PUMP_INCONS = PUMP_ST != 1 & PUMP_FLOW > 0; WELL_INCONS = a configured slot
             // with status 0 and water > 0. INVALID: neither.
             if (vh) INC_p: assert (o_rsn[EOG_R_PUMP_INCONS] ==
                                    (o_pst != 2'd1 && $signed(out_data[EOG_BV_PUMP_FLOW +: 16]) > 16'sd0));
@@ -628,18 +638,17 @@ module fv_eog_validate #(
     // 3a. History properties of the tracked slot f_slot, from an output-derived shadow (bmc).
     // sh_*: the slot state the spec gives f_slot after the records output so far (output order == accept order)
     // and the touches ordered before them; p_* adds the touch ordered just before the record at the output.
-    logic               sh_has_ts, sh_pend, sh_pok;
+    logic               sh_has_ts, sh_pok;
     logic [31:0]        sh_last_ts;
     logic [7:0]         sh_since;
     logic [1:0]         sh_hrun;
     logic [15:0]        sh_plev, sh_val;
     logic [NFLD-1:0]    sh_has;            // field has a last_valid value
-    logic               p_has_ts, p_pend, p_tchk, mine, known;
+    logic               p_has_ts, p_tchk, mine, known;
     logic signed [32:0] p_d;
-    assign p_has_ts = sh_has_ts && !c_tch;
-    assign p_pend   = sh_pend || c_tch;
-    assign p_tchk   = p_has_ts && !p_pend;
-    assign p_d      = $signed({1'b0, o_ts}) - $signed({1'b0, sh_last_ts});   // [Q1]
+    assign p_has_ts = sh_has_ts && !c_tch;   // a touch clears last_ts: the next record is a slot's "first"
+    assign p_tchk   = p_has_ts;
+    assign p_d      = $signed({1'b0, o_ts}) - $signed({1'b0, sh_last_ts});   // #35
     assign mine     = (c_id == {11'd0, f_slot});
     assign known    = mine && !d_framing && !d_unknown;      // a record of f_slot that passes steps 1-2
 
@@ -652,7 +661,7 @@ module fv_eog_validate #(
     assign e_300  = p_tchk && p_d == 33'sd300;
     assign e_gap  = p_tchk && ((p_d == 33'sd600 && d_hold >= 2'd1) || (p_d == 33'sd900 && d_hold >= 2'd2));
     assign e_trst = p_tchk && p_d > 33'sd300 && !e_gap;
-    assign e_clr  = e_trst || p_pend;                         // history cleared before the fields
+    assign e_clr  = e_trst || !p_has_ts;                      // history cleared before the fields (#24)
     assign e_has  = e_clr ? '0 : sh_has;
     assign e_cand = d_req & ~d_obs & e_has;
     assign e_hrun = (|e_cand) ? ((e_clr ? 3'd0 : {1'b0, sh_hrun}) + 3'd1) : 3'd0;
@@ -672,21 +681,16 @@ module fv_eog_validate #(
                     (f_fld >= 5'd7 && f_fld < 5'(7 + N_WELL)) ? {15'd0, sh_val == 16'd1} : sh_val;
 
     always_ff @(posedge clk) begin
-        if (!rst_n) begin                    // [Q2] reset: state clear, nothing pending
+        if (!rst_n) begin                    // reset: no last_ts, state clear
             sh_has_ts <= 1'b0;
-            sh_pend   <= 1'b0;
             sh_pok    <= 1'b0;
             sh_since  <= 8'd0;
             sh_hrun   <= 2'd0;
             sh_has    <= '0;
         end else if (out_fire) begin
-            if (c_tch) begin                 // touch ordered before this record
-                sh_has_ts <= 1'b0;
-                sh_pend   <= 1'b1;
-            end
+            if (c_tch) sh_has_ts <= 1'b0;    // touch ordered before this record
             if (mine && !drop) begin
                 sh_has_ts  <= 1'b1;
-                sh_pend    <= 1'b0;
                 sh_last_ts <= o_ts;
                 sh_since   <= inv ? o_since : (o_since == 8'd255) ? 8'd255 : o_since + 8'd1;
                 sh_hrun    <= o_run[1:0];
@@ -704,11 +708,11 @@ module fv_eog_validate #(
 
     always_comb begin
         if (chk && known) begin
-            // V3: TS == last_ts -> DROPPED DUPLICATE; TS - last_ts < 300 (signed: negative or a partial step) ->
-            // DROPPED OUT_OF_ORDER; both carry the slot's current SINCE_RESET; only with a last_ts and no pending
-            // CONFIG reset
-            if (e_dup)      V3_dup: assert (drop && o_rsn == (16'd1 << EOG_R_DUPLICATE) && o_since == sh_since);
-            else if (e_ooo) V3_ooo: assert (drop && o_rsn == (16'd1 << EOG_R_OUT_OF_ORDER) && o_since == sh_since);
+            // V3: TS == last_ts -> DROPPED DUPLICATE; TS - last_ts < 300 (signed #35: negative or a partial step)
+            // -> DROPPED OUT_OF_ORDER (SINCE_RESET 0, #25: V4); only when the slot has a last_ts (none after reset
+            // or a CONFIG touch); otherwise the record is not dropped
+            if (e_dup)      V3_dup: assert (drop && o_rsn == (16'd1 << EOG_R_DUPLICATE));
+            else if (e_ooo) V3_ooo: assert (drop && o_rsn == (16'd1 << EOG_R_OUT_OF_ORDER));
             else            V3_acc: assert (!drop);
             // V11: the drop decision uses the TS of the slot's last non-DROPPED record (sh_last_ts advances on
             // VALID/HELD/INVALID only)
@@ -720,9 +724,8 @@ module fv_eog_validate #(
             if (e_300)       V5_300:   assert (!o_rsn[EOG_R_GAP_HELD] && o_hr == e_ovf);
             else if (e_gap)  V5_gap:   assert (o_rsn[EOG_R_GAP_HELD] && o_hr == e_ovf && o_st != EOG_ST_VALID);
             else if (e_trst) V5_new:   assert (o_hr && !o_rsn[EOG_R_GAP_HELD]);
-            // first record after a CONFIG write: flagged; first record after reset: not flagged [Q2]
-            else if (p_pend) V5_touch: assert (o_hr && !o_rsn[EOG_R_GAP_HELD]);
-            else             V5_first: assert (!o_hr && !o_rsn[EOG_R_GAP_HELD]);
+            // a slot's first record (no last_ts: after reset or a CONFIG touch) is a new history (#24)
+            else             V5_first: assert (o_hr && !o_rsn[EOG_R_GAP_HELD]);
             // V6: a record whose held-field run would exceed hold has HIST_RESET = 1, INVALID, nothing held;
             // otherwise a field is held exactly when some required field is not OK but has a last_valid value;
             // and the DUT's run of records with FIELD_HELD (since the last reset) never exceeds hold
@@ -755,7 +758,7 @@ module fv_eog_validate #(
     logic [372:0]       e_v, mask;
     fv_validate_ref #(.N_FAC(N_FAC), .N_WELL(N_WELL)) u_ref (
         .u(c_x), .row(c_row), .glb(f_glb),
-        .s_has_ts(p_has_ts), .s_pend(p_pend), .s_last_ts(sh_last_ts), .s_since(sh_since), .s_hold_run(sh_hrun),
+        .s_has_ts(p_has_ts), .s_pend(1'b0), .s_last_ts(sh_last_ts), .s_since(sh_since), .s_hold_run(sh_hrun),
         .s_prev_level(sh_plev), .s_prev_ok(sh_pok), .s_fval(dv_fval), .s_fhas(sh_has),
         .v(e_v), .upd(), .n_has_ts(), .n_pend(), .n_last_ts(), .n_since(), .n_hold_run(), .n_prev_level(),
         .n_prev_ok(), .n_fval(e_fval), .n_fhas(),
@@ -807,7 +810,8 @@ module fv_eog_validate #(
             C_ooo_part: cover (known && drop && p_d > 33'sd0 && p_d < 33'sd300);   // a partial step
             C_since2:   cover (known && !drop && o_since == 8'd2);
             C_prev:     cover (known && vh && o_pok);
-            C_dup_since:cover (known && drop && o_rsn[EOG_R_DUPLICATE] && o_since != 8'd0);
+            C_dup_since:cover (known && drop && o_rsn[EOG_R_DUPLICATE] && sh_since != 8'd0);   // #25 bites
+            C_absent:   cover (known && vh && o_rsn[R_FIELD_ABSENT]);
 `endif
         end
     end

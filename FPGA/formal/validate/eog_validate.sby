@@ -1,5 +1,5 @@
 # SymbiYosys job for eog_validate (spec/modules/eog_validate.md, numerics.md §3; spec v4). Verify role, task
-# T1.validate.fv. Harness, property map and the readings [Q1]-[Q6]: fv_eog_validate.sv (header).
+# T1.validate.fv. Harness, property map and the spec answers it follows (#23-#25, #35-#40): fv_eog_validate.sv.
 #   bash scripts/formal.sh validate
 #
 # All tasks: N_FAC = 2, N_WELL = 2 (11 fields per slot), CONFIG rows / GLOBAL anyconst, fac_touch free.
@@ -7,7 +7,7 @@
 #
 # prove   k-induction, every handshake schedule, free rst_n, full data widths. Stage contract (handshake, REC_NO
 #         order, <= 2 in flight, II <= 16, latency <= 128) and the per-record properties (HDR ST RSN V1 V2 V3_rsn
-#         V3_only V4 PRV0 V10 HR STS V7_rec V7_fok HELD_rsn VAL_obs VAL_inv0 ENUM_RANGE GAP HLD0 INC_*).
+#         V3_only V4 PRV0 V10 HR STS V7_rec V7_fok HELD_rsn VAL_obs VAL_inv0 CAUSE LOST GAP HLD0 INC_*).
 #         -DFV_NO_HIST drops the history properties, which are not k-inductive through a port-only harness (see
 #         the harness header). depth 6: the shadow FIFO and the DUT's held record agree within LAT + 2 steps.
 # bmc     history properties V3 V5 V6 V7 V8 V9 V11 HV and REF/V12 (every output bit of the anyconst slot against
