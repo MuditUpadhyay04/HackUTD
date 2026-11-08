@@ -1,4 +1,4 @@
-// fv_eog_head.sv -- formal harness for eog_head (spec/modules/eog_head.md, numerics.md section 8; spec v2).
+// fv_eog_head.sv -- formal harness for eog_head (spec/modules/eog_head.md, numerics.md section 8; spec v3).
 // Verify role, task T1.head.fv. Written from the spec's port table only: the harness uses the DUT's ports and its
 // formal observation ports (conventions section 7), never an internal signal.
 //
@@ -27,7 +27,12 @@
 //                   modify the active bank's word 68; a swap makes the written bank's VER active
 //   RB              wb_rdata, 1 cycle after wb_raddr, equals the harness shadow of the inactive bank (also catches a
 //                   write that modified the active bank, once that bank is inactive again: H3 for every word)
-//   RST             after a reset cycle active_ver = 0 (both banks' word 68 reads 0)
+//   RST             after a hard reset (wb_rst_n = 0) active_ver = 0 (both banks' word 68 reads 0), active_bank = 0,
+//                   swap_pending = 0 (via H2_pend)
+//   SRST_bank/_ver  a soft reset (rst_n = 0, wb_rst_n = 1) leaves active_bank and active_ver unchanged, and a pending
+//                   swap stays pending (H2_pend) without executing; the shadow ignores rst_n, so RB/H3_ver check
+//                   that every bank word survives it, readback included (spec v3)
+//   WIGN            (in RB/H3_ver) writes while rst_n = 0 or wb_rst_n = 0 are ignored: the shadow does not take them
 //   H4_zero         active_ver = 0 at accept, or STATUS INVALID/DROPPED -> LOGITS = 0
 //   H4_nm           NO_MODEL set iff VALID/HELD and active_ver = 0 at accept
 //   H6 (H1H6_logit) FEAT = 0 (acc = B): LOGIT = sat16((B + 2^(S_OUT-1)) >>> S_OUT) for every S_OUT 0..31, any B
@@ -35,7 +40,8 @@
 //                   (the accumulator is observable only through the logits; S_OUT up to 31 exposes its high bits)
 //   covers          C_swap (a swap between two records, both with a model), C_sat (a saturated logit), C_sat5 (a
 //                   saturated logit predicted from nonzero features), C_nomodel, C_coalesce (a request while
-//                   pending, then one swap), C_rb (a readback checked)
+//                   pending, then one swap), C_rb (a readback checked), C_srst (a record with a model after a soft
+//                   reset)
 //
 // Parameters (set per task in eog_head.sby):
 //   N_FEAT        features used by the DUT (bus C still carries 31; the weight image layout is unchanged:
@@ -50,13 +56,16 @@
 //   LAT_MAX       st_lat bound (spec: 128)
 //   SWAP_MAX      H2_live bound (the spec says "next record boundary" without a number; 16 = II_MAX)
 //   II_EXCL_SWAP  1 excludes cycles with a pending swap from st_ii (the spec does not; default 0 = strict)
+//   WR            1: writes and reads only touch shadowed words (bmc run time)
 //
 // Input assumptions (upstream contract, eog_countdown -> eog_head; eog_regs -> weight port):
-//   STATUS in {VALID, HELD, INVALID, DROPPED}; REASON[NO_MODEL] = 0 (only the head sets it); INVALID/DROPPED carry
-//   FEAT = 0; DROPPED carry RULES = 0, CD = three 0xFFFF (conventions section 3).
+//   STATUS in {VALID, HELD, INVALID, DROPPED}; REASON[NO_MODEL] = 0 (only the head sets it). FEAT, RULES and CD are
+//   free for every status (CH3/RULES/CD are copies; logits must be 0 for INVALID/DROPPED whatever FEAT holds).
 //   wb_we: wb_addr <= 68; word 68 bits [31:16] and [7:5] written 0; a weight half with index >= N_FEAT written 0
-//   (the W[k][31] padding at N_FEAT = 31); at reduced N_FEAT only words the DUT uses are written. No write or
-//   swap_req during reset.
+//   (the W[k][31] padding at N_FEAT = 31); at reduced N_FEAT only words the DUT uses are written. Writes during
+//   either reset are allowed (and must be ignored). No swap_req while rst_n = 0.
+//   Resets (spec v3): wb_rst_n = 0 in the first cycle and wb_rst_n = 0 -> rst_n = 0 (a hard reset resets both);
+//   rst_n alone (soft reset) is free.
 
 module fv_eog_head #(
     parameter integer N_FEAT       = 31,
@@ -72,6 +81,7 @@ module fv_eog_head #(
 ) (
     input logic         clk,          // top-level inputs are free: the solver drives them
     input logic         rst_n,
+    input logic         wb_rst_n,     // spec v3: weight-store (hard) reset
     input logic         in_valid,
     input logic [662:0] in_data,      // EOG_BC_W
     input logic         out_ready,
@@ -98,7 +108,7 @@ module fv_eog_head #(
     logic [31:0]  dut_oldest;
 
     eog_head #(.II(16), .N_FEAT(N_FEAT), .N_CLS(4)) dut (
-        .clk(clk), .rst_n(rst_n),
+        .clk(clk), .rst_n(rst_n), .wb_rst_n(wb_rst_n),
         .in_valid(in_valid), .in_ready(in_ready), .in_data(in_data),
         .out_valid(out_valid), .out_ready(out_ready), .out_data(out_data),
         .wb_we(wb_we), .wb_addr(wb_addr), .wb_wdata(wb_wdata), .wb_raddr(wb_raddr), .wb_rdata(wb_rdata),
@@ -175,10 +185,6 @@ module fv_eog_head #(
         if (in_valid) begin
             a_status: assume (is_vh(i_status) || i_status == EOG_ST_INVALID || i_status == EOG_ST_DROPPED);
             a_nm:     assume (!in_data[EOG_BC_REASON + EOG_R_NO_MODEL]);
-            if (i_status == EOG_ST_INVALID || i_status == EOG_ST_DROPPED)
-                a_feat0: assume (in_data[EOG_BC_FEAT +: EOG_BC_FEAT_W] == '0);
-            if (i_status == EOG_ST_DROPPED)
-                a_drop: assume (in_data[EOG_BC_RULES +: EOG_BC_RULES_W] == '0 && in_data[EOG_BC_CD +: EOG_BC_CD_W] == '1);
             a_fset:   assume (&i_fset_ok);
         end
     end
@@ -192,7 +198,9 @@ module fv_eog_head #(
     assign w_i1 = {2'b00, wb_addr[3:0], 1'b1};
 
     always_comb begin
-        if (!rst_n) a_rst_quiet: assume (!wb_we && !swap_req);
+        if (!f_past_valid) a_hard0: assume (!wb_rst_n);
+        if (!wb_rst_n)     a_hard:  assume (!rst_n);
+        if (!rst_n)        a_rreq:  assume (!swap_req);
         if (wb_we) begin
             a_wb_addr: assume (wb_addr <= 7'd68);
             if (wb_addr == 7'd68) a_wb_meta: assume (wb_wdata[31:16] == 16'd0 && wb_wdata[7:5] == 3'd0);
@@ -206,21 +214,25 @@ module fv_eog_head #(
     end
 
     // ------------------------------------------------------------------------------- previous-cycle values
-    logic       p_rst, p_bank, p_req_or, p_swap_pending;
+    logic       p_rst, p_wbrst, p_bank, p_req_or, p_swap_pending;
+    logic [7:0] p_ver;
     initial begin
         p_rst    = 1'b0;
+        p_wbrst  = 1'b0;
         p_req_or = 1'b0;
     end
     always_ff @(posedge clk) begin
         p_rst          <= rst_n;
+        p_wbrst        <= wb_rst_n;
         p_bank         <= active_bank;
+        p_ver          <= active_ver;
         p_swap_pending <= swap_pending;
-        p_req_or       <= rst_n && (f_pend || swap_req);
+        p_req_or       <= wb_rst_n && (f_pend || swap_req);     // only a hard reset clears a pending swap
     end
 
-    // a swap = active_bank toggling at a clock edge outside reset
+    // a swap = active_bank toggling at a clock edge outside a hard reset
     logic f_toggle;
-    assign f_toggle = f_past_valid && p_rst && (active_bank != p_bank);
+    assign f_toggle = f_past_valid && p_wbrst && (active_bank != p_bank);
     assign f_pend   = p_req_or && !f_toggle;
 
     // ------------------------------------------------------------------------------------------------- H2
@@ -234,16 +246,20 @@ module fv_eog_head #(
     always_comb begin
         if (f_past_valid) begin
             H2_pend: assert ((swap_pending == f_pend) || (swap_req && swap_pending));
-            if (p_rst) begin
+            if (p_wbrst) begin
                 if (f_toggle) begin
                     H2_once: assert (p_req_or);
                     H2_bnd:  assert (f_in_flight == 8'd0);
                 end
                 if (p_swap_pending && !swap_pending)
                     H2_fall: assert (f_toggle);
+                if (!p_rst) begin
+                    SRST_bank: assert (active_bank == p_bank);
+                    SRST_ver:  assert (active_ver == p_ver);
+                end
+            end else begin
+                RST: assert (active_ver == 8'd0 && active_bank == 1'b0);
             end
-            if (!p_rst)
-                RST: assert (active_ver == 8'd0);
         end
         if (f_past_valid && rst_n) begin
             H2_prio: assert (!(in_fire && f_pend));
@@ -253,7 +269,8 @@ module fv_eog_head #(
 
     // ------------------------------------------------------------------------------ weight-bank shadow
     // Slot j shadows word sh_addr(j) of both banks: value and "known" (written since power-up; word 68 is known 0
-    // after every reset). A write goes to the bank inactive in the write cycle (eog_head.md "Behavior").
+    // after every hard reset; rst_n alone leaves the shadow alone). A write goes to the bank inactive in the write
+    // cycle (eog_head.md "Behavior"); writes while either reset is 0 are ignored.
     (* anyconst *) logic [6:0] f_a;
     always_comb begin
         a_fa: assume (f_a <= 7'd68 && (f_a >= 7'd64 || 32'(f_a[3:0]) < NWPC));
@@ -274,14 +291,14 @@ module fv_eog_head #(
     end
     always_ff @(posedge clk) begin
         for (int j = 0; j < NSH; j++) begin
-            if (!rst_n) begin
+            if (!wb_rst_n) begin
                 if (sh_addr(j, f_a) == 7'd68) begin
                     sh_v0[j*32 +: 32] <= 32'd0;
                     sh_v1[j*32 +: 32] <= 32'd0;
                     sh_k0[j]          <= 1'b1;
                     sh_k1[j]          <= 1'b1;
                 end
-            end else if (wb_we && wb_addr == sh_addr(j, f_a)) begin
+            end else if (rst_n && wb_we && wb_addr == sh_addr(j, f_a)) begin
                 if (active_bank) begin
                     sh_v0[j*32 +: 32] <= wb_wdata;
                     sh_k0[j]          <= 1'b1;
@@ -317,8 +334,9 @@ module fv_eog_head #(
     always_comb if (f_past_valid && sh_meta_act_k) H3_ver: assert (active_ver == sh_meta_act[15:8]);
 
     // RB: readback of the inactive bank, 1 cycle after wb_raddr (not across a swap, not for a word written in the
-    // read cycle: read-during-write is unspecified). SH = 0 compares VER only (S_OUT of the active bank is not
-    // observable every cycle, so it is not inductive).
+    // read cycle: read-during-write is unspecified; not for a read during a hard reset). Reads during a soft reset
+    // are checked (rst_n only flushes the record in flight). SH = 0 compares VER only (S_OUT of the active bank is
+    // not observable every cycle, so it is not inductive).
     localparam logic [31:0] RB_MASK = (SH == 0) ? 32'h0000_FF00 : 32'hFFFF_FFFF;
     logic        rb_hit, p_rb_chk;
     logic [31:0] rb_exp, p_rb_exp;
@@ -334,7 +352,7 @@ module fv_eog_head #(
     end
     initial p_rb_chk = 1'b0;
     always_ff @(posedge clk) begin
-        p_rb_chk <= rst_n && rb_hit && !(wb_we && wb_addr == wb_raddr);
+        p_rb_chk <= wb_rst_n && rb_hit && !(rst_n && wb_we && wb_addr == wb_raddr);
         p_rb_exp <= rb_exp;
     end
     always_comb if (f_past_valid && p_rb_chk && active_bank == p_bank) RB: assert ((wb_rdata & RB_MASK) == (p_rb_exp & RB_MASK));
@@ -463,12 +481,15 @@ module fv_eog_head #(
 
     // ------------------------------------------------------------------------------------------------ covers
     logic [7:0] c_last_wver;
-    logic       c_nout, c_coal;
+    logic       c_nout, c_coal, c_srst;
     initial begin
         c_nout = 1'b0;
         c_coal = 1'b0;
+        c_srst = 1'b0;
     end
     always_ff @(posedge clk) begin
+        if (!wb_rst_n)                         c_srst <= 1'b0;
+        else if (!rst_n && active_ver != 8'd0) c_srst <= 1'b1;
         if (!rst_n) begin
             c_nout <= 1'b0;
             c_coal <= 1'b0;
@@ -489,5 +510,6 @@ module fv_eog_head #(
         C_nomodel:  cover (out_fire && out_data[EOG_BL_REASON + EOG_R_NO_MODEL]);
         C_coalesce: cover (f_toggle && c_coal);
         C_rb:       cover (p_rb_chk && active_bank == p_bank && wb_rdata != 32'd0);
+        C_srst:     cover (out_fire && c_srst && out_data[EOG_BL_WVER +: 8] != 8'd0);
     end
 endmodule
