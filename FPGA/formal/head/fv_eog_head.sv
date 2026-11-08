@@ -209,6 +209,21 @@ module fv_eog_head #(
         else used_word = (32'(half_feat(w, 1'b0)) < N_FEAT) || (32'(half_feat(w, 1'b1)) < N_FEAT);
     endfunction
 
+    // harness product W * FEAT (s16 x s16): under the operand restrictions (FSET 2..5) it is built from shifts and a
+    // negation, so the solver never meets a second multiplier circuit; FSET 0 uses a plain multiply
+    function automatic logic signed [31:0] prod16(input logic [15:0] w, input logic [15:0] f);
+        logic signed [31:0] wx, r;
+        wx = {{16{w[15]}}, w};
+        r  = '0;
+        if (FSET == 0)          r = $signed(w) * $signed(f);
+        else if (f == 16'h0001) r = wx;
+        else if (f == 16'hFFFF) r = -wx;
+        else if (f == 16'h7FFF) r = (wx <<< 15) - wx;
+        else if (f == 16'h8000) r = -(wx <<< 15);
+        else for (int j = 1; j < 15; j++) if (f == 16'(1 << j)) r = wx <<< j;
+        prod16 = r;
+    endfunction
+
     function automatic integer slot_ix(input integer j);
         slot_ix = (j < NSH) ? j : 0;
     endfunction
@@ -551,7 +566,7 @@ module fv_eog_head #(
                             else if (c_w != 16'd0) begin
                                 pr_z[k] = 1'b0;
                                 if (MUL_REAL == 0) pr_ok[k] = 1'b0;
-                                c_p   = c_w * c_f;
+                                c_p   = prod16(c_w, c_f);
                                 c_acc = c_acc + {{32{c_p[31]}}, c_p};
                             end
                         end
