@@ -1,5 +1,5 @@
-// eog_memory.sv -- the 19 per-facility memory features (spec v2: modules/eog_memory.md, numerics.md section 5,
-// conventions section 7 formal observation ports).
+// eog_memory.sv -- the 19 per-facility memory features (spec v4: modules/eog_memory.md, numerics.md section 5,
+// conventions sections 3 and 7; bit-exact with features_int.py S3).
 //
 // Bus F in, bus M out. One record at a time:
 //   S_SWEEP  after reset: clears one state slot per cycle (N_FAC cycles), in_ready = 0
@@ -10,13 +10,16 @@
 //
 // Per-slot state (packed, one word per facility; a single write port and one async read port, so Vivado can map
 // it to distributed RAM):
-//   last_run[5] s16, ema_f[5] s24, ema_s[5] s24, net_ema s24, nsr u8, has_run 1   (353 bits)
+//   last_run[5] s16, ema_f[5] s24, ema_s[5] s24, net_ema s24, nsr u8, has_run 1, has_net 1   (354 bits)
 // The averages are kept in 24 bits: every average is a convex step between its old value and an input x << 8
 // (x s16), so it never leaves the s24 range of x << 8 (numerics.md section 5); the 25-bit intermediate sum is
 // therefore exact when truncated to 24 bits, for every 24-bit state.
 //
-// Only VALID/HELD records with FAC < N_FAC read-modify-write their slot (HIST_RESET clears it first). All other
-// records (INVALID, DROPPED, any other status code) touch no state and get FEAT[12..30] = 0.
+// net_ema starts at the first VALID/HELD record's FEAT[11] << 8 (has_net = 0), then steps by 1/8 (v4).
+//
+// Only records with FAC < N_FAC touch state: VALID/HELD read-modify-write their slot (HIST_RESET clears it first);
+// any other non-DROPPED record (INVALID) with HIST_RESET = 1 just clears its slot; everything else touches no state.
+// Every record other than VALID/HELD gets FEAT[12..30] = 0.
 
 module eog_memory #(
     parameter integer N_FAC = 32,
@@ -57,7 +60,8 @@ module eog_memory #(
     localparam integer O_NET = O_ES + EW * NG;       // net_ema
     localparam integer O_NSR = O_NET + EW;           // nsr (u8)
     localparam integer O_HR  = O_NSR + 8;            // has_run
-    localparam integer SW    = O_HR + 1;             // 353
+    localparam integer O_HN  = O_HR + 1;             // has_net
+    localparam integer SW    = O_HN + 1;             // 354
 
     // the 19 memory features, FEAT[12 + j] at [16j+15:16j]
     localparam integer MF    = EOG_N_FEAT - 12;      // 19
@@ -84,7 +88,7 @@ module eog_memory #(
     logic                       r_hist, r_run;
     logic [EOG_BF_SINCE_RESET_W-1:0] r_since;
     logic [15:0]                r_f11;
-    logic                       fac_ok, upd;
+    logic                       fac_ok, upd, clr;
     logic [FW-1:0]              slot;
 
     assign r_status = in_r[EOG_BF_STATUS +: EOG_BF_STATUS_W];
@@ -96,6 +100,7 @@ module eog_memory #(
 
     assign fac_ok = ({1'b0, r_fac} < N_FAC[EOG_BF_FAC_W:0]);
     assign upd    = fac_ok && ((r_status == EOG_ST_VALID) || (r_status == EOG_ST_HELD));
+    assign clr    = fac_ok && r_hist && (r_status != EOG_ST_DROPPED);   // HIST_RESET clears even on INVALID
     assign slot   = r_fac[FW-1:0];
 
     // ---------------------------------------------------------------------------------------------------
@@ -104,14 +109,15 @@ module eog_memory #(
     assign s_rd  = mem[slot];
     assign s_old = r_hist ? {SW{1'b0}} : s_rd;
 
-    logic       o_hr, n_hr;
+    logic       o_hr, n_hr, o_hn;
     logic [7:0] o_nsr, n_nsr;
     assign o_hr  = s_old[O_HR];
+    assign o_hn  = s_old[O_HN];
     assign o_nsr = s_old[O_NSR +: 8];
     assign n_hr  = o_hr | r_run;
     assign n_nsr = r_run ? 8'd0 : ((o_nsr == 8'hFF) ? 8'hFF : o_nsr + 8'd1);
 
-    // net_ema += ((FEAT[11] << 8) - net_ema) >>> 3, on every updating record
+    // net_ema = has_net ? net_ema + (((FEAT[11] << 8) - net_ema) >>> 3) : FEAT[11] << 8, on every updating record
     // Every operand below is a signed wire of the same width, so the arithmetic is signed and >>> is arithmetic
     // (a concatenation or other unsigned operand would make the whole expression unsigned).
     logic signed [EW-1:0] o_net, n_net, t_net;
@@ -127,7 +133,7 @@ module eog_memory #(
     assign d_net   = t_net_x - o_net_x;            // exact in s25
     assign q_net   = d_net >>> EOG_EMA_FAST;
     assign s_net   = o_net_x + q_net;
-    assign n_net   = s_net[EW-1:0];
+    assign n_net   = o_hn ? s_net[EW-1:0] : t_net;
 
     logic [16*NG-1:0] n_lr;
     logic [EW*NG-1:0] n_ef, n_es;
@@ -168,7 +174,7 @@ module eog_memory #(
     endgenerate
 
     // layout O_LR .. O_HR is contiguous, LSB first
-    assign s_new = {n_hr, n_nsr, n_net, n_es, n_ef, n_lr};
+    assign s_new = {1'b1, n_hr, n_nsr, n_net, n_es, n_ef, n_lr};     // has_net = 1 after any update
 
     // ---------------------------------------------------------------------------------------------------
     // the 19 features (after the update)
@@ -215,13 +221,14 @@ module eog_memory #(
         end
     end
 
-    // state RAM: one write port (sweep clear or the record's update), no reset (RAM-inferable)
+    // state RAM: one write port (sweep clear, the record's update, or an INVALID record's HIST_RESET clear),
+    // no reset (RAM-inferable)
     logic          we;
     logic [FW-1:0] wa;
     logic [SW-1:0] wd;
-    assign we = rst_n && ((st == S_SWEEP) || ((st == S_CALC) && upd));
+    assign we = rst_n && ((st == S_SWEEP) || ((st == S_CALC) && (upd || clr)));
     assign wa = (st == S_SWEEP) ? sw_idx : slot;
-    assign wd = (st == S_SWEEP) ? {SW{1'b0}} : s_new;
+    assign wd = (st == S_SWEEP || !upd) ? {SW{1'b0}} : s_new;
 
     always_ff @(posedge clk) begin
         if (we) mem[wa] <= wd;
@@ -259,7 +266,8 @@ module eog_memory #(
     always_comb if (rst_n && st == S_SWEEP) fi_sweep: assert (sw_idx <= NFL[FW-1:0]);
     // a record with no state access presents FEAT[12..30] = 0
     always_comb if (rst_n && st == S_OUT && !upd) fi_zero: assert (mf_r == {MFW{1'b0}});
-    // every cleared-or-updated slot: before its first running record, last_run and both averages are 0
+    // every cleared-or-updated slot: before its first running record, last_run and both averages are 0;
+    // before its first VALID/HELD record, net_ema is 0
     genvar fs;
     generate
         for (fs = 0; fs < N_FAC; fs = fs + 1) begin : g_fslot
@@ -268,6 +276,9 @@ module eog_memory #(
             always_comb
                 if (rst_n && (st != S_SWEEP || fs < sw_idx) && !w[O_HR])
                     assert (w[O_LR +: O_NET - O_LR] == {(O_NET - O_LR){1'b0}});  // unlabeled: one per slot
+            always_comb
+                if (rst_n && (st != S_SWEEP || fs < sw_idx) && !w[O_HN])
+                    assert (w[O_NET +: EW] == {EW{1'b0}});
         end
     endgenerate
 `endif
