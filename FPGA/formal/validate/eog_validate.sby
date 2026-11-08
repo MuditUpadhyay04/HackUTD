@@ -19,11 +19,12 @@
 # bmc_w   the same history properties without REF at full data width (exact 33-bit TS differences, 16-bit
 #         values, LO/HI limits anywhere). depth 12 (5 records).
 # cover   spec cover list (HELD, gap-held, INVALID, hold-overflow reset, each DROPPED reason) plus vacuity covers
-#         for the history properties, every schedule. depth 14.
+#         for the history properties, every schedule. depth 10 (all 20 covers are reached by step 7).
 #
-# Run times against a throwaway v4 reference stub (latency 1, II 2), WSL, yices, on a machine shared with other
-# proof jobs: see the T1.validate.fv report. The BMC tasks grow ~2.5x per record; if the RTL makes them too
-# slow, lower bmc to depth 12 (5 records) before touching anything else.
+# Run times against a throwaway v4 reference stub (latency 1, II 2), WSL, yices, machine shared with other proof
+# jobs (load ~10 on 20 cores), Sun Nov 8 01:15 CST: prove 12 s, bmc 238 s, bmc_w 69 s, cover 7 s.
+# The BMC tasks grow ~2.5x per record (2 steps at II 2); if the RTL makes them too slow, lower bmc to depth 12
+# (5 records) before touching anything else.
 
 [tasks]
 prove
@@ -39,7 +40,7 @@ bmc:   depth 14
 bmc_w: mode bmc
 bmc_w: depth 12
 cover: mode cover
-cover: depth 14
+cover: depth 10
 
 [engines]
 smtbmc yices
