@@ -21,7 +21,20 @@ export interface CoordinatorRuntime {
 }
 /** off: reasoning disabled per request (default). on: server default. budget: vLLM thinking_token_budget. */
 export type Thinking = { mode: "off" } | { mode: "on" } | { mode: "budget"; tokens: number };
-export interface Provider { baseUrl: string; model: string; apiKey: string; contextWindow?: number; maxOutputTokens?: number; thinking?: Thinking }
+
+/** Chat failover shared by libfx and the AI SDK. Implemented by the OpenRouter pool; absent in tests that hit one endpoint. */
+export interface ProviderDispatch {
+  dispatch(provider: Provider, url: string, init: RequestInit, base: (url: string, init: RequestInit) => Promise<Response>): Promise<Response>;
+  /** Model id that last finished a chat call through this pool. */
+  activeModel(): string | null;
+}
+
+export interface Provider {
+  baseUrl: string; model: string; apiKey: string; contextWindow?: number; maxOutputTokens?: number; thinking?: Thinking;
+  /** Unset means the Brev/vLLM endpoint. `openrouter` means this provider is already the fallback lane. */
+  transport?: "vllm" | "openrouter";
+  pool?: ProviderDispatch;
+}
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 2048;
 /** Model calls per analysis on either runtime; with thinking off each call measured about 1 to 2 s. */
@@ -52,8 +65,11 @@ export function thinkingBody(thinking: Thinking | undefined): Record<string, unk
  * POST {baseUrl}/chat/completions JSON bodies only; every other request passes through untouched.
  */
 export function providerFetch(provider: Provider, base: typeof fetch = fetch) {
-  const extra = thinkingBody(provider.thinking);
+  // OpenRouter requests get their reasoning fields in the pool, which also swaps the model and key.
+  const extra = provider.transport === "openrouter" ? {} : thinkingBody(provider.thinking);
   const target = `${provider.baseUrl}/chat/completions`;
+  const send = (input: string, init: RequestInit) =>
+    provider.pool ? provider.pool.dispatch(provider, input, init, (url, next) => base(url, next)) : base(input, init);
   return async (input: string, init: RequestInit): Promise<Response> => {
     const text = bodyText(init.body);
     if (Object.keys(extra).length && input === target && (init.method ?? "GET").toUpperCase() === "POST" && text !== undefined) {
@@ -61,10 +77,10 @@ export function providerFetch(provider: Provider, base: typeof fetch = fetch) {
         const body = JSON.parse(text) as Record<string, unknown>;
         const kwargs = { ...(body.chat_template_kwargs as Record<string, unknown> | undefined), ...(extra.chat_template_kwargs as Record<string, unknown> | undefined) };
         const merged = { ...body, ...extra, ...(extra.chat_template_kwargs ? { chat_template_kwargs: kwargs } : {}) };
-        return base(input, { ...init, body: JSON.stringify(merged) });
+        return send(input, { ...init, body: JSON.stringify(merged) });
       } catch { /* Not JSON: send unchanged. */ }
     }
-    return base(input, init);
+    return send(input, init);
   };
 }
 

@@ -80,7 +80,7 @@ Missing or unregistered classifier weights mean model scores and leak/degradatio
 
 Plans are recommendations, not physical dispatch. Approvals acknowledge an immutable system-plan revision. Proposed fleet allocations do not reserve actual trucks. Scenarios independently revalidate complete system alternatives and never modify recorded telemetry. The solver reports the best feasible candidate within a bounded policy, not a global continuous-time optimum.
 
-Optional `NVIDIA_BASE_URL`, `NEMOTRON_MODEL` and `NVIDIA_API_KEY` configure direct FX/Nemotron analysis. Without them, handoffs are explicitly labeled deterministic drafts. Costs and countdowns remain deterministic regardless of model availability.
+Optional `NVIDIA_BASE_URL`, `NEMOTRON_MODEL` and `NVIDIA_API_KEY` configure the Brev Nemotron endpoint. `OPENROUTER_API_KEYS` (comma-separated) is the fallback, and is enough on its own: chats use free Nemotron models and rotate to the next key when one fails. `/internal/providers` on the operator console shows the live lane, the masked key, and the last error. Without either, handoffs are explicitly labeled deterministic drafts. Costs and countdowns remain deterministic regardless of model availability.
 
 ## Verify
 

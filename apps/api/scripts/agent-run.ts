@@ -1,9 +1,10 @@
 /**
  * One orchestrated agent run on a dataset cutoff, printed as a task tree (CLI trace).
  * bun apps/api/scripts/agent-run.ts --data <dataset dir> --at <unix> [--strategy 1|2] [--board results.jsonl] [--board-source fpga|fakeboard] [--json out.json]
- * Reads NVIDIA_BASE_URL / NEMOTRON_MODEL / NVIDIA_API_KEY from the root .env (never printed).
+ * Reads NVIDIA_BASE_URL / NEMOTRON_MODEL / NVIDIA_API_KEY and OPENROUTER_API_KEYS from the root .env (never printed).
  */
 import { writeFileSync } from "node:fs";
+import { attachProviderPool } from "../src/features/agents/provider-pool";
 import { loadConfig } from "../src/infrastructure/config";
 import { createModel } from "../src/features/agents/orchestration/subagent";
 import { orchestrate, SEED_STRATEGIES } from "../src/features/agents/orchestration/orchestrator";
@@ -14,7 +15,8 @@ import { printTrace } from "../src/features/agents/orchestration/print";
 
 const arg = (name: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : undefined; };
 const config = loadConfig({ ...process.env, STORAGE_MODE: "memory", ALLOW_INSECURE_LOCAL: "1" });
-if (!config.provider) throw new Error("Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY in the root .env");
+if (!config.provider) throw new Error("Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY, or OPENROUTER_API_KEYS, in the root .env");
+attachProviderPool(config);
 const dataset = await loadDataset(arg("data") ?? "../HackUTD-ZeroDay/history/full_week");
 const at = Number(arg("at") ?? dataset.info.nowUnix);
 

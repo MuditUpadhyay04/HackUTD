@@ -6,7 +6,7 @@ import { runWorker } from "./infrastructure/jobs/worker";
 import { readRegisteredModel } from "./features/runtimes/model";
 
 const config = loadConfig();
-console.log("[API] Config loaded, provider:", config.provider ? { baseUrl: config.provider.baseUrl, model: config.provider.model } : "none");
+console.log("[API] Config loaded, provider:", config.provider ? { transport: config.provider.transport ?? "vllm", baseUrl: config.provider.baseUrl, model: config.provider.model } : "none", "openrouterKeys:", config.openrouter?.keys.length ?? 0);
 const store = createStore({ databaseUrl: config.databaseUrl, memory: config.memory });
 await store.init();
 const service = new Application(store, config, config.modelMetadataPath ? await readRegisteredModel(config.modelMetadataPath) : undefined);
