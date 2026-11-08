@@ -48,6 +48,19 @@ describe("empty shift", () => {
   });
 });
 
+describe("fallbacks", () => {
+  test("when Nemotron's triage and handoff are never accepted, the orchestrator writes them from the facts and says so", async () => {
+    const { model } = scripted({ triage: () => ({ text: "thinking..." }), plan_explainer: () => ({ text: "..." }), handoff: () => ({ text: "..." }) });
+    const trace = await orchestrate({ model, snapshot, prompts, strategy: SEED_STRATEGIES[0]! });
+    expect(trace.fallbacks).toEqual(["triage", "handoff"]);
+    expect(trace.outputs.handoff).toBeNull(); // the learning loop must not count a fallback as an accepted handoff
+    const fb = trace.nodes.filter((n) => n.status === "deterministic" && n.role === "handoff")[0]!;
+    expect(fb.reason).toStartWith("fallback:");
+    expect((fb.output as { handoff: string }).handoff).toContain("written by the orchestrator");
+    expect(trace.outputs.triage?.order).toEqual([A, C, LEAK]);
+  });
+});
+
 describe("orchestrator task tree", () => {
   test("grants, caches and refuses sub-agent requests under the guards, and records every node", async () => {
     const { model } = scripted({

@@ -28,7 +28,10 @@ export interface AgentRunTrace {
   id: string; runId: string; revision: number; nowUnix: number; now: string; startedAt: string; cycle: string | null; caseId: string | null;
   strategy: Strategy; prompts: Partial<Record<Role, number>>; guards: Omit<Guards, "allowed">;
   alertsView: ReturnType<typeof alertsView>; board: BoardFact[]; nodes: TaskNode[];
+  /** `handoff` is set only when Nemotron's handoff was accepted (or the shift is empty); the learning loop counts on it. */
   outputs: { triage: TriageOutput | null; explanations: ExplainerOutput[]; reviews: ReviewOutput[]; handoff: HandoffOutput | null };
+  /** Roles whose output the orchestrator wrote from the facts because Nemotron's was not accepted. Never blank for the operator. */
+  fallbacks: ("triage" | "handoff")[];
   totals: { nodes: number; modelCalls: number; inputTokens: number; outputTokens: number; latencyMs: number; accepted: number; denied: number; maxDepth: number };
   score: number;
 }
@@ -113,7 +116,15 @@ export async function orchestrate(options: OrchestrateOptions): Promise<AgentRun
   });
 
   const ongoing = facts.incidents.filter((i) => i.status === "ongoing");
+  const fallbacks: AgentRunTrace["fallbacks"] = [];
   const triage = await spawn("triage", root, undefined, "every run starts with triage", root.id);
+  if (triage.status !== "accepted") {
+    // Deterministic fallback: rule 7 order, no notes. Later roles still get an order; the node says why.
+    outputs.triage = { order: priorityOrder(facts), notes: [] };
+    fallbacks.push("triage");
+    node({ parentId: root.id, depth: 1, role: "triage", incidentId: null, requestedBy: root.id, question: null, promptVersion: null, status: "deterministic",
+      reason: `fallback: Nemotron's triage was not accepted (${triage.error ?? triage.status}); rule 7 order from the facts`, output: outputs.triage });
+  }
   if (options.strategy.explainers === "per_incident") {
     const order = priorityOrder(facts);
     const targets = ongoing.filter((i) => i.category === "pump_failure" && i.plans.length && !done.has(`plan_explainer:${i.incidentId}`))
@@ -128,12 +139,21 @@ export async function orchestrate(options: OrchestrateOptions): Promise<AgentRun
     : node({ parentId: root.id, depth: 1, role: "handoff", incidentId: null, requestedBy: root.id, reason: "no ongoing incidents: deterministic handoff, no model call",
         question: null, promptVersion: null, status: "deterministic",
         output: { handoff: `No ongoing incidents at ${facts.now}. Detections from ${facts.detections}.`, evidenceIds: [], planIds: [] } satisfies HandoffOutput });
+  if (ongoing.length && handoff.status !== "accepted") {
+    // Never blank for the operator: the orchestrator writes the handoff from the deterministic alerts view.
+    fallbacks.push("handoff");
+    const lines = alertsView(facts).map((a) => a.line);
+    node({ parentId: root.id, depth: 1, role: "handoff", incidentId: null, requestedBy: root.id, question: null, promptVersion: null, status: "deterministic",
+      reason: `fallback: Nemotron's handoff was not accepted (${handoff.error ?? handoff.status}); written from the alerts view`,
+      output: { handoff: `Ongoing at ${facts.now} (written by the orchestrator from the facts): ${lines.join("; ")}.`, evidenceIds: [], planIds: [] } satisfies HandoffOutput });
+  }
   const scored = nodes.filter((n) => n.score);
   const trace: AgentRunTrace = {
     id: `agents-${randomUUID()}`, runId: facts.runId, revision: facts.revision, nowUnix: facts.nowUnix, now: facts.now, startedAt: new Date(started).toISOString(), cycle: options.cycle ?? null, caseId: options.caseId ?? null,
     strategy: options.strategy, prompts: Object.fromEntries(Object.entries(options.prompts).map(([k, v]) => [k, v!.version])),
     guards: { maxDepth: guards.maxDepth, maxNodes: guards.maxNodes, maxTokens: guards.maxTokens, deadlineMs: guards.deadlineMs }, alertsView: alertsView(facts), board: facts.board, nodes,
     outputs: { triage: outputs.triage ?? null, explanations: outputs.explanations, reviews: outputs.reviews, handoff: handoff.status === "accepted" || handoff.status === "deterministic" ? handoff.output as HandoffOutput : null },
+    fallbacks,
     totals: { nodes: scored.length, modelCalls: sum(nodes, "modelCalls"), inputTokens: sum(nodes, "inputTokens"), outputTokens: sum(nodes, "outputTokens"), latencyMs: Date.now() - started,
       accepted: nodes.filter((n) => n.status === "accepted").length, denied: nodes.filter((n) => n.status === "denied").length, maxDepth: Math.max(...nodes.map((n) => n.depth)) },
     score: strategyScore(facts, scored, sum(nodes, "inputTokens")),
