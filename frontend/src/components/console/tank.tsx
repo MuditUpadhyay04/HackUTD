@@ -51,7 +51,7 @@ export function TankGlyph({
 }
 
 export function toneFor(f: FacilityState, limits: Limits): TankTone {
-  if (f.health === "shut_in" || f.health === "no_data" || f.tank.levelPct == null) return "idle";
+  if (f.health === "shut_in" || f.health === "no_data" || f.health === "unknown" || f.tank.levelPct == null) return "idle";
   if (f.health === "failure") return f.tank.levelPct >= limits.warningPct ? "crit" : "warn";
   if (f.tank.levelPct >= limits.shutdownPct) return "crit";
   if (f.tank.levelPct >= limits.warningPct) return "warn";

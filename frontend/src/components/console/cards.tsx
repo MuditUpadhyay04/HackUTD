@@ -22,9 +22,10 @@ export function StatCard({ label, value, tone }: { label: string; value: string;
 /** Ring = how full the tank is on its way to the shutdown line. */
 function Ring({ pct, shutdownPct, tone }: { pct: number; shutdownPct: number; tone: "crit" | "warn" }) {
   const c = 2 * Math.PI * 18;
-  const raw = shutdownPct > 0 && Number.isFinite(pct) ? pct / shutdownPct : 0;
-  const frac = Math.max(0.04, Math.min(1, raw));
-  const color = tone === "crit" ? "#ff3b30" : "#ff9500";
+  const known = Number.isFinite(pct); // a missing level is drawn as an empty grey ring, never as an empty tank (hard rule 9)
+  const raw = shutdownPct > 0 && known ? pct / shutdownPct : 0;
+  const frac = known ? Math.max(0.04, Math.min(1, raw)) : 0;
+  const color = !known ? "#8e8e93" : tone === "crit" ? "#ff3b30" : "#ff9500";
   return (
     <svg className="size-11 shrink-0" viewBox="0 0 44 44" aria-hidden>
       <circle cx="22" cy="22" r="18" fill="none" stroke={color} strokeOpacity={0.16} strokeWidth="6" />
@@ -92,7 +93,7 @@ export function PumpCard({
   const tone = cd.kind === "counting" && cd.hours < 3 ? "crit" : "warn";
   const doNothing = a.options?.find((o) => o.kind === "do_nothing");
   const saved = doNothing && a.plan ? doNothing.cost - a.plan.cost : 0;
-  const level = a.levelPct ?? 0;
+  const level = a.levelPct ?? Number.NaN;
   const dq = a.dataQuality && a.dataQuality.quality !== "VALID" ? a.dataQuality : undefined;
 
   return (
@@ -110,7 +111,7 @@ export function PumpCard({
           <Countdown hours={cd.hours} className={urgent ? "text-crit" : undefined} />
         ) : (
           <span className="font-display text-[44px] leading-none font-semibold tracking-[-0.03em] text-muted-foreground">
-            {cd.kind === "shut_in" ? "Shut in" : cd.kind === "unknown" ? "Unknown" : "Safe"}
+            {cd.kind === "shut_in" ? "Shut in" : cd.kind === "repair_first" ? "Repair first" : cd.kind === "not_filling" ? "Not filling" : "Unknown"}
           </span>
         )}
         <p className="mt-1.5 text-[13px] text-muted-foreground">
@@ -326,7 +327,7 @@ function BoardLine({
 function waterClass(f: FacilityState) {
   if (f.health === "failure") return "bg-[linear-gradient(180deg,#ff9f0a,#ff3b30)]";
   if (f.health === "leak" || f.health === "degradation") return "bg-[linear-gradient(180deg,#ffcc00,#ff9500)]";
-  if (f.health === "shut_in" || f.health === "no_data") return "bg-[linear-gradient(180deg,#c7c7cc,#8e8e93)]";
+  if (f.health === "shut_in" || f.health === "no_data" || f.health === "unknown") return "bg-[linear-gradient(180deg,#c7c7cc,#8e8e93)]";
   return "bg-[linear-gradient(180deg,#5ac8fa,#0a84ff)]";
 }
 

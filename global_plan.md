@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 02:55 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:25 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -20,7 +20,8 @@ ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **S
   them**: ingest, ML, the server, agents and the console. Nothing here asks for an FPGA or RTL change. A component
   that seems to need one raises it with Lucas only if something is actually broken; Lucas decides, and a workaround
   outside the FPGA is the default.
-- **Who has the final word (Mudit, Sun 02:35):**
+- **Who has the final word (Mudit, Sun 02:35).** This is a tiebreaker, not a shortcut: the approvers listed in §8
+  are always consulted first, and the final say applies only when they still disagree.
 
   | Domain | Final say |
   | --- | --- |
@@ -34,8 +35,8 @@ ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **S
 - If an owner's plan and this file disagree, the owner with the final say for that domain decides. Record the result
   here.
 - **Reviewers and bots:** check every change against §2 (hard rules) and §5 (contracts). A change that touches a
-  contract needs the approvers in §8. Known gaps that are already tracked are listed in §9 with an owner; a PR that
-  doesn't make them worse shouldn't be blocked by them.
+  contract needs the approvers in §8. Known gaps are tracked in §9 with an owner, so a review can tell a new problem
+  from a known one; tracking a gap doesn't exempt it from the hard rules.
 
 ## 1. What we're building
 
@@ -83,6 +84,10 @@ coming from the files (no hardcoding), and whether we followed the instructions.
    reason bits.
 10. **No unmeasured claims in the pitch.** No accuracy, latency, resource or throughput claim unless it was
     measured; label estimates as estimates.
+
+Rules 11–13 are **PROPOSED** (integration, Sun 02:40) until the whole team confirms them (§8). Rule 11 restates
+Lucas's spec v4; rules 12 and 13 restate Jason's agent plan and runbook.
+
 11. **One reference for the board's arithmetic.** `ml/hutd_ml/features_int.py` is normative (FPGA spec v4). Any
     output labeled "board", "FPGA" or "model score" comes from the board or from `fakeboard.py`, which runs that
     reference. Other software runtimes must be labeled "not FPGA bit-exact".
@@ -94,7 +99,8 @@ coming from the files (no hardcoding), and whether we followed the instructions.
 
 ## 3. Architecture
 
-**ADOPTED** at integration (Sun 02:40). The parts named in §4 own the detail.
+**ADOPTED** at integration (Sun 02:40) as the path the code implements; rows marked PROPOSED below still need
+their owners' confirmation. The parts named in §4 own the detail.
 
 ```mermaid
 flowchart LR
@@ -144,10 +150,10 @@ flowchart LR
 | C6 | `features_int.py` is the normative integer reference; FPGA `eog_ref.py` must match it bit for bit (checked by `python -m hutd_ml.fpga_sync`) | DECIDED | spec v4 header; ruling #23; `ml/README.md` "RESULT semantics" | Mudit + Lucas |
 | C7 | Weight blob: 980 B (header, 4×31 int16, 4 int32, hash, 10 self-test vectors), CRC32; the ARM checks the header and self-tests; swap at a record boundary | DECIDED | spec v4 §8 (D11); FPGA questions 67–69 | Mudit + Lucas |
 | C8 | Alarms: hit = logit **>** threshold, per-class K, E-STOP = gap rule + leak hit; latched Night Shift / E-STOP with CLEARED alerts; values from the deployed weights' `global_config.json` (**v4**: `persist_K4` [2,4,1,1], `logit_thr` [−128,−64,0,0], `gap_thr` 504) | DECIDED | spec v4 §9; `ml/artifacts/v4/` | Lucas (logic) / Mudit (values) |
-| C9 | Events and actions: the operator API builds incidents (onset / ongoing / resolved) from host interpretation; leak and degradation → inspection; failure → countdown + system plan from the bounded solver + independent validator (`best_feasible_found`); optional SPEC `events.json` export | ADOPTED | `agent-backend-architecture.md` §"Deterministic domain layer" | Jason + Gurneal |
-| C10 | Server ↔ web API: the operator API (Elysia, Eden-typed `App`, SSE cursors), proxied by the Next app with a server-side token | ADOPTED | `agent-backend-architecture.md` §"Feature API"; `apps/api/src/app.ts`; `packages/contracts/` | Jason + Gurneal |
-| C11 | Board → server JSON: `result` / `alert` / `stats` objects from `listen.py` (names, calibrated probability, `above_threshold`, status, reasons, countdown, `weights_ver`), POSTed as arrays; `[]` while idle | DECIDED | `ml/INTEGRATION.md` §3 | Mudit + Jason + Gurneal |
-| C12 | Agent scope: one coordinator, scoped tools, server-validated finalization; Nemotron endpoint per `nemotron-inference-operations.md`; AI SDK fallback; draft without a provider | ADOPTED | `agent-backend-architecture.md` §"Agent design" | Jason |
+| C9 | Events and actions: the operator API builds incidents (onset / ongoing / resolved) from host interpretation; leak and degradation → inspection; failure → countdown + system plan from the bounded solver + independent validator (`best_feasible_found`); optional SPEC `events.json` export | **PROPOSED**: implemented in PR #4; Jason + Gurneal to confirm | `agent-backend-architecture.md` §"Deterministic domain layer" | Jason + Gurneal |
+| C10 | Server ↔ web API: the operator API (Elysia, Eden-typed `App`, SSE cursors), proxied by the Next app with a server-side token | **PROPOSED**: implemented in PR #4; Jason + Gurneal to confirm | `agent-backend-architecture.md` §"Feature API"; `apps/api/src/app.ts`; `packages/contracts/` | Jason + Gurneal |
+| C11 | Board → server JSON: `result` / `alert` / `stats` objects from `listen.py` (names, calibrated probability, `above_threshold`, status, reasons, countdown, `weights_ver`), POSTed as arrays; `[]` while idle | DECIDED for what `listen.py` emits (Mudit); the console consumes it today; the operator API's ingest is I-1 (Jason to confirm the shape) | `ml/INTEGRATION.md` §3 | Mudit + Jason + Gurneal |
+| C12 | Agent scope: one coordinator, scoped tools, server-validated finalization; Nemotron endpoint per `nemotron-inference-operations.md`; AI SDK fallback; draft without a provider | **PROPOSED**: implemented in PR #4; Jason to confirm | `agent-backend-architecture.md` §"Agent design" | Jason |
 
 ## 6. Superseded — do not build
 
@@ -209,13 +215,15 @@ If that fails, the operator API's own software runtime, labeled "not FPGA bit-ex
 
 ## 8. Change control
 
-| What changes | Who must agree (**final say in bold**) | Also do |
+| What changes | Who must agree (**tiebreaker in bold**) | Also do |
 | --- | --- | --- |
 | Wire format, slot rules, FPGA numerics (C2–C4, C6–C8 logic) | **Lucas**, after hearing every consumer | Spec version bump; regenerate golden sets; `fpga_sync` PASS |
 | Weights, thresholds, K (C8 values) | **Mudit** (tell Lucas the version) | New `ml/artifacts/vN/`, golden sets, loopback test |
 | Board JSON (C11) | **Mudit** for what `listen.py` emits; **Jason** for how the server ingests it; Gurneal consulted | Update `ml/INTEGRATION.md` |
-| Events, actions, server ↔ web API, agent scope, Nemotron (C9, C10, C12) | **Jason**, with Gurneal for the console side | Update `docs/plan/jason/` and this file |
-| Hard rules (§2) | Whole team | — |
+| Events, actions, server ↔ web API (C9, C10) | Jason + Gurneal (**Jason** breaks a tie) | Update `docs/plan/jason/` and this file |
+| Agent scope, Nemotron (C12) | **Jason** | Update `docs/plan/jason/` and this file |
+| Alarm semantics (C8 logic) vs. recommended actions (C9) | Lucas + Jason; UI wording with Gurneal | Re-check hard rules 4 and 8 |
+| Hard rules (§2), this section, "How this file works" | Whole team | — |
 | Anything that would change FPGA spec v4 or the RTL | **Lucas**, and only to fix something broken ("How this file works") | Prefer a fix outside the FPGA |
 
 Lucas's live FPGA doc is never edited by automation; update its repo copy. Branch `FPGA` is Lucas's; branch `ml` is
@@ -237,14 +245,22 @@ Mudit's integration branch; `main` receives merges from them.
 | I-8 | AI SDK fallback: verify tool wiring (`inputSchema`, execute args), label `ai-sdk` analyses as model-written in the UI, no fake FX session link, facts via tools rather than the system prompt, no `nowUnix ?? 0` default. | Jason | PR #4 review round 3 |
 | I-9 | **Alarm acknowledge message.** No wire message exists for a server-side latch acknowledge, so `CTRL.server_ack` is never pulsed. The server team defines it; the ARM forwards it (T2.ps1 follow-up); RTL unchanged. A new wire message is C2, so Lucas approves the layout. Until then, acknowledge is BTN0 on the board only, and the console shows latches read-only (hard rules 8, 12). | Jason (+ Lucas) | FPGA spec question 77 |
 | I-10 | Two analysis-coordinator tests fail on PR #4 as merged (`apps/api/src/features/agents/service.test.ts`: "timeout returns an honest draft…", "fails instead of hiding a fenced session persistence failure"). Not caused by the integration: same result on `feature/operator-backend` @ `e001cf3`. | Jason | Found at integration |
+| I-11 | ~~**Hard rule 9 in the console**~~ **Done in PR #6** (minimal fixes, no redesign): `unknown` health is drawn grey like `no_data` (water, pipe, tank, system status) and counts in the "no data" headline; a missing tank level is a grey ring and "tank level unknown", not an empty tank or 0 %; missing confidence, flows, pump status, receive flow and wear scores read "Unknown" / "No data" instead of 0, "Stopped" or a zero gap; plan totals with a missing cost read "Unknown", not `$0`; a pump-failure card says "Repair first" / "Not filling" instead of "Safe". `tsc`, `eslint` and `next build` pass. | Gurneal to review | PR #6 compliance review finding 1 |
+| I-12 | Dead links: the console's `/api/events` download and Photon's `/api/brief` / `/api/events` calls; the operator API serves the export at `GET /runs/:id/export`. | Gurneal | PR #6 review finding 5 |
+| I-13 | Operator approvals live only in React state; persist them through `POST /runs/:id/actions`. | Gurneal (+ Jason) | PR #6 review finding 5 |
+| I-14 | `frontend/src/lib/engine/types.ts` forks `@hackutd/contracts`; use the shared contracts. | Gurneal + Jason | PR #6 review finding 5; C10 |
 
-**FPGA / ML items:**
+**Open questions:**
 
 | # | Item | Owner | Notes |
 | --- | --- | --- | --- |
 | O1 | Should ALERT be ACKed and retried? | Lucas + Jason | ALERTs are buffered and replayed today |
 | O4 | Pin map for LEDs / buttons / Pmods | Lucas | T2.bd1 |
+| O6 | E-STOP on a confirmed leak vs. the leak → inspection rule | Lucas + Jason | **Proposed resolution:** E-STOP stays a local LED / Pmod alarm (spec v4, hard rule 8); the console shows it read-only and still recommends an inspection. FPGA side done; Jason to confirm the server / console side. |
+| O7 | Countdown fix (inflow, not inflow − pump flow; tripped tank → 0) | Lucas; Jason for the fallback band | FPGA side **done** (spec v4, D1 / D2 / D6). Server side open: I-5. |
 | O10 | Throughput demo (loop / scale-out replay) | Lucas | T3.perf; never mixed with operator runs |
+| O11 | Server → web app API | Jason + Gurneal | Proposed resolution: C10 (implemented in PR #4) |
+| O12 | Nemotron agent scope and inputs | Jason | Proposed resolution: C12 (implemented in PR #4); the AI SDK fallback issues are I-8 |
 
 Resolved since the last version:
 
@@ -254,11 +270,8 @@ Resolved since the last version:
 - **O14:** `eog_ref.py` with option C (FPGA T0.2c): done; `fpga_sync` PASS on v4 G0 / G2 / G1.
 - **O3:** blob layout, D11.
 - **O5:** feature set frozen.
-- **O6:** E-STOP is display-only (hard rule 8).
-- **O7 / O8:** spec v4.
+- **O8:** spec v4.
 - **O9:** ingest = `replay.py`.
-- **O11:** = C10.
-- **O12:** = C12.
 
 ## 10. Repository map
 
@@ -279,6 +292,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 03:25 | **Plan statuses made honest** (PR #6 review): hard rules 11–13 and C9 / C10 / C12 are PROPOSED until their owners confirm (§8 approvers); O6, O7 (server side), O11, O12 reopened with their proposed resolutions; the final say is a tiebreaker after the §8 approvers are consulted; tracked review findings I-11 … I-14. I-11 (hard rule 9 in the console) fixed in PR #6 for Gurneal to review. |
 | Sun Nov 8 02:55 | **The FPGA is the fixed point** (Mudit): spec v4 and the RTL stay as they are; every other part adapts to them ("How this file works", §8). |
 | Sun Nov 8 02:55 | **Board-run plan decided** (Lucas's reply, `docs/plan/lucas/board_run_plan.md`): weights v4 for the board and the demo, v3 fallback; order T2.top → T2.bd1 → ARM build → T2.board1 (v4 G0, G2, G1, heartbeat test) → first live run → live swap, with estimates (§7). Lucas's PR #5 put the FPGA docs on `main`; FPGA code follows in his own FPGA → `main` PR after T2.top (his call), so this integration carries no FPGA code. FPGA spec question 73 done (GLOBAL table in the repo copy of Lucas's plan); question 77 → I-9 (Jason). |
 | Sun Nov 8 02:45 | **Weights v4 deployed** (`weights_ver` 4, `ml/artifacts/v4/`): the v3 recipe plus a 2 %-missing training copy, because the judging data will have missing readings (Lucas). C8 values: `persist_K4` [2,4,1,1], `logit_thr` [−128,−64,0,0], `gap_thr` 504. Clean: leak 0.92/0.99 (10 / 65 min), degradation 0.96/0.90 (160 / 170 min). 2 % missing under R7 C: false alerts 0.03 / 0.17 per facility-day (v3: 0.21 / 0.11). R7 C beats A6 on every measure at 1–2 % missing (`ml/artifacts/missing_data_v4/`). `fpga_sync` PASS at FPGA `10be393`; ML follow-ups for FPGA questions 46, 48, 74, 75. O13, O14 resolved. |

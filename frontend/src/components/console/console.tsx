@@ -64,7 +64,7 @@ export function Console({
       ? "crit"
       : inspections.some((a) => a.systemId === sys.id)
         ? "warn"
-        : sys.facilities.some((f) => f.health === "no_data")
+        : sys.facilities.some((f) => f.health === "no_data" || f.health === "unknown")
           ? "nodata"
           : "ok";
 
@@ -84,11 +84,13 @@ export function Console({
   const states = failures.map((a) => countdownState(a, s.nowUnix));
   const next = states.find((c) => c.kind === "counting");
   const allShut = failures.length > 0 && states.every((c) => c.kind === "shut_in");
-  const planCost = failures.reduce((t, a) => t + (a.plan?.cost ?? 0), 0);
-  const nothingCost = failures.reduce((t, a) => t + (a.options?.find((o) => o.kind === "do_nothing")?.cost ?? 0), 0);
+  // A failure without a costed plan makes the total unknown; it is never summed as $0 (hard rule 9).
+  const sumKnown = (xs: (number | undefined)[]) => (xs.some((x) => x == null) ? undefined : xs.reduce<number>((t, x) => t + (x as number), 0));
+  const planCost = sumKnown(failures.map((a) => a.plan?.cost));
+  const nothingCost = sumKnown(failures.map((a) => a.options?.find((o) => o.kind === "do_nothing")?.cost));
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
-  const noData = facilities.filter((f) => f.health === "no_data");
+  const noData = facilities.filter((f) => f.health === "no_data" || f.health === "unknown");
   let headline: string;
   if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
   else if (sysWithFailures.length === 1) {
@@ -176,8 +178,8 @@ export function Console({
                 value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None"}
                 tone={next || allShut ? "crit" : undefined}
               />
-              <StatCard label="Recommended plan" value={money(planCost)} />
-              <StatCard label="If nobody acts" value={money(nothingCost)} />
+              <StatCard label="Recommended plan" value={planCost == null ? "Unknown" : money(planCost)} />
+              <StatCard label="If nobody acts" value={nothingCost == null ? "Unknown" : money(nothingCost)} />
             </div>
 
             <SectionTitle title="Pumps down" note={failures.length > 1 ? "Soonest shutdown first" : undefined} />

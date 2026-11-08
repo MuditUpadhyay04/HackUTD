@@ -168,7 +168,7 @@ function FailureDetail({
             <li key={e} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-faint" aria-hidden />{humanize(e)}</li>
           ))}
         </ul>
-        <p className="mt-3 text-[13px] text-faint">Confidence {Math.round((a.confidence ?? 0) * 100)}%</p>
+        <p className="mt-3 text-[13px] text-faint">Confidence {a.confidence == null ? "unknown" : `${Math.round(a.confidence * 100)}%`}</p>
         {doNothing && a.plan && doNothing.cost > a.plan.cost && (
           <p className="mt-4 text-[14px] text-muted-foreground">
             Doing nothing would cost <span className="num text-text">{money(doNothing.cost)}</span> in lost production.
@@ -295,7 +295,7 @@ function InspectionDetail({
       <section className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:px-8">
         {a.estLeakBblPerDay != null && <Stat label="Estimated water lost" value={`${num(a.estLeakBblPerDay)} bpd`} title="bpd = barrels per day" />}
         {a.capacityLossPct != null && <Stat label="Pumping capacity lost" value={`${num(a.capacityLossPct, 1)}%`} />}
-        <Stat label="Confidence" value={`${Math.round((a.confidence ?? 0) * 100)}%`} />
+        <Stat label="Confidence" value={a.confidence == null ? "Unknown" : `${Math.round(a.confidence * 100)}%`} />
       </section>
       {facility && (
         <section className="px-5 sm:px-8 pt-6">
@@ -318,7 +318,7 @@ function InspectionDetail({
   );
 }
 
-const bpd = (n: number) => (Number.isFinite(n) ? `${num(n)} bpd` : "No data");
+const bpd = (n: number | null | undefined) => (n != null && Number.isFinite(n) ? `${num(n)} bpd` : "No data");
 
 function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
@@ -404,7 +404,7 @@ function MiniChart({
 function LeakChart({ facility: f, onsetUnix, nowUnix }: { facility: FacilityState; onsetUnix: number; nowUnix: number }) {
   const { t, v: sent } = f.series.pumpFlow;
   const got = f.series.receiveFlow.v;
-  const gap = sent.map((s, i) => (s != null && s > 50 ? Math.max(0, s - (got[i] ?? s)) : null));
+  const gap = sent.map((s, i) => { const g = got[i]; return s != null && s > 50 && g != null ? Math.max(0, s - g) : null; }); // no receive reading -> no bar, not a zero gap
   return (
     <>
       <MiniChart t={t} bars={gap} onsetUnix={onsetUnix} nowUnix={nowUnix} unit="bpd" label="Water lost per reading since the leak started" />
@@ -451,7 +451,7 @@ export function FacilitySheet({
   boardSoftware?: boolean;
 }) {
   const f = facility;
-  const pumpText = f ? (["Stopped", "Running", "Fault"][f.pump.status ?? 0] ?? "status unknown") : "";
+  const pumpText = f ? (f.pump.status == null ? "status unknown" : (["Stopped", "Running", "Fault"][f.pump.status] ?? "status unknown")) : "";
   const level = f && Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct ?? 0) : null;
   const dq = f && f.dataQuality && f.dataQuality.quality !== "VALID" ? f.dataQuality : undefined;
   const popupRef = useRef<HTMLDivElement>(null);
@@ -465,11 +465,11 @@ export function FacilitySheet({
               <div className="flex min-w-0 flex-col gap-1">
                 <SheetDescription className="text-[14px]">System {systemNum(f.systemId)}, {num(f.tank.capacityBbl)} bbl tank</SheetDescription>
                 <SheetTitle className="font-display text-[28px] leading-tight font-semibold text-text [overflow-wrap:anywhere]">
-                  {f.health === "no_data" && level == null ? (
-                    `${facilityTitle(f.id)} has no data`
+                  {level == null ? (
+                    f.health === "no_data" ? `${facilityTitle(f.id)} has no data` : `${facilityTitle(f.id)} tank level unknown`
                   ) : (
                     <>
-                      {facilityTitle(f.id)} is <span className="num">{level ?? 0}%</span> full
+                      {facilityTitle(f.id)} is <span className="num">{level}%</span> full
                     </>
                   )}
                 </SheetTitle>
@@ -509,9 +509,9 @@ export function FacilitySheet({
               <LevelChart history={f.series.level} nowUnix={nowUnix} limits={limits} />
             </section>
             <section className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:px-8">
-              <Stat label="Water coming in" value={bpd(f.inflowBpd ?? 0)} title="bpd = barrels per day" />
-              <Stat label="Pump moving" value={bpd(f.pump.flowBpd ?? 0)} />
-              <Stat label="Reaching disposal" value={bpd(f.pipeline.receiveFlowBpd ?? 0)} />
+              <Stat label="Water coming in" value={bpd(f.inflowBpd)} title="bpd = barrels per day" />
+              <Stat label="Pump moving" value={bpd(f.pump.flowBpd)} />
+              <Stat label="Reaching disposal" value={bpd(f.pipeline.receiveFlowBpd)} />
             </section>
             {boardFacility && <BoardSection board={boardFacility} source={boardSource} testWeights={boardTestWeights} software={boardSoftware} nowUnix={nowUnix} showTrend />}
             <WellsTable facility={f} highlight={[]} />
@@ -682,12 +682,12 @@ function BoardSection({
           <h3 className="mb-2 font-display text-[16px] font-semibold">Wear score trend</h3>
           <MiniChart
             t={trend.t}
-            line={trend.v.map((v) => (v ?? 0) * 100)}
+            line={trend.v.map((v) => (v == null ? null : v * 100))}
             domain={[0, 100]}
             onsetUnix={onsetUnix}
             nowUnix={nowUnix}
             unit="%"
-            label={`Wear score from ${pct(trend.v[0] ?? 0)}% to ${pct(trend.v[trend.v.length - 1] ?? 0)}% between ${clockFrom(trend.t[0], nowUnix)} and ${clockFrom(trend.t[trend.t.length - 1], nowUnix)}`}
+            label={`Wear score from ${trend.v[0] == null ? "unknown" : `${pct(trend.v[0])}%`} to ${trend.v[trend.v.length - 1] == null ? "unknown" : `${pct(trend.v[trend.v.length - 1] as number)}%`} between ${clockFrom(trend.t[0], nowUnix)} and ${clockFrom(trend.t[trend.t.length - 1], nowUnix)}`}
           />
           <p className="mt-1 text-[13px] text-muted-foreground">
             The board&apos;s pump wearing out score over time. Higher means more wear.{simulated ? " Simulated board." : ""}
