@@ -10,16 +10,19 @@ import type { RegisteredModel } from "./features/runtimes/model";
 import { validateSystemPlan } from "./features/planning/validator";
 import { createAnalysisService } from "./features/agents/service";
 import { AgentLoopService } from "./features/agents/learning/service";
+import { attachProviderPool, type ProviderPool } from "./features/agents/provider-pool";
 import type { AppConfig } from "./infrastructure/config";
 
 export class Application {
   readonly agents: ReturnType<typeof createAnalysisService>;
   readonly agentLoop: AgentLoopService;
+  readonly pool: ProviderPool;
   readonly cancellations = new Map<string, AbortController>();
   readonly modelFingerprint: string | null;
   /** Live status of the listen.py results file (BOARD_JSONL) for the console. */
   readonly boardFeed: BoardFeed;
   constructor(readonly store: Store, readonly config: AppConfig, readonly model?: RegisteredModel) {
+    this.pool = attachProviderPool(config);
     this.agents = createAnalysisService({ store, provider: config.provider, sessionDir: config.sessionDir });
     this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl, boardSource: config.boardSource });
     this.boardFeed = new BoardFeed(config.boardJsonl, config.boardSource);

@@ -35,7 +35,7 @@ export class AgentLoopService {
 
   async start(snapshot: Snapshot, actions: OperatorAction[], test?: { model: NonNullable<AgentLoopService["model"]> }): Promise<LiveAgentRun> {
     const model = test?.model ?? this.model;
-    if (!model) throw new DomainError("AGENTS_UNAVAILABLE", "Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY to run the agent orchestrator", 409);
+    if (!model) throw new DomainError("AGENTS_UNAVAILABLE", "Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY, or OPENROUTER_API_KEYS, to run the agent orchestrator", 409);
     await this.init();
     const champ = await champions(this.learning);
     const prompts = Object.fromEntries(Object.entries(champ.prompts).map(([r, p]) => [r, { version: p!.version, template: p!.template }])) as Partial<Record<Role, PromptChoice>>;

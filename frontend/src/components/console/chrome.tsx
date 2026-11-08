@@ -281,6 +281,7 @@ export function Toolbar({
         <>
           {nemotron}
           {wall}
+          <ProvidersLink />
           <ThemeToggle />
         </>
       ) : (
@@ -288,10 +289,19 @@ export function Toolbar({
           <BoardChip board={board} />
           {nemotron}
           {wall}
+          <ProvidersLink />
           <ThemeToggle />
         </div>
       )}
     </div>
+  );
+}
+
+function ProvidersLink() {
+  return (
+    <Link href="/internal/providers" title="Which model provider and key are in use" className="rounded-lg px-1.5 py-1 text-[13px] text-faint hover:bg-black/[0.04] hover:text-text">
+      Providers
+    </Link>
   );
 }
 

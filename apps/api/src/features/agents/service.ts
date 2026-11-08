@@ -90,7 +90,7 @@ export function createAnalysisService(options: AnalysisServiceOptions) {
           const { trace, ...raw } = await Promise.race([work, cancelled]);
           const finalization = validateFinalization(facts, raw);
           if (controller.signal.aborted) throw new Error("aborted");
-          const model = options.provider?.model ?? (source === "nemotron" ? "libfx" : "ai-sdk");
+          const model = options.provider?.pool?.activeModel() ?? options.provider?.model ?? (source === "nemotron" ? "libfx" : "ai-sdk");
           const coordinator = { agent: "coordinator", model, text: describeTrace(trace, source, Date.now() - started) };
           return { ...fallback, ...link, ...finalization, handoff: finalization.handoff + caveat, source, model,
             steps: [coordinator, ...fallback.steps], error: null };

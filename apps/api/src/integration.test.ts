@@ -81,6 +81,13 @@ describe("operator API vertical slice", () => {
     expect(brief.state).toBe("completed"); expect(brief.source).toBe("draft");
     expect(brief.handoff.toLowerCase()).toContain("classifier");
     expect((await store.snapshot(r.id))?.cursor).toBeGreaterThan(ready.cursor);
+    expect((await api.handle(new Request("http://localhost/api/internal/providers"))).status).toBe(401);
+    const providers = await (await call("/internal/providers")).json();
+    expect(providers.next.lane).toBe("none");
+    expect(providers.brev.configured).toBe(false);
+    expect(providers.openrouter.keys).toEqual([]);
+    expect(JSON.stringify(providers)).not.toContain("test-token");
+    expect((await call("/internal/providers/probe", { method: "POST" })).status).toBe(200);
   });
   test("idempotency conflict, rewind isolation, unavailable FPGA and malformed files", async () => {
     const d = await service.upload(fixtureFiles());

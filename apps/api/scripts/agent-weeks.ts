@@ -8,6 +8,7 @@
  * Reads the provider from the root .env (never printed). Reads only network.json, ops.json and telemetry.csv.
  */
 import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { attachProviderPool } from "../src/features/agents/provider-pool";
 import { loadConfig } from "../src/infrastructure/config";
 import { createModel } from "../src/features/agents/orchestration/subagent";
 import { buildCases, loadDataset, readBoardJsonl } from "../src/features/agents/orchestration/cases";
@@ -18,7 +19,8 @@ import { cycleTrend, planOutcomes, versionTable } from "../src/features/agents/l
 
 const arg = (name: string, fallback?: string) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : fallback; };
 const config = loadConfig({ ...process.env, STORAGE_MODE: "memory", ALLOW_INSECURE_LOCAL: "1" });
-if (!config.provider) throw new Error("Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY in the root .env");
+if (!config.provider) throw new Error("Set NVIDIA_BASE_URL, NEMOTRON_MODEL and NVIDIA_API_KEY, or OPENROUTER_API_KEYS, in the root .env");
+attachProviderPool(config);
 const storeFile = arg("store", ".data/agent-learning.json")!;
 if (process.argv.includes("--fresh") && existsSync(storeFile)) rmSync(storeFile);
 const store = new MemoryLearningStore(storeFile);
