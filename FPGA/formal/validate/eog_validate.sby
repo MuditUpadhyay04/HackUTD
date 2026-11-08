@@ -1,0 +1,51 @@
+# SymbiYosys job for eog_validate (spec/modules/eog_validate.md, numerics.md §3; spec v2). Verify role, task
+# T1.validate.fv. Harness and property map: fv_eog_validate.sv (header).
+#   bash scripts/formal.sh validate
+#
+# All tasks: N_FAC = 2, N_WELL = 2 (11 fields per slot), CONFIG rows / GLOBAL anyconst, fac_touch and rst_n free.
+# eog_validate has no multiplier, so there is no abstract model.
+#
+# prove  k-induction. Stage contract (handshake, REC_NO order, <= 2 in flight, II <= 16, latency <= 128) and the
+#        per-record properties (HDR ST RSN V1 V2 V3_rsn V4 V8 V11 HR HLD0 INC PRV0), which depend only on the
+#        record, its CONFIG row and GLOBAL. -DFV_NO_HIST drops the history properties: a port-only shadow of the
+#        DUT's per-slot RAM is not inductive (see the harness header). depth 6: the shadow FIFO and the DUT's
+#        held record agree within LAT + 2 steps.
+# bmc    every property, including the history ones (V3 V5 V6 V7 V9 V10 V12 on one anyconst slot/field) and the
+#        full reference of every slot (REF, V13), from reset. depth 24: II 2 gives up to ~11 records, enough
+#        for observe -> hold -> hold -> lost (4 records of one slot), gaps, duplicates, out-of-order, touches,
+#        INVALID -> new history, and a reset in the middle, with both slots interleaved.
+# cover  spec cover list (HELD, gap-held, INVALID -> new history, each DROPPED reason) plus vacuity covers for
+#        the history properties. depth 24.
+#
+# Run time against a throwaway reference stub (latency 1, II 2; WSL, yices): see the report in the final
+# message of T1.validate.fv; numbers are filled in below once measured.
+
+[tasks]
+prove
+bmc
+cover
+
+[options]
+prove: mode prove
+prove: depth 6
+bmc:   mode bmc
+bmc:   depth 24
+cover: mode cover
+cover: depth 24
+
+[engines]
+smtbmc yices
+
+[script]
+read_verilog -formal -sv eog_fv_props.sv
+read_verilog -formal -sv -I . eog_validate.sv
+prove: read_verilog -formal -sv -I . -DFV_NO_HIST fv_eog_validate.sv
+bmc:   read_verilog -formal -sv -I . fv_eog_validate.sv
+cover: read_verilog -formal -sv -I . fv_eog_validate.sv
+prep -top fv_eog_validate
+
+[files]
+../common/eog_fv_props.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_validate.sv
+fv_eog_validate.sv
