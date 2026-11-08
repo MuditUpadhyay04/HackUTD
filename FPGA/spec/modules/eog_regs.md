@@ -20,7 +20,9 @@ Implements `regmap.md`.
 | CONFIG | `cfg_fac_v`, `cfg_fac_f`, `cfg_fac_c` | in | 5 each | three read ports (validate, features, countdown) |
 | | `cfg_row_v`, `cfg_row_f`, `cfg_row_c` | out | 512 each | combinational reads |
 | | `fac_touch` | out | N_FAC | 1-cycle pulse per slot on an accepted CONFIG write |
-| weights | `wb_we`, `wb_addr`, `wb_wdata`, `wb_raddr` | out | | to `eog_head` |
+| weights | `wb_we`, `wb_addr` (7), `wb_wdata`, `wb_raddr` (7) | out | | to `eog_head` (71-word window) |
+| debug | `dbg_fac` | out | 5 | DBGSEL register |
+| | `dbg_valid`, `dbg_feat` (496), `dbg_logits` (64), `dbg_rec_no` (32) | in | | captured into the DBG window |
 | | `wb_rdata` | in | 32 | |
 | status in | `autonomous`, `swap_pending`, `active_bank` | in | 1 | |
 | | `active_ver` | in | 8 | |
@@ -38,7 +40,8 @@ Exactly `regmap.md`. Additionally:
 
 - CONFIG table: N_FAC × 512-bit LUTRAM with three asynchronous read ports and one write port.
 - Slot write rule: while a slot is enabled, only a word-0 write that clears `FLAGS[0]` is accepted.
-- GLOBAL writes are ignored while `stream_en = 1`. `glb[7:0]` always reads 17.
+- GLOBAL writes are ignored while `stream_en = 1`. `glb[7:0]` always reads 17 and `glb[23:16]` (`CD_LOG2`) 4.
+- DBG window: on `dbg_valid` capture features, logits and `REC_NO` (regmap.md).
 - RESULT FIFO depth `RES_DEPTH` records; `r_ready = 0` when it cannot take a whole record (back-pressure into
   `eog_pack`). In `src_dma = 1` mode `eog_top` does not route results here.
 - ALERT FIFO depth `AL_DEPTH`; `al_full` when full.

@@ -9,6 +9,30 @@ the original laptop (Lucas's PC, with Vivado and the board). It covers what is p
 timing estimates, open spec questions, and the exact steps to run there (T2.bd1, T2.board1, wave 3). It is written
 once RTL is done (all T1 DONE plus T2.top), as `FPGA/KICKOFF.md` §3 requires.
 
+## ⚠ SPEC v4 (Sun Nov 8 ~01:00 CST, Lucas's laptop session) — read before anything else
+
+Lucas decided to align the engine with Mudit's bit-exact reference (`ml/hutd_ml/features_int.py`, branch `ml`).
+That is **spec v4**, committed on top of v3 (v2 observation ports and v3 `wb_rst_n` are kept). Everything built so
+far used v1 numerics, so:
+
+- **What changed:** `FPGA/spec/README.md` changelog row 4 and `spec/numerics.md` §1 (D6–D12). In short: countdown
+  `review_r1r2` with a prefilled 16-entry ring and `mean = sum >>> 4` (D6, replaces D5); validation, hold, INVALID,
+  timing and strict-`>` alarm rules as in `features_int.py` (D7); Night Shift latched like E-STOP (D8); reserved
+  field → DROPPED/`FRAMING` (D9); per-class K in GLOBAL bytes 20–23 (D10); weight window = Mudit's blob, 71 words,
+  version in word 70 (D11, was 69/68); feature debug readback (D12). Reason bits 11/13/14 and GLOBAL
+  `SHUTIN_WATER_MAX` are gone. `EOG_SPEC_VERSION` = 4.
+- **Unaffected:** mul, div (DONE), unpack (spec unchanged).
+- **Rework (TASKS.md status `REWORK v4`):** validate, countdown, alarm (substantial); head (weight window, debug
+  ports, word numbers); features, memory (small). Rework each from its existing branch/worktree, not from scratch.
+  Verifiers in flight on these modules must re-read their module spec and update properties.
+- **pack, regs:** not started; write them to v4 (regs gains DBGSEL/DBG and the 71-word window).
+- **Order:** T0.2b first (update `model/` to v4 + `check_mudit.py`, see `model/README.md`), because every module
+  sim needs v4 vectors. Then the rework rows. `check_mudit.py` can only fully pass after Mudit's T0.0 lands on
+  `origin/ml`; until then trust the spec text.
+- **Spec questions 1–19:** answered against v1. Re-check each against v4 and `features_int.py` (notably #10, #12,
+  #16 word numbers); where Mudit's code decides it, his code wins.
+- Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
+
 - **Last updated:** 2026-11-07 ~23:55 CST, session `04653333` (takes over from session `bd64467f`).
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.

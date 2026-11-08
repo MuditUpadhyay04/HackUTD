@@ -1,4 +1,4 @@
-# Conventions (spec v2, FROZEN)
+# Conventions (spec v4, FROZEN)
 
 Applies to every module in `rtl/`, every harness in `formal/` and every testbench in `tb/`.
 
@@ -35,9 +35,12 @@ The external AXI-Stream ports of `eog_top` (`s_axis_*`, `m_axis_*`) follow the s
   bits into `REASON` (never clear them).
 - **DROPPED records** (`STATUS = 4`) pass through every later stage without touching any per-facility state; every
   field a later stage produces is 0 for them, except `CD`, which is three `0xFFFF`.
-- **INVALID records** (`STATUS = 3`) do not update per-facility state in `eog_memory`, `eog_countdown` or
-  `eog_head`; `eog_alarm` resets that facility's persistence counters. Rules are still computed from the fields
-  whose `FLD_OK` bit is set.
+- **History reset** (`HIST_RESET = 1`, never on DROPPED): every later stage clears that facility's state (memory
+  features, countdown ring, persistence counters — not the alarm latches) **before** processing the record, even
+  if the record is INVALID.
+- **INVALID records** (`STATUS = 3`): features, rules and logits 0, countdown 3 × `0xFFFF`; no state update in
+  `eog_memory`, `eog_countdown` or `eog_head`; `eog_alarm` clears that facility's persistence counters and emits
+  nothing.
 - **Throughput.** With `out_ready` held at 1 and `in_valid` held at 1, a stage accepts a new input at least once
   every `II_MAX = 16` cycles (except during its reset sweep, and `eog_alarm` during an acknowledge sweep).
 - **Latency.** An accepted input appears at the output (`out_valid = 1`) within `LAT_MAX = 128` cycles if
