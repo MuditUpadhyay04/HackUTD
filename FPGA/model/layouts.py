@@ -116,6 +116,10 @@ def _parse_defs():
 DEFS = _parse_defs()
 ST_VALID, ST_HELD, ST_INVALID, ST_DROPPED = (DEFS["EOG_ST_" + n] for n in ("VALID", "HELD", "INVALID", "DROPPED"))
 R = {k[len("EOG_R_"):]: v for k, v in DEFS.items() if k.startswith("EOG_R_")}
+# Reason bits 11, 13, 14 were dropped in spec v4 section 6 and restored by Lucas's ruling (TASKS spec question #23,
+# matching features_int.py @ 8e67750). The generated value wins once eog_defs.svh carries them again.
+for _n, _b in (("FIELD_ABSENT", 11), ("NO_MODEL", 13), ("FIELD_LOST", 14)):
+    assert R.setdefault(_n, _b) == _b, _n
 RULE = {k[len("EOG_RULE_"):]: v for k, v in DEFS.items() if k.startswith("EOG_RULE_")}
 AK = {k[len("EOG_AK_"):]: v for k, v in DEFS.items() if k.startswith("EOG_AK_")}
 FEAT_SHIFT = DEFS["EOG_FEAT_SHIFT"]

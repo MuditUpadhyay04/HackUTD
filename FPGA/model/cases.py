@@ -7,11 +7,15 @@ A Case is a GLOBAL record, CONFIG rows, the weight image active at the start, an
 Every event happens before the next record is accepted (see eog_ref.py).
 
 Practice cases never read answer_key.json: failure windows are found from the telemetry (pump status rising to 2).
+Golden cases replay Mudit's golden sets (branch ml, artifacts/<ver>/golden/<set>: GLOBAL, CONFIG, weight blob,
+data.bin); their top_ vectors equal his data.bin / expected_results.bin (check_mudit.py proves it).
 All randomness is seeded.
 """
+import json
+import os
 import random
 
-from eog_ref import N_WIMG, encode_weights
+from eog_ref import N_WIMG, encode_weights, window_from_blob
 from ingest import Dataset, dataset_dir, encode_record, facility_row, global_record, metadata_bounds, present_all
 from layouts import CFG, D, N_CLS, N_FEAT, P_PUMP_ST, P_WELL_ST, P_WELL_WATER
 
@@ -537,7 +541,56 @@ def case_random(n=1500, seed=18):
         i += 1
     return Case("random", "synthetic fuzz (seed %d): %d records over 5 slots + random ids, random field faults, "
                 "time deltas, IN_LAST, CONFIG rewrites, touches, weight swaps, acks, heartbeats; HOLD_MAX=3 (clamped "
-                "to 2), PERSIST_K=0 with PERSIST_K4=(0,2,0,5) (K = 1,2,1,5)" % (seed, n), glb, rows, w_random(seed), steps)
+                "to 2), PERSIST_K=0 with PERSIST_K4=(0,2,0,5) (K = 1,2,1,5)" % (seed, n), glb, rows,
+                w_random(seed), steps)
+
+
+# ------------------------------------------------------------------------------------------------ golden (Mudit)
+GOLDEN = (("g0", "v2", "g0"), ("g1", "v2", "g1"), ("g2", "v2", "g2"), ("g0v0", "v0", "g0"), ("g2v0", "v0", "g2"))
+
+
+def ml_dir(arg=None):
+    """Mudit's ml/ folder (holds hutd_ml/ and artifacts/): `arg`, $EOG_ML, else ml/ml next to this repository
+    (git worktree add ../ml origin/ml)."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    cands = [arg] if arg else []
+    if os.environ.get("EOG_ML"):
+        cands.append(os.environ["EOG_ML"])
+    for up in ("../../..", "../../../..", "../../../../..", "../../../../../.."):
+        cands += [os.path.join(here, up, "ml", "ml"), os.path.join(here, up, "ml")]
+    for c in cands:
+        if c and os.path.exists(os.path.join(c, "hutd_ml", "features_int.py")):
+            return os.path.normpath(c)
+    raise FileNotFoundError("Mudit's ml/ folder not found: set EOG_ML=/path/to/ml (a checkout of branch ml, its "
+                            "ml/ subfolder), or pass --no-golden")
+
+
+def load_golden(d):
+    """One golden set folder -> (manifest, GLOBAL bytes, {slot: CONFIG bytes}, weight window, [DATA bytes])."""
+    man = json.load(open(os.path.join(d, "manifest.json"), encoding="utf-8"))
+    glb = open(os.path.join(d, "global_config.bin"), "rb").read()
+    fc = open(os.path.join(d, "facility_config.bin"), "rb").read()
+    rows = {int.from_bytes(fc[64 * i:64 * i + 2], "little"): fc[64 * i:64 * i + 64] for i in range(len(fc) // 64)}
+    wp = os.path.join(d, "weights.bin")
+    img = window_from_blob(open(wp, "rb").read(), man.get("weights_version", 0)) if os.path.exists(wp) else w_zero()
+    data = open(os.path.join(d, "data.bin"), "rb").read()
+    return man, glb, rows, img, [data[48 * i:48 * i + 48] for i in range(len(data) // 48)]
+
+
+def golden_cases(ml=None):
+    root = ml_dir(ml)
+    out = []
+    for name, ver, g in GOLDEN:
+        d = os.path.join(root, "artifacts", ver, "golden", g)
+        if not os.path.exists(os.path.join(d, "data.bin")):
+            continue
+        man, glb, rows, img, recs = load_golden(d)
+        steps = [("hb",)] + [("rec", int.from_bytes(r, "little"), True) for r in recs]
+        out.append(Case(name, "Mudit's golden set %s/golden/%s (%d records, weights_ver %d, countdown %s): his "
+                        "GLOBAL, CONFIG and weight blob; top_ in/out = his data.bin / expected_results.bin"
+                        % (ver, g, len(recs), man.get("weights_version", 0), man.get("countdown")),
+                        glb, rows, img, steps))
+    return out
 
 
 def synthetic_cases():

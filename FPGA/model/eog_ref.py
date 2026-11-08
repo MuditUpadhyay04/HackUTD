@@ -3,10 +3,13 @@
 Integers only. Every stage is one Engine method that takes its input bus as an int and returns its output bus as an
 int laid out per spec/gen/buses.py (unpack_beat, validate, features, memory, countdown, head, alarm, pack).
 
-Spec v4: the normative integer reference is Mudit's ml/hutd_ml/features_int.py with the changes in numerics.md §11;
-check_mudit.py proves this model agrees with it byte for byte on every RESULT and ALERT. Readings the spec leaves
-open follow the lead's answers in FPGA/TASKS.md "Spec questions" (cited as TASKS #n) or Mudit's code; the few the
-model still had to decide itself are marked `MODEL-Q<n>` and listed in model/README.md.
+Spec v4: the normative integer reference is Mudit's ml/hutd_ml/features_int.py (branch ml, >= 8e67750, which has the
+numerics.md §11 changes); check_mudit.py proves this model agrees with it byte for byte on every RESULT and ALERT.
+Lucas's rulings on spec questions 20-25 (FPGA/TASKS.md, Sun 01:17) override the numerics.md v4 text where they
+differ: ring of max(INFLOW, 0) (#20), NOT_FILLING = 0 at/above shutdown (#21), ALERT SOURCE per kind (#22), reason
+bits 11/13/14 restored (#23), HIST_RESET on a facility's first record (#24), DROPPED RESULTs carry SINCE_RESET 0 and
+WVER 0 (#25). Other open readings follow the lead's answers (cited as TASKS #n) or Mudit's code; the few the model
+still had to decide itself are marked `MODEL-Q<n>` and listed in model/README.md.
 
 Abstractions (the model has no clock):
 - `autonomous` = HB_TIMEOUT_MS != 0 and no "fresh" heartbeat: ms_since_hb is 65535 after reset, `heartbeat()`
@@ -61,8 +64,7 @@ class _VSlot:
     """eog_validate per-facility state (features_int._Fac, validation part)."""
 
     def __init__(self):
-        self.has_ts = False   # a non-DROPPED record was seen since reset / the last touch
-        self.pending = False  # CONFIG write on a slot with history: the next record is a (flagged) history reset
+        self.has_ts = False   # last_ts exists: cleared by reset and by a CONFIG write (fac_touch)
         self.last_ts = 0
         self.reset_history()
 
@@ -194,11 +196,9 @@ class Engine:
         self.touch(f)
 
     def touch(self, f):
-        """fac_touch[f]: the slot's next record starts a new history. It is flagged (HIST_RESET) only if the slot
-        has history to clear (MODEL-Q6, numerics.md §3: a first record after reset is not flagged)."""
-        st = self.vst[f]
-        st.pending = st.pending or st.has_ts
-        st.has_ts = False
+        """fac_touch[f]: the slot's next non-DROPPED record is a first record again: a flagged history reset
+        (TASKS #24: a facility's first record, no last_ts, gets HIST_RESET = 1, after power-up too)."""
+        self.vst[f].has_ts = False
 
     def load_weights(self, image):
         """Write a 71-word window into the inactive bank."""
@@ -267,8 +267,8 @@ class Engine:
         ts = D.get(r, "TS")
         out = dict(REC_NO=BU.get(u, "REC_NO"), IN_LAST=BU.get(u, "IN_LAST"), FAC_RAW=fac_raw, FAC=fac, TS=ts)
 
-        def dropped(reason, since=0):
-            out.update(STATUS=ST_DROPPED, REASON=1 << R[reason], SINCE_RESET=since)
+        def dropped(reason):  # every DROPPED record: SINCE_RESET = 0, no state change (TASKS #25)
+            out.update(STATUS=ST_DROPPED, REASON=1 << R[reason], SINCE_RESET=0)
             return BV.pack(out)
 
         # 1 framing (D9): before the facility lookup, no state change
@@ -283,16 +283,15 @@ class Engine:
         reason = 0
         hist = False
         # 3 time: d is the exact difference of two u32 (MODEL-Q7, as features_int: no 32-bit wrap)
-        if st.pending:
-            st.pending = False
+        if not st.has_ts:  # first record after reset or a CONFIG write: a new history, flagged (TASKS #24)
             st.reset_history()
             hist = True
-        elif st.has_ts:
+        else:
             d = ts - st.last_ts
             if d == 0:
-                return dropped("DUPLICATE", min(st.since, 255))
+                return dropped("DUPLICATE")
             if d < STEP_S:
-                return dropped("OUT_OF_ORDER", min(st.since, 255))
+                return dropped("OUT_OF_ORDER")
             missing = d // STEP_S - 1 if d % STEP_S == 0 else hold + 1
             if 1 <= missing <= hold:
                 reason |= 1 << R["GAP_HELD"]
@@ -312,10 +311,12 @@ class Engine:
         for j, name in FAC_FIELDS:
             v = D.get(r, name) if j == P_PUMP_ST else D.get(r, name, signed=True)
             good = bool(bit(present, j))
-            if good and j == LH_PUMP_ST and v not in (0, 1, 2):
+            if not good:
+                reason |= 1 << R["FIELD_ABSENT"]
+            elif j == LH_PUMP_ST and v not in (0, 1, 2):
                 good = False
                 reason |= 1 << R["ILLEGAL_ENUM"]
-            elif good and not lo[j] <= v <= hi[j]:
+            elif not lo[j] <= v <= hi[j]:
                 good = False
                 reason |= 1 << R["OUT_OF_RANGE"]
             raw[name], ok[name] = v, good
@@ -323,13 +324,17 @@ class Engine:
         for i in range(n_wells):
             s = (wst >> (2 * i)) & 3
             good = bool(bit(present, P_WELL_ST + i))
-            if good and s not in (0, 1):
+            if not good:
+                reason |= 1 << R["FIELD_ABSENT"]
+            elif s not in (0, 1):
                 good = False
                 reason |= 1 << R["ILLEGAL_ENUM"]
             raw[("WST", i)], ok[("WST", i)] = s, good
             v = arr_get(r, D, "WELL_WATER", i)
             good = bool(bit(present, P_WELL_WATER + i))
-            if good and not wlo <= v <= whi:
+            if not good:
+                reason |= 1 << R["FIELD_ABSENT"]
+            elif not wlo <= v <= whi:
                 good = False
                 reason |= 1 << R["OUT_OF_RANGE"]
             raw[("WW", i)], ok[("WW", i)] = v, good
@@ -354,8 +359,10 @@ class Engine:
         prev_level = st.prev_level if prev_ok else 0  # TASKS #13
         since = min(st.since, 255)
         if missing:
-            # 7 INVALID: values = the OK value where available, else 0 (eog_validate.md); no other state update
+            # 7 INVALID (FIELD_LOST): values = the OK value where available, else 0 (eog_validate.md, MODEL-Q9);
+            # no other state update
             status = ST_INVALID
+            reason |= 1 << R["FIELD_LOST"]
             vals = {k: (raw[k] if ok[k] else 0) for k in ok}
             usable = ok
         else:
@@ -474,7 +481,8 @@ class Engine:
         return cd_minutes(k_dl, q)
 
     def countdown(self, m):
-        """eog_countdown, numerics.md §7 (D1, D2, D6): prefilled 16-entry inflow ring, mean = sum >>> 4."""
+        """eog_countdown, numerics.md §7 (D1, D2, D6) with TASKS #20, #21: prefilled 16-entry ring of max(INFLOW, 0),
+        mean = sum >>> 4; level >= shutdown -> 0/0/0 and NOT_FILLING = 0."""
         h = hdr_of(BM, m)
         status = h["STATUS"]
         f = h["FAC"]
@@ -484,15 +492,15 @@ class Engine:
             self.ring[f] = None
         if status in GOOD and f < self.n_fac:  # FAC >= N_FAC: no state (TASKS #1)
             row = self.rows[f]
-            x = BM.get(m, "INFLOW", signed=True)
+            x = max(BM.get(m, "INFLOW", signed=True), 0)
             ring = self.ring[f] = [x] * CD_N if self.ring[f] is None else self.ring[f][1:] + [x]
             mean = sum(ring) >> CD_LOG2
-            nf = int(mean <= 0)
             level = BM.get(m, "LEVEL", signed=True)
             shut = CFG.get(row, "SHUT_LVL")
             if level >= shut:
                 p10 = p50 = p90 = 0
             else:
+                nf = int(mean <= 0)
                 k_dl = CFG.get(row, "K_CD") * (shut - level)
                 p10, p50, p90 = self._cd(k_dl, max(ring)), self._cd(k_dl, mean), self._cd(k_dl, min(ring))
         h.update(FEAT=BM.get(m, "FEAT"), RULES=BM.get(m, "RULES4") | (nf << RULE["NOT_FILLING"]),
@@ -506,6 +514,8 @@ class Engine:
         w, b, s_out, ver = self._decoded()
         x = arr_unpack(BC.get(c, "FEAT"), N_FEAT)
         logits = [0] * N_CLS
+        if status in GOOD and ver == 0:
+            h["REASON"] |= 1 << R["NO_MODEL"]  # TASKS #23
         if status in GOOD and ver != 0:
             for k in range(N_CLS):
                 acc = b[k]
@@ -519,8 +529,9 @@ class Engine:
         if status in GOOD and h["FAC"] == self.dbg_fac:  # D12 debug capture
             self.dbg_count = (self.dbg_count + 1) & 0xFFFFFFFF
             self.dbg = (x, logits, h["REC_NO"], self.dbg_count)
-        # WVER = the active VER at accept, for every status (features_int: DROPPED too; MODEL-Q3)
-        h.update(CH3=x[3] & 0xFFFF, RULES=BC.get(c, "RULES"), CD=BC.get(c, "CD"), LOGITS=arr_pack(logits), WVER=ver)
+        # WVER = the active VER at accept; 0 for DROPPED (TASKS #25); INVALID carries the active VER (features_int)
+        h.update(CH3=x[3] & 0xFFFF, RULES=BC.get(c, "RULES"), CD=BC.get(c, "CD"), LOGITS=arr_pack(logits),
+                 WVER=0 if status == ST_DROPPED else ver)
         return BL.pack(h)
 
     def alarm(self, lb):
@@ -550,7 +561,12 @@ class Engine:
                 ca = sum(int(s.cnt[k] >= K[k]) << k for k in range(N_CLS))
                 es_c = int(s.leak >= K[0])
                 ns_c = int((rules & 0xF) != 0 or ca != 0)
-                src = int((rules & 0xF) != 0) | (int(ca != 0) << 1) | (int(self.autonomous) << 2)
+                auto = int(self.autonomous) << 2
+                model = int(ca != 0) << 1
+                # SOURCE per kind (TASKS #22): bit 0 rule (E-STOP: the gap rule, always 1), bit 1 any class active,
+                # bit 2 autonomous at accept, bit 4 latch type; CLEARED carries only bits 2 and 4
+                src = {("NS_RAISED", 0): int((rules & 0xF) != 0) | model | auto, ("ES_RAISED", 1): 1 | model | auto,
+                       ("CLEARED", 0): auto, ("CLEARED", 1): auto}
                 old_nl, old_el = bit(self.ns_latch, f), bit(self.es_latch, f)
                 old_nc, old_ec = bit(self.ns_cond, f), bit(self.es_cond, f)
                 m = 1 << f
@@ -560,7 +576,7 @@ class Engine:
                 self.es_latch |= m * es_c
 
                 def push(kind, typ):
-                    alerts.append(AL.pack(dict(FAC_ID=f, KIND=AK[kind], SOURCE=src | (typ << 4), TS=h["TS"],
+                    alerts.append(AL.pack(dict(FAC_ID=f, KIND=AK[kind], SOURCE=src[kind, typ] | (typ << 4), TS=h["TS"],
                                                RESULT_NO=h["REC_NO"], RULES=rules, CLASSES=ca, CD_P10=cd & 0xFFFF)))
 
                 # order per record: NS_RAISED, ES_RAISED, CLEARED(NS), CLEARED(ES) (TASKS #3)
