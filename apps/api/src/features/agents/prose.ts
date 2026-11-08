@@ -51,7 +51,9 @@ function groundedNumber(token: string, numbers: number[]): boolean {
 /** Throws with a message naming what to fix; returns the trimmed prose. */
 export function checkProse(ground: Grounding, input: unknown, options: { field?: string; maxLength?: number } = {}): string {
   const field = options.field ?? "text", max = options.maxLength ?? 1200;
-  if (typeof input !== "string" || !input.trim() || input.length > max || /[\r\n<>`]/.test(input)) throw new Error(`Invalid ${field} prose: one paragraph, at most ${max} characters, no markdown or line breaks`);
+  if (typeof input !== "string" || !input.trim()) throw new Error(`Invalid ${field} prose: write one plain paragraph`);
+  if (input.length > max) throw new Error(`Invalid ${field} prose: ${input.length} characters, limit ${max}; shorten it`);
+  if (/[\r\n<>`]/.test(input)) throw new Error(`Invalid ${field} prose: one paragraph, no line breaks, markdown, angle brackets or backticks`);
   const claim = COMPLETED_ACTION.exec(input);
   if (claim) throw new Error(`Completed-action claim "${claim[0]}" in ${field}: remove that word; plans are advice and the operator decides (for an incident whose status is resolved, write "no longer active")`);
   const entities = new Set(ground.entities.filter(Boolean));
