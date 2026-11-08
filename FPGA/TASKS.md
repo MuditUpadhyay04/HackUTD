@@ -47,7 +47,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | DONE | 9e684bc, merged via `eog/integrate-pack`; `reports/formal_pack.txt`; sim PASS 268,536 records / 1,074,144 beats (23 cases x 4 runs incl. a batch-only m_last run: 1,004 BATCH-count m_last) |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 467327b, merged via `eog/integrate-pack`; `reports/formal_pack.txt` (prove = abc pdr, bmc, cover PASS) |
 | T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.regs.rtl` bfd6b44 (adds `rec_in`, ruling #59; previous ac0d183). v4 full regmap; smoke PASS 447 regs_basic ops + directed (incl. rec_in → STATS 0); xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36 **On FPGA early via the T2.top merge (board bring-up); formal sign-off still pending.** |
-| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | CLAIMED | v4 from the start |
+| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.regs.fv` 6f5e8b7 (G1–G7 + register-map checks; 13 PDR prove tasks + bmc + cover; tb 22,064 checks); integration `eog/integrate-regs` running |
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
 
@@ -186,3 +186,9 @@ Rules: no property is weakened to pass; UNKNOWN is not PASS; deep opt-in tasks t
 | 92 | pack | "Sustains one beat per cycle" | in_valid = m_ready = 1 for 3 cycles → m_valid = 1 (one bubble at start / after back-pressure; as #27) | T1.pack.fv | Accepted |
 | 93 | memory | `FEAT[0..11]` on a record that updates no slot (module spec said copy; numerics §5 / model say 0) | 0 unless VALID/HELD with FAC < N_FAC (model); module spec text fixed | T1.memory.fv | Accepted (harmless: features already sends 0 for those records) |
 | 94 | head | Debug outputs between accept and output transfer | `dbg_feat`/`dbg_rec_no` show the held record from the cycle after accept until its output transfer; `dbg_logits` = `out_data` LOGITS while `out_valid` (the RTL already does this). Lets the harness assert H8 every held cycle so induction closes | T1.head.rtl | Accepted (clarification, no port or RTL change; eog_head.md updated) |
+| 95 | regs | Soft reset and the RESULT/ALERT FIFOs / an in-flight DATA push | Soft reset clears both FIFOs (conventions §1: "FIFOs"; the RTL does this); an in-flight DATA push is dropped | T1.regs.fv | Accepted for the FIFOs; DATA-push abort proposed (confirm in integration) |
+| 96 | regs | Soft reset and CTRL | CTRL keeps its value (regs only gets the hard reset; matches the model) | T1.regs.fv | Accepted |
+| 97 | regs | Unaligned AXI addresses | Read 0, writes ignored (model); the harness assumes aligned addresses | T1.regs.fv | Accepted |
+| 98 | regs | CONFIG slots ≥ N_FAC when N_FAC < 32 | Unmapped: read 0, writes ignored | T1.regs.fv | Accepted |
+| 99 | regs | Harness environment limits (d_ready = 0 inside a push window; no rec_in during stats_clear/soft reset; a pop on an empty FIFO with an arrival before RVALID) | Documented proof restrictions; covered by the testbench where observable | T1.regs.fv | Noted (list under "not closed" in RTL_DONE_HANDOFF) |
+| 100 | regs | Pulse counting assumes no new AW/W in the same cycle as the previous B handshake | Holds for this RTL (one transaction at a time) | T1.regs.fv | Noted |
