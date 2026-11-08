@@ -45,7 +45,8 @@ Run at most 8 agents at once.
 | eog_div (T1.div.rtl + .fv) | merged 1565f11; `reports/formal_div.txt`; sim PASS 19,123 divisions |
 | eog_mul (T1.mul.rtl + .fv) | merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover); sim PASS 736,704 products |
 
-Spec questions 1–15 are answered in `FPGA/TASKS.md`. **#12** (validate `PUMP_INCONS`/`WELL_INCONS` set only when
+**Spec is v3** (a350f71, Nov 8 ~00:45): `eog_head` got a hard-reset input `wb_rst_n` so soft reset keeps the weight
+banks (question 16, lead call, Lucas may reverse). Spec questions 1–19 are answered in `FPGA/TASKS.md`. **#12** (validate `PUMP_INCONS`/`WELL_INCONS` set only when
 their inputs are OK) is a lead call that Lucas may reverse. **#8** (BTN0 active high at `eog_alarm`) needs
 confirming against the board pinout in T2.bd1.
 
@@ -112,7 +113,7 @@ and it was told to move it out. Never merge that file.
 | agent-a065500e10062e0d1 | eog/T1.features.fv | verifier (relaunch; partial harness on disk) |
 | agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier (relaunch) |
 | T1.features.rtl | eog/T1.features.rtl | REVIEW 9441fc4 |
-| T1.head.rtl | eog/T1.head.rtl | RTL agent (new) |
+| T1.head.rtl | eog/T1.head.rtl | c700642 passes v2 checks; reworking for spec v3 (wb_rst_n) |
 | T1.countdown.rtl | eog/T1.countdown.rtl | REVIEW 2723d23 |
 | T1.countdown.fv | eog/T1.countdown.fv | verifier (launched after countdown RTL reported) |
 | T1.unpack.fv | eog/T1.unpack.fv | verifier (launched after features RTL reported) |
