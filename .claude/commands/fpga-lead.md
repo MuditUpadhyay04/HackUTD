@@ -15,10 +15,12 @@ little human input as possible. $ARGUMENTS
    `bash FPGA/scripts/sim.sh axi_mul` and `bash FPGA/scripts/formal.sh axi_mul` — both must PASS before anything else.
    If a tool is missing, stop and tell Lucas exactly what to install (OSS CAD Suite under Linux/WSL2).
 4. Dataset: clone https://github.com/nihaal419/HackUTD-ZeroDay next to the repo if `$EOG_DATA` is not set.
+5. Mudit's reference: `git fetch origin ml`; check whether task T0.0 (his spec-v4 changes, `FPGA/spec/numerics.md` §11)
+   has landed on `origin/ml`. If not, start anyway (vectors are regenerated later) and tell Lucas it is pending.
 
 ## 1. Wave 0
 
-- T0.2: spawn the `fpga-model` agent (worktree isolation). In parallel do T0.3 yourself (`FPGA/formal/common/`,
+- T0.2b: spawn the `fpga-model` agent (worktree isolation) to update `model/` to spec v4 and add `check_mudit.py`. In parallel do T0.3 yourself (`FPGA/formal/common/`,
   fix `FPGA/scripts/*.sh` for the installed tools). Merge both into `FPGA` when their checks pass.
 
 ## 2. Wave 1 — parallel
@@ -45,7 +47,8 @@ without Lucas.
 ## 3. Wave 2 (code only on this machine)
 
 T2.top when every T1 row is DONE; T2.ps1 any time after T0.1. T2.bd1, T2.board1 and wave 3 need the board and
-Vivado: they run on Lucas's PC. Finish by writing `FPGA/reports/HANDOFF.md`: what is proven (property IDs per
+Vivado: they run on Lucas's PC. Finish by writing `FPGA/reports/RTL_DONE_HANDOFF.md` (the handoff to the original
+laptop with the board; not the repo-root `HANDOFF.md`): what is proven (property IDs per
 module), what is simulated (vector sets, record counts), resource/timing estimates labeled as estimates, open
 spec questions, and the exact steps for the board machine.
 
@@ -56,3 +59,6 @@ spec questions, and the exact steps for the board machine.
 - Never edit Lucas's live doc (claude.ai); the repo copy is `docs/plan/lucas/fpga_hardware_plan.md`.
 - No unmeasured claims. Every PASS you report has a report file behind it.
 - Keep `FPGA/TASKS.md` the single source of task status.
+- Read `HANDOFF.md` (repo root) before step 0 when it exists: a previous lead session may have work in flight. Keep it
+  current (done / in flight / worktree map / gotchas) and push `FPGA` after each merge or batch of agent launches,
+  so a session cut off by a usage limit can be resumed by the next one.

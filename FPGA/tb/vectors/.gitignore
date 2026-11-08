@@ -1,0 +1,4 @@
+# Large per-module practice-week vectors are not committed (top_week.* is).
+# Regenerate everything with:  python FPGA/model/gen_vectors.py   (needs EOG_DATA=/path/to/HackUTD-ZeroDay)
+*_week.*
+!top_week.*

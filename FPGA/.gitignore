@@ -17,3 +17,7 @@ vivado/*.rpt
 *.vcd
 *.fst
 __pycache__/
+formal/axi_mul/
+formal/common/common/
+formal/common/mut*/
+formal/*/eog_*/

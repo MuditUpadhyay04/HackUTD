@@ -1,4 +1,4 @@
-# Conventions (spec v1, FROZEN)
+# Conventions (spec v4, FROZEN)
 
 Applies to every module in `rtl/`, every harness in `formal/` and every testbench in `tb/`.
 
@@ -8,7 +8,7 @@ Applies to every module in `rtl/`, every harness in `formal/` and every testbenc
 - One reset, `rst_n`: synchronous, active low. After reset every `*_valid` output is 0.
 - Soft reset (`CTRL.soft_reset`) is applied by `eog_top` as a 2-cycle `rst_n` pulse to the engine stages. It clears
   all per-facility state and FIFOs, not the CONFIG table or weight banks (those live in `eog_regs` / `eog_head`
-  and are not reset by soft reset).
+  and are not reset by soft reset). `eog_head` receives the hard reset separately on `wb_rst_n` for this (spec v3).
 - A stage that keeps per-facility state in RAM may spend up to `N_FAC + 8` cycles after reset clearing it; it holds
   `in_ready = 0` until done.
 
@@ -35,9 +35,12 @@ The external AXI-Stream ports of `eog_top` (`s_axis_*`, `m_axis_*`) follow the s
   bits into `REASON` (never clear them).
 - **DROPPED records** (`STATUS = 4`) pass through every later stage without touching any per-facility state; every
   field a later stage produces is 0 for them, except `CD`, which is three `0xFFFF`.
-- **INVALID records** (`STATUS = 3`) do not update per-facility state in `eog_memory`, `eog_countdown` or
-  `eog_head`; `eog_alarm` resets that facility's persistence counters. Rules are still computed from the fields
-  whose `FLD_OK` bit is set.
+- **History reset** (`HIST_RESET = 1`, never on DROPPED): every later stage clears that facility's state (memory
+  features, countdown ring, persistence counters — not the alarm latches) **before** processing the record, even
+  if the record is INVALID.
+- **INVALID records** (`STATUS = 3`): features, rules and logits 0, countdown 3 × `0xFFFF`; no state update in
+  `eog_memory`, `eog_countdown` or `eog_head`; `eog_alarm` clears that facility's persistence counters and emits
+  nothing.
 - **Throughput.** With `out_ready` held at 1 and `in_valid` held at 1, a stage accepts a new input at least once
   every `II_MAX = 16` cycles (except during its reset sweep, and `eog_alarm` during an acknowledge sweep).
 - **Latency.** An accepted input appears at the output (`out_valid = 1`) within `LAT_MAX = 128` cycles if
@@ -87,3 +90,34 @@ See `gen/bus_tables.md` for the full tables. Summary:
 - `>>>` on signed values is an arithmetic right shift (floor). Write signedness explicitly (`$signed`).
 - Formal helpers inside RTL go under `` `ifdef FORMAL `` and may only **add** assertions/assumptions about the
   module's own internal state (to help induction), never assumptions about inputs.
+
+## 7. Formal observation ports (added in v2)
+
+Port-level k-induction cannot see a record a stage silently dropped or is still holding, so every **pipeline
+stage** (`eog_validate`, `eog_features`, `eog_memory`, `eog_countdown`, `eog_head`, `eog_alarm`, `eog_pack`) has two
+extra output ports that exist **only under `` `ifdef FORMAL ``** (simulation and synthesis never see them):
+
+| Port | Width | Meaning |
+| --- | --- | --- |
+| `f_inflight` | 8 | number of records accepted on `in_*` whose output has not yet transferred (for `eog_pack`: whose last beat has not transferred) |
+| `f_oldest_recno` | 32 | `REC_NO` of the oldest such record; don't-care when `f_inflight = 0` |
+
+Place them last in the port list. (Because `eog_defs.svh` is included inside the module body, an ANSI port list
+cannot use `EOG_*_W`: either declare the ports non-ANSI after the include, or use literal widths in the ANSI list,
+which Verilator lint checks against the connected buses. The example shows the ANSI form with a literal width.)
+
+```systemverilog
+    output logic [242:0] out_data       // EOG_BA_W
+`ifdef FORMAL
+    , output logic [7:0]  f_inflight
+    , output logic [31:0] f_oldest_recno
+`endif
+);
+```
+
+The RTL drives them from its own state (for a one-record-at-a-time stage: `busy ? 1 : 0` and the held record's
+`REC_NO`) and may add internal invariants relating them to that state. The harness never trusts them: the shared
+checker `formal/common/eog_fv_stage` *asserts* they equal its own count and the next expected `REC_NO`
+(`st_link_n`, `st_link_r`), which makes "one in, one out, nothing lost" inductive. Verifiers use these two ports
+and the normal ports only; all other internals stay off limits. `eog_unpack` (beats in) and the helpers `eog_mul`,
+`eog_div`, `eog_regs` don't have them.
