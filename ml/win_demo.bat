@@ -9,8 +9,14 @@ rem listen.py writes live.jsonl and the API reads it (no --post: a slow console 
 rem replay.py sends hb_timeout_ms = 0, so the board never goes AUTONOMOUS (open issue B4) even if listen.py is late.
 set "ML=%~dp0"
 set "ROOT=%~dp0.."
-set "PY=%USERPROFILE%\anaconda3\python.exe"
-if not exist "%PY%" set PY=python
+set "PY="
+rem Python 3.10+ with numpy and pandas: HUTD_PY if set, else Anaconda / Miniconda, else the py launcher, else python on PATH
+if defined HUTD_PY set "PY=%HUTD_PY%"
+if not defined PY if exist "%USERPROFILE%\anaconda3\python.exe" set "PY=%USERPROFILE%\anaconda3\python.exe"
+if not defined PY if exist "%USERPROFILE%\miniconda3\python.exe" set "PY=%USERPROFILE%\miniconda3\python.exe"
+if not defined PY ( py -3 -c "import numpy, pandas" >nul 2>&1 && set "PY=py -3" )
+if not defined PY ( python -c "import numpy, pandas" >nul 2>&1 && set "PY=python" )
+if not defined PY ( echo No Python 3 with numpy and pandas found. Install Python 3.12 from python.org ^(Add to PATH^), then: py -3 -m pip install -r "%~dp0requirements.txt" & pause & goto :eof )
 if not defined HUTD_REF set "HUTD_REF=%USERPROFILE%\hackutd\zeroday"
 if not defined REPLAY_STEP set "REPLAY_STEP=0.5"
 set "DS=%~1"
@@ -31,7 +37,7 @@ set "BOARD_SOURCE=fpga"
 start "HUTD API" /D "%ROOT%" cmd /k bun apps\api\src\index.ts
 start "HUTD console" /D "%ROOT%" cmd /k bun run dev:web
 timeout /t 15 /nobreak > nul
-start "HUTD listen" /D "%ML%" cmd /k ""%PY%" -m hutd_ml.listen --data "%DS%" --model artifacts\v4 --source fpga --jsonl "%LIVE%""
+start "HUTD listen" /D "%ML%" cmd /k "%PY% -m hutd_ml.listen --data "%DS%" --model artifacts\v4 --source fpga --jsonl "%LIVE%""
 timeout /t 3 /nobreak > nul
-start "HUTD replay" /D "%ML%" cmd /k ""%PY%" -m hutd_ml.replay --data "%DS%" --weights artifacts\v4\weights.bin --weights-version 4 --config artifacts\v4\global_config.json --step-seconds %REPLAY_STEP%"
+start "HUTD replay" /D "%ML%" cmd /k "%PY% -m hutd_ml.replay --data "%DS%" --weights artifacts\v4\weights.bin --weights-version 4 --config artifacts\v4\global_config.json --step-seconds %REPLAY_STEP%"
 start "" http://127.0.0.1:3000/
