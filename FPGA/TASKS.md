@@ -29,7 +29,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.validate.rtl` 2dd4565 (lint/iverilog/yosys clean, latency 1, II 2, no reset sweep) |
 | T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
-| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | fpga-rtl agent | CLAIMED | |
+| T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | fpga-rtl agent | REVIEW | `eog/T1.features.rtl` 9441fc4 (lint/iverilog/yosys clean; latency 13, II 14; smoke PASS all 12 features vector cases). Note: the RTL agent read the verifier's WIP harness after its RTL was final (last commit is a no-op refactor); the verifier never saw the RTL, so the proof stays independent |
 | T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
 | T1.memory.rtl | `eog_memory` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) |
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | fpga-verify agent | CLAIMED | |
