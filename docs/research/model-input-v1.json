@@ -1,0 +1,43 @@
+{
+  "interface_version": "1-proposed",
+  "status": "Untrained input contract; confirm hardware support before adoption",
+  "source_commit": "135ba4c8348357457420a1111df80ec1906bcbdb",
+  "unit": "one facility at one newest timestamp",
+  "sample_interval_seconds": 300,
+  "reference_shape": [1, 12, 96],
+  "time_order": "oldest_to_newest",
+  "flattening": "channel_major_C_order",
+  "transport": {
+    "dtype": "int16",
+    "endianness": "little",
+    "scale": 0.00006103515625,
+    "zero_point": 0,
+    "rounding": "nearest_ties_to_even",
+    "quantize": "clip(round(x * 16384), -32768, 32767)",
+    "payload_bytes": 2304,
+    "saturation_requires_quality_flag": true
+  },
+  "channels": [
+    "inflow_norm",
+    "pump_flow_norm",
+    "receive_flow_norm",
+    "flow_gap_norm",
+    "tank_fraction",
+    "discharge_offset_norm",
+    "pipeline_offset_norm",
+    "pump_running",
+    "pump_fault",
+    "wells_active_fraction",
+    "well_water_norm",
+    "tank_net_flow_norm"
+  ],
+  "output_targets": ["pipeline_leak", "pump_degradation", "pump_failure", "facility_shut_in"],
+  "output_semantics": "four independent newest-timestamp binary targets; sigmoid logits; not softmax",
+  "output_transport": "TBD by trained model export, including scales and zero points",
+  "normal_training_target": [0, 0, 0, 0],
+  "failure_and_shut_in_training_target": [0, 0, 1, 1],
+  "warmup": "96 complete contiguous frames; direct host status alarms remain enabled",
+  "missing_data": "mark invalid, reset full-window history, never future-backfill or silently zero-fill",
+  "metadata_and_formulas": "FPGA_CLASSIFIER_HANDOFF.md section 4",
+  "runtime_excluded_inputs": ["answer_key.json", "event_id", "asset_id_as_feature", "onset_or_end_labels", "trips_at", "reference_action", "absolute_timestamp_as_feature"]
+}

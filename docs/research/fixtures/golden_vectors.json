@@ -1,0 +1,234 @@
+{
+  "feature_order": [
+    "inflow_norm",
+    "pump_flow_norm",
+    "receive_flow_norm",
+    "flow_gap_norm",
+    "tank_fraction",
+    "discharge_offset_norm",
+    "pipeline_offset_norm",
+    "pump_running",
+    "pump_fault",
+    "wells_active_fraction",
+    "well_water_norm",
+    "tank_net_flow_norm"
+  ],
+  "target_order": [
+    "pipeline_leak",
+    "pump_degradation",
+    "pump_failure",
+    "facility_shut_in"
+  ],
+  "vectors": [
+    {
+      "name": "normal",
+      "facility": "S1_FACILITY_A",
+      "ts_unix": 1791186900,
+      "targets": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "latest_float_features": [
+        0.99925,
+        0.0,
+        0.0,
+        0.0,
+        0.44520000000000004,
+        -0.002666666666667273,
+        0.08800000000000181,
+        0.0,
+        0.0,
+        1.0,
+        0.99925,
+        0.9936000000000069
+      ],
+      "latest_quantized_features": [
+        16372,
+        0,
+        0,
+        0,
+        7294,
+        -44,
+        1442,
+        0,
+        0,
+        16384,
+        16372,
+        16279
+      ],
+      "payload_file": "normal.i16le.bin",
+      "payload_bytes": 2304,
+      "payload_sha256": "fafcf19ef7521f47c525dd9dd291af827cfeff4f9afcf98224a059eba50c2186"
+    },
+    {
+      "name": "leak_running",
+      "facility": "S3_FACILITY_B",
+      "ts_unix": 1791213600,
+      "targets": [
+        1,
+        0,
+        0,
+        0
+      ],
+      "latest_float_features": [
+        0.9968,
+        0.9981777777777778,
+        0.9458666666666666,
+        0.05231111111111123,
+        0.32780000000000004,
+        0.989333333333334,
+        0.15,
+        1.0,
+        0.0,
+        1.0,
+        0.9967999999999999,
+        -0.4300800000000004
+      ],
+      "latest_quantized_features": [
+        16332,
+        16354,
+        15497,
+        857,
+        5371,
+        16209,
+        2458,
+        16384,
+        0,
+        16384,
+        16332,
+        -7046
+      ],
+      "payload_file": "leak_running.i16le.bin",
+      "payload_bytes": 2304,
+      "payload_sha256": "8b683e769ef9653b88647034a822e4e7dfcd9bd972477c8aac98b58340a002f2"
+    },
+    {
+      "name": "degradation_running",
+      "facility": "S1_FACILITY_C",
+      "ts_unix": 1791349800,
+      "targets": [
+        0,
+        1,
+        0,
+        0
+      ],
+      "latest_float_features": [
+        1.0013333333333334,
+        0.9287037037037037,
+        0.9312222222222223,
+        -0.0025185185185185857,
+        0.5742,
+        0.7980000000000003,
+        1.0180000000000018,
+        1.0,
+        0.0,
+        1.0,
+        1.0013333333333334,
+        -0.47359999999999675
+      ],
+      "latest_quantized_features": [
+        16406,
+        15216,
+        15257,
+        -41,
+        9408,
+        13074,
+        16679,
+        16384,
+        0,
+        16384,
+        16406,
+        -7759
+      ],
+      "payload_file": "degradation_running.i16le.bin",
+      "payload_bytes": 2304,
+      "payload_sha256": "f933a8ebe89c676e0deb26f240db810981302459558d237703c21a24b4a9e8be"
+    },
+    {
+      "name": "failure_onset",
+      "facility": "S1_FACILITY_C",
+      "ts_unix": 1791418800,
+      "targets": [
+        0,
+        0,
+        1,
+        0
+      ],
+      "latest_float_features": [
+        1.0055555555555555,
+        0.0,
+        0.0,
+        0.0,
+        0.4993,
+        -0.0033333333333333335,
+        -0.00599999999999909,
+        0.0,
+        1.0,
+        1.0,
+        1.0055,
+        -0.5248000000000047
+      ],
+      "latest_quantized_features": [
+        16475,
+        0,
+        0,
+        0,
+        8181,
+        -55,
+        -98,
+        0,
+        16384,
+        16384,
+        16474,
+        -8598
+      ],
+      "payload_file": "failure_onset.i16le.bin",
+      "payload_bytes": 2304,
+      "payload_sha256": "2701a4b6bb7dc1e79862118e7424547f6ffae569892e3954e6cc802f3fca3c9b"
+    },
+    {
+      "name": "shut_in",
+      "facility": "S1_FACILITY_C",
+      "ts_unix": 1791435000,
+      "targets": [
+        0,
+        0,
+        1,
+        1
+      ],
+      "latest_float_features": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.92,
+        0.018666666666666363,
+        -0.07400000000000091,
+        0.0,
+        1.0,
+        0.0,
+        0.0,
+        0.6528000000000066
+      ],
+      "latest_quantized_features": [
+        0,
+        0,
+        0,
+        0,
+        15073,
+        306,
+        -1212,
+        0,
+        16384,
+        0,
+        0,
+        10695
+      ],
+      "payload_file": "shut_in.i16le.bin",
+      "payload_bytes": 2304,
+      "payload_sha256": "bbc8b14f22877743b1c2c08349f9483a4d959a751ecb8aa4ecf008aebc8db997"
+    }
+  ]
+}

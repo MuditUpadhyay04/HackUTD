@@ -1,0 +1,4609 @@
+{
+  "source_commit": "135ba4c8348357457420a1111df80ec1906bcbdb",
+  "sha256": {
+    "network.json": "e8959b8633e76345e25f583aa3a4c46a3de1dde8ca25f95d96f3d10e2fce5c9f",
+    "ops.json": "644884bd3081a3af17065d03cb266c6467f27e1d3f935cb9e4aa48a4e02a9ed0",
+    "telemetry.csv": "4e5ffc0669ba3bc4fadfe50c0fcf2668bf6a380ca9d8a80a541f76a891dc013a",
+    "answer_key.json": "24872a1b427e7c0556f398cb2ad705d2264772cd20e774ab745e990d99e2710d"
+  },
+  "integrity": {
+    "rows": 393120,
+    "timestamps": 2016,
+    "assets": 105,
+    "series": 195,
+    "facilities": 15,
+    "first": "2026-10-05T00:00:00Z",
+    "last": "2026-10-11T23:55:00Z",
+    "timestamp_step_seconds": [
+      300
+    ],
+    "duplicate_keys": 0,
+    "missing_values": 0,
+    "missing_grid_cells": 0,
+    "unexpected_series": [],
+    "missing_series": [],
+    "timestamp_string_mismatches": 0
+  },
+  "facilities": [
+    {
+      "id": "S1_FACILITY_A",
+      "capacity_bbl": 1200,
+      "baseline_water_bpd": 2400,
+      "max_flow_bpd": 3600,
+      "disposal_psi": 1050,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S1_FACILITY_B",
+      "capacity_bbl": 1200,
+      "baseline_water_bpd": 2000,
+      "max_flow_bpd": 3000,
+      "disposal_psi": 1050,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S1_FACILITY_C",
+      "capacity_bbl": 800,
+      "baseline_water_bpd": 1800,
+      "max_flow_bpd": 2700,
+      "disposal_psi": 1050,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S2_FACILITY_A",
+      "capacity_bbl": 1000,
+      "baseline_water_bpd": 2200,
+      "max_flow_bpd": 3300,
+      "disposal_psi": 1000,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S2_FACILITY_B",
+      "capacity_bbl": 700,
+      "baseline_water_bpd": 1600,
+      "max_flow_bpd": 2400,
+      "disposal_psi": 1000,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S2_FACILITY_C",
+      "capacity_bbl": 600,
+      "baseline_water_bpd": 1400,
+      "max_flow_bpd": 2100,
+      "disposal_psi": 1000,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S3_FACILITY_A",
+      "capacity_bbl": 900,
+      "baseline_water_bpd": 2000,
+      "max_flow_bpd": 3000,
+      "disposal_psi": 950,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S3_FACILITY_B",
+      "capacity_bbl": 700,
+      "baseline_water_bpd": 1500,
+      "max_flow_bpd": 2250,
+      "disposal_psi": 950,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S4_FACILITY_A",
+      "capacity_bbl": 800,
+      "baseline_water_bpd": 1800,
+      "max_flow_bpd": 2700,
+      "disposal_psi": 1100,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S4_FACILITY_B",
+      "capacity_bbl": 700,
+      "baseline_water_bpd": 1500,
+      "max_flow_bpd": 2250,
+      "disposal_psi": 1100,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S4_FACILITY_C",
+      "capacity_bbl": 900,
+      "baseline_water_bpd": 2100,
+      "max_flow_bpd": 3150,
+      "disposal_psi": 1100,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S4_FACILITY_D",
+      "capacity_bbl": 750,
+      "baseline_water_bpd": 1700,
+      "max_flow_bpd": 2550,
+      "disposal_psi": 1100,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S5_FACILITY_A",
+      "capacity_bbl": 850,
+      "baseline_water_bpd": 1900,
+      "max_flow_bpd": 2850,
+      "disposal_psi": 1020,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S5_FACILITY_B",
+      "capacity_bbl": 750,
+      "baseline_water_bpd": 1700,
+      "max_flow_bpd": 2550,
+      "disposal_psi": 1020,
+      "healthy_flow_to_inflow": 1.5
+    },
+    {
+      "id": "S5_FACILITY_C",
+      "capacity_bbl": 600,
+      "baseline_water_bpd": 1300,
+      "max_flow_bpd": 1950,
+      "disposal_psi": 1020,
+      "healthy_flow_to_inflow": 1.5
+    }
+  ],
+  "event_counts": {
+    "pump_failure": 13,
+    "pipeline_leak": 5,
+    "pump_degradation": 5
+  },
+  "label_counts": {
+    "pipeline_leak": 1452,
+    "pump_degradation": 1924,
+    "pump_failure": 936,
+    "facility_shut_in": 199,
+    "normal": 25928
+  },
+  "target_combinations": [
+    {
+      "pipeline_leak": 0,
+      "pump_degradation": 0,
+      "pump_failure": 0,
+      "facility_shut_in": 0,
+      "count": 25928
+    },
+    {
+      "pipeline_leak": 0,
+      "pump_degradation": 0,
+      "pump_failure": 1,
+      "facility_shut_in": 0,
+      "count": 737
+    },
+    {
+      "pipeline_leak": 0,
+      "pump_degradation": 0,
+      "pump_failure": 1,
+      "facility_shut_in": 1,
+      "count": 199
+    },
+    {
+      "pipeline_leak": 0,
+      "pump_degradation": 1,
+      "pump_failure": 0,
+      "facility_shut_in": 0,
+      "count": 1924
+    },
+    {
+      "pipeline_leak": 1,
+      "pump_degradation": 0,
+      "pump_failure": 0,
+      "facility_shut_in": 0,
+      "count": 1452
+    }
+  ],
+  "snapshots": [
+    {
+      "folder": "mock_test_2026-10-10T1530",
+      "rows": 317265,
+      "byte_exact_prefix": true,
+      "same_network": true,
+      "same_ops": true
+    },
+    {
+      "folder": "snapshot_2026-10-08T1200",
+      "rows": 196755,
+      "byte_exact_prefix": true,
+      "same_network": true,
+      "same_ops": true
+    },
+    {
+      "folder": "snapshot_2026-10-09T0330",
+      "rows": 233025,
+      "byte_exact_prefix": true,
+      "same_network": true,
+      "same_ops": true
+    },
+    {
+      "folder": "snapshot_2026-10-10T0900",
+      "rows": 302055,
+      "byte_exact_prefix": true,
+      "same_network": true,
+      "same_ops": true
+    }
+  ],
+  "groups": {
+    "normal/pump_status=0": {
+      "count": 8244,
+      "inflow_norm": {
+        "0": 0.9836666666666666,
+        "0.01": 0.9904736842105264,
+        "0.5": 1.0,
+        "0.99": 1.0093952222222222,
+        "1": 1.0158
+      },
+      "pump_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "receive_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "flow_gap_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "tank_fraction": {
+        "0": 0.2952,
+        "0.01": 0.2982,
+        "0.5": 0.49555000000000005,
+        "0.99": 0.694457,
+        "1": 0.7006
+      },
+      "discharge_offset_norm": {
+        "0": -0.07,
+        "0.01": -0.0460000000000006,
+        "0.5": 0.0,
+        "0.99": 0.04533333333333303,
+        "1": 0.08
+      },
+      "pipeline_offset_norm": {
+        "0": -0.2419999999999982,
+        "0.01": -0.14199999999999818,
+        "0.5": 0.0,
+        "0.99": 0.13800000000000182,
+        "1": 0.2540000000000009
+      },
+      "pump_running": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "pump_fault": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "wells_active_fraction": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.9837222222222223,
+        "0.01": 0.9904601842105264,
+        "0.5": 1.0,
+        "0.99": 1.0094115079365078,
+        "1": 1.0158
+      },
+      "tank_net_flow_norm": {
+        "0": -0.8812799999999997,
+        "0.01": -0.47351127272727395,
+        "0.5": 0.9949090909090883,
+        "0.99": 1.3571648000000052,
+        "1": 1.6271999999999935
+      },
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {
+        "0": -4428.74,
+        "0.01": -2535.371999999998,
+        "0.5": -9.140000000009877,
+        "0.99": 696.3616000000056,
+        "1": 1500.3799999999842
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.1000000000003638,
+        "0.01": -0.10000000000013642,
+        "0.5": 0.0,
+        "0.99": 0.10000000000013642,
+        "1": 0.1000000000003638
+      }
+    },
+    "normal/pump_status=1": {
+      "count": 17684,
+      "inflow_norm": {
+        "0": 0.9846666666666666,
+        "0.01": 0.9907888345864662,
+        "0.5": 1.0,
+        "0.99": 1.0092972426470588,
+        "1": 1.016875
+      },
+      "pump_flow_norm": {
+        "0": 0.9752,
+        "0.01": 0.9867477631578947,
+        "0.5": 1.0,
+        "0.99": 1.0131773796791443,
+        "1": 1.0224444444444445
+      },
+      "receive_flow_norm": {
+        "0": 0.9785666666666666,
+        "0.01": 0.9867368660968661,
+        "0.5": 1.0,
+        "0.99": 1.0135734523809523,
+        "1": 1.0249583333333334
+      },
+      "flow_gap_norm": {
+        "0": -0.03283333333333333,
+        "0.01": -0.018810423280423264,
+        "0.5": 0.0,
+        "0.99": 0.018421052631578946,
+        "1": 0.03471111111111107
+      },
+      "tank_fraction": {
+        "0": 0.298,
+        "0.01": 0.3043,
+        "0.5": 0.5161,
+        "0.99": 0.8645999999999999,
+        "1": 0.92
+      },
+      "discharge_offset_norm": {
+        "0": 0.9166666666666666,
+        "0.01": 0.9539999999999994,
+        "0.5": 1.0,
+        "0.99": 1.0466666666666666,
+        "1": 1.08
+      },
+      "pipeline_offset_norm": {
+        "0": 0.7640000000000009,
+        "0.01": 0.8596600000000003,
+        "0.5": 1.0,
+        "0.99": 1.14,
+        "1": 1.2340000000000009
+      },
+      "pump_running": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "pump_fault": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "wells_active_fraction": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.984625,
+        "0.01": 0.990817215909091,
+        "0.5": 1.0,
+        "0.99": 1.0092871428571428,
+        "1": 1.016875
+      },
+      "tank_net_flow_norm": {
+        "0": -1.1577599999999908,
+        "0.01": -0.8601600000000008,
+        "0.5": -0.49920000000000075,
+        "0.99": 0.0,
+        "1": 1.5408000000000106
+      },
+      "leak_fraction_running": {
+        "0": -0.03349998299493251,
+        "0.01": -0.019010754529217477,
+        "0.5": 0.0,
+        "0.99": 0.018265867689130588,
+        "1": 0.03397276958545392
+      },
+      "balance_residual_bpd": {
+        "0": -1385.8400000000065,
+        "0.01": -695.2650000000008,
+        "0.5": 0.4899999999988722,
+        "0.99": 971.3149999999861,
+        "1": 4912.620000000025
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.1000000000003638,
+        "0.01": -0.10000000000013642,
+        "0.5": 0.0,
+        "0.99": 0.10000000000013642,
+        "1": 0.1000000000003638
+      }
+    },
+    "normal/pump_status=2": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "pipeline_leak/pump_status=0": {
+      "count": 420,
+      "inflow_norm": {
+        "0": 0.9894444444444445,
+        "0.01": 0.9916064705882353,
+        "0.5": 1.0000079365079366,
+        "0.99": 1.0093947478991596,
+        "1": 1.0122352941176471
+      },
+      "pump_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "receive_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "flow_gap_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "tank_fraction": {
+        "0": 0.295,
+        "0.01": 0.29737600000000003,
+        "0.5": 0.4829,
+        "0.99": 0.695982,
+        "1": 0.6983
+      },
+      "discharge_offset_norm": {
+        "0": -0.056666666666666664,
+        "0.01": -0.037873333333333606,
+        "0.5": 0.0006666666666668182,
+        "0.99": 0.03866666666666636,
+        "1": 0.05333333333333334
+      },
+      "pipeline_offset_norm": {
+        "0": -0.18,
+        "0.01": -0.13161999999999852,
+        "0.5": 0.0020000000000004545,
+        "0.99": 0.1448599999999993,
+        "1": 0.1659999999999991
+      },
+      "pump_running": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "pump_fault": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "wells_active_fraction": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.9894444444444445,
+        "0.01": 0.991595294117647,
+        "0.5": 1.0000079365079366,
+        "0.99": 1.0093606722689077,
+        "1": 1.0122352941176471
+      },
+      "tank_net_flow_norm": {
+        "0": -0.7623529411764723,
+        "0.01": -0.5088705882352929,
+        "0.5": 0.9984000000000015,
+        "0.99": 1.3286838857142902,
+        "1": 1.4230588235294086
+      },
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {
+        "0": -3187.4399999999996,
+        "0.01": -2571.3686,
+        "0.5": -2.839999999997417,
+        "0.99": 597.2289999999961,
+        "1": 832.120000000001
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.10000000000013642,
+        "0.01": -0.10000000000013642,
+        "0.5": 0.0,
+        "0.99": 0.10000000000013642,
+        "1": 0.10000000000013642
+      }
+    },
+    "pipeline_leak/pump_status=1": {
+      "count": 1032,
+      "inflow_norm": {
+        "0": 0.9861428571428571,
+        "0.01": 0.9903624761904762,
+        "0.5": 1.0,
+        "0.99": 1.0090492857142859,
+        "1": 1.0126428571428572
+      },
+      "pump_flow_norm": {
+        "0": 0.9801568627450981,
+        "0.01": 0.9868929411764706,
+        "0.5": 0.9998222222222222,
+        "0.99": 1.0143886834733893,
+        "1": 1.0196296296296297
+      },
+      "receive_flow_norm": {
+        "0": 0.8740888888888889,
+        "0.01": 0.8844595238095239,
+        "0.5": 0.935262962962963,
+        "0.99": 0.987938,
+        "1": 0.9940740740740741
+      },
+      "flow_gap_norm": {
+        "0": 0.0016666666666666668,
+        "0.01": 0.006888000000000056,
+        "0.5": 0.06343888888888896,
+        "0.99": 0.12014885714285699,
+        "1": 0.12709523809523815
+      },
+      "tank_fraction": {
+        "0": 0.30010000000000003,
+        "0.01": 0.304031,
+        "0.5": 0.4826,
+        "0.99": 0.7004,
+        "1": 0.7069
+      },
+      "discharge_offset_norm": {
+        "0": 0.934666666666667,
+        "0.01": 0.9548733333333335,
+        "0.5": 0.9986666666666664,
+        "0.99": 1.0473333333333328,
+        "1": 1.0726666666666673
+      },
+      "pipeline_offset_norm": {
+        "0": -1.2080000000000017,
+        "0.01": -1.0473799999999995,
+        "0.5": -0.195,
+        "0.99": 0.7284199999999993,
+        "1": 0.83
+      },
+      "pump_running": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "pump_fault": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "wells_active_fraction": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.9860714285714284,
+        "0.01": 0.9903493333333333,
+        "0.5": 1.0,
+        "0.99": 1.0090383333333333,
+        "1": 1.0125714285714285
+      },
+      "tank_net_flow_norm": {
+        "0": -1.061759999999999,
+        "0.01": -0.8645897142857132,
+        "0.5": -0.4972799999999965,
+        "0.99": -0.08341759999999615,
+        "1": 1.219764705882345
+      },
+      "leak_fraction_running": {
+        "0": 0.0016904945904172575,
+        "0.01": 0.006959456500663052,
+        "0.5": 0.06337507018975386,
+        "0.99": 0.11937664277273978,
+        "1": 0.12670907709836687
+      },
+      "balance_residual_bpd": {
+        "0": -962.9200000000008,
+        "0.01": -631.3984000000158,
+        "0.5": 6.369999999996935,
+        "0.99": 762.7653999999986,
+        "1": 3001.079999999994
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.1000000000003638,
+        "0.01": -0.10000000000013642,
+        "0.5": 0.0,
+        "0.99": 0.10000000000013642,
+        "1": 0.10000000000013642
+      }
+    },
+    "pipeline_leak/pump_status=2": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "pump_degradation/pump_status=0": {
+      "count": 495,
+      "inflow_norm": {
+        "0": 0.9893636363636363,
+        "0.01": 0.9910867965367965,
+        "0.5": 1.0000499999999999,
+        "0.99": 1.0083933333333333,
+        "1": 1.010904761904762
+      },
+      "pump_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "receive_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "flow_gap_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "tank_fraction": {
+        "0": 0.297,
+        "0.01": 0.29876400000000003,
+        "0.5": 0.5249,
+        "0.99": 0.6963179999999999,
+        "1": 0.6990999999999999
+      },
+      "discharge_offset_norm": {
+        "0": -0.04733333333333273,
+        "0.01": -0.04149333333333358,
+        "0.5": 0.0006666666666668182,
+        "0.99": 0.042786666666667264,
+        "1": 0.06733333333333348
+      },
+      "pipeline_offset_norm": {
+        "0": -0.21799999999999956,
+        "0.01": -0.13296000000000038,
+        "0.5": -0.001999999999998181,
+        "0.99": 0.1521200000000005,
+        "1": 0.1659999999999991
+      },
+      "pump_running": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "pump_fault": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "wells_active_fraction": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.9894090909090908,
+        "0.01": 0.9910867965367965,
+        "0.5": 1.0,
+        "0.99": 1.008345714285714,
+        "1": 1.010952380952381
+      },
+      "tank_net_flow_norm": {
+        "0": -0.5376000000000022,
+        "0.01": -0.34708114285714237,
+        "0.5": 0.985600000000004,
+        "0.99": 1.4083490909090923,
+        "1": 1.533221052631576
+      },
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {
+        "0": -3028.5199999999986,
+        "0.01": -2777.7696000000037,
+        "0.5": -25.619999999992842,
+        "0.99": 728.202400000003,
+        "1": 1009.9199999999939
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.1000000000003638,
+        "0.01": -0.1000000000003638,
+        "0.5": 0.0,
+        "0.99": 0.1000000000003638,
+        "1": 0.1000000000003638
+      }
+    },
+    "pump_degradation/pump_status=1": {
+      "count": 1429,
+      "inflow_norm": {
+        "0": 0.9881666666666666,
+        "0.01": 0.9916497777777779,
+        "0.5": 1.0,
+        "0.99": 1.0086511111111112,
+        "1": 1.0141363636363636
+      },
+      "pump_flow_norm": {
+        "0": 0.8513968253968254,
+        "0.01": 0.8590948148148149,
+        "0.5": 0.9307333333333333,
+        "0.99": 0.9990465454545455,
+        "1": 1.0071666666666668
+      },
+      "receive_flow_norm": {
+        "0": 0.8558,
+        "0.01": 0.859952,
+        "0.5": 0.9309696969696969,
+        "0.99": 0.9993539393939395,
+        "1": 1.008185185185185
+      },
+      "flow_gap_norm": {
+        "0": -0.02431746031746029,
+        "0.01": -0.01809600000000004,
+        "0.5": -7.01754385964274e-05,
+        "0.99": 0.017957575757575794,
+        "1": 0.025766666666666726
+      },
+      "tank_fraction": {
+        "0": 0.2988,
+        "0.01": 0.305456,
+        "0.5": 0.5268,
+        "0.99": 0.701672,
+        "1": 0.7071999999999999
+      },
+      "discharge_offset_norm": {
+        "0": 0.5833333333333334,
+        "0.01": 0.6140800000000002,
+        "0.5": 0.82,
+        "0.99": 1.006213333333333,
+        "1": 1.03
+      },
+      "pipeline_offset_norm": {
+        "0": 0.79,
+        "0.01": 0.8619999999999982,
+        "0.5": 1.0019999999999982,
+        "0.99": 1.1380000000000012,
+        "1": 1.2219999999999982
+      },
+      "pump_running": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "pump_fault": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "wells_active_fraction": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.9881666666666665,
+        "0.01": 0.9916497777777777,
+        "0.5": 1.0,
+        "0.99": 1.0086111111111111,
+        "1": 1.0141363636363636
+      },
+      "tank_net_flow_norm": {
+        "0": -0.8640000000000048,
+        "0.01": -0.7703738181818096,
+        "0.5": -0.40731428571428363,
+        "0.99": 0.11366400000000097,
+        "1": 1.3700571428571422
+      },
+      "leak_fraction_running": {
+        "0": -0.026817541241813903,
+        "0.01": -0.01984835606245036,
+        "0.5": -7.151796888971163e-05,
+        "0.99": 0.018953724197727364,
+        "1": 0.026043443648356757
+      },
+      "balance_residual_bpd": {
+        "0": -1076.5000000000107,
+        "0.01": -689.8280000000034,
+        "0.5": -14.999999999998636,
+        "0.99": 864.0592000000016,
+        "1": 3559.019999999999
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.1000000000003638,
+        "0.01": -0.1000000000003638,
+        "0.5": 0.0,
+        "0.99": 0.1000000000003638,
+        "1": 0.1000000000003638
+      }
+    },
+    "pump_degradation/pump_status=2": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "pump_failure/pump_status=0": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "pump_failure/pump_status=1": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "pump_failure/pump_status=2": {
+      "count": 936,
+      "inflow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.998579831932773,
+        "0.99": 1.009370119047619,
+        "1": 1.0102352941176471
+      },
+      "pump_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "receive_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "flow_gap_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "tank_fraction": {
+        "0": 0.3486,
+        "0.01": 0.40411,
+        "0.5": 0.7456499999999999,
+        "0.99": 0.92,
+        "1": 0.92
+      },
+      "discharge_offset_norm": {
+        "0": -0.05533333333333303,
+        "0.01": -0.0490999999999998,
+        "0.5": 0.0006666666666660604,
+        "0.99": 0.04420000000000017,
+        "1": 0.05599999999999985
+      },
+      "pipeline_offset_norm": {
+        "0": -0.21599999999999908,
+        "0.01": -0.14529999999999973,
+        "0.5": 0.0020000000000004545,
+        "0.99": 0.1340000000000009,
+        "1": 0.1759999999999991
+      },
+      "pump_running": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "pump_fault": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "wells_active_fraction": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "well_water_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.9985798319327732,
+        "0.99": 1.0093441666666667,
+        "1": 1.0102352941176471
+      },
+      "tank_net_flow_norm": {
+        "0": -0.5921999999999985,
+        "0.01": -0.39642352941176984,
+        "0.5": 0.950399999999995,
+        "0.99": 1.319437714285716,
+        "1": 1.4385599999999994
+      },
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {
+        "0": -3436.2999999999993,
+        "0.01": -2187.3390000000045,
+        "0.5": 0.0,
+        "0.99": 727.3029999999932,
+        "1": 2361.5999999999804
+      },
+      "inflow_sum_residual_bpd": {
+        "0": -0.1000000000003638,
+        "0.01": -0.10000000000013642,
+        "0.5": 0.0,
+        "0.99": 0.10000000000013642,
+        "1": 0.1000000000003638
+      }
+    },
+    "facility_shut_in/pump_status=0": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "facility_shut_in/pump_status=1": {
+      "count": 0,
+      "inflow_norm": {},
+      "pump_flow_norm": {},
+      "receive_flow_norm": {},
+      "flow_gap_norm": {},
+      "tank_fraction": {},
+      "discharge_offset_norm": {},
+      "pipeline_offset_norm": {},
+      "pump_running": {},
+      "pump_fault": {},
+      "wells_active_fraction": {},
+      "well_water_norm": {},
+      "tank_net_flow_norm": {},
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {},
+      "inflow_sum_residual_bpd": {}
+    },
+    "facility_shut_in/pump_status=2": {
+      "count": 199,
+      "inflow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "pump_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "receive_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "flow_gap_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "tank_fraction": {
+        "0": 0.92,
+        "0.01": 0.92,
+        "0.5": 0.92,
+        "0.99": 0.92,
+        "1": 0.92
+      },
+      "discharge_offset_norm": {
+        "0": -0.05400000000000015,
+        "0.01": -0.050013333333333326,
+        "0.5": -0.0033333333333333335,
+        "0.99": 0.03937333333333321,
+        "1": 0.043333333333333335
+      },
+      "pipeline_offset_norm": {
+        "0": -0.15400000000000091,
+        "0.01": -0.12615999999999913,
+        "0.5": 0.0020000000000004545,
+        "0.99": 0.13631999999999925,
+        "1": 0.1659999999999991
+      },
+      "pump_running": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "pump_fault": {
+        "0": 1.0,
+        "0.01": 1.0,
+        "0.5": 1.0,
+        "0.99": 1.0,
+        "1": 1.0
+      },
+      "wells_active_fraction": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "well_water_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      },
+      "tank_net_flow_norm": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.8174303999999949,
+        "1": 1.0734545454545366
+      },
+      "leak_fraction_running": {},
+      "balance_residual_bpd": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 1636.5887999999907,
+        "1": 2361.5999999999804
+      },
+      "inflow_sum_residual_bpd": {
+        "0": 0.0,
+        "0.01": 0.0,
+        "0.5": 0.0,
+        "0.99": 0.0,
+        "1": 0.0
+      }
+    }
+  },
+  "events": [
+    {
+      "id": "EVENT_1",
+      "facility": "S3_FACILITY_B",
+      "category": "pipeline_leak",
+      "onset": "2026-10-05T06:00:00Z",
+      "end": "2026-10-06T08:00:00Z",
+      "trips_at": null,
+      "rows": 312,
+      "status_counts": {
+        "1.0": 216,
+        "0.0": 96
+      },
+      "level_range": [
+        29.73,
+        70.06
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.9868888888888889,
+        "0.01": 0.9877577777777777,
+        "0.5": 1.0004,
+        "0.99": 1.0124866666666665,
+        "1": 1.0165333333333333
+      },
+      "running_leak_fraction": {
+        "0": 0.01665699102398077,
+        "0.01": 0.019713847227554794,
+        "0.5": 0.06843695792637822,
+        "0.99": 0.12384153720470942,
+        "1": 0.12606647707074303
+      },
+      "first_running_delay_min": 60.0,
+      "signed_estimated_leak_bbl": 114.71631944444445,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791179700,
+          "status": 0.0,
+          "level": 60.37,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.014000000000000151,
+          "pipeline_offset_norm": 0.09200000000000046,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9273599999999969
+        },
+        {
+          "ts_unix": 1791180000,
+          "status": 0.0,
+          "level": 61.18,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.008000000000000304,
+          "pipeline_offset_norm": -0.017999999999999544,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0886400000000032
+        },
+        {
+          "ts_unix": 1791180300,
+          "status": 0.0,
+          "level": 61.96,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0,
+          "pipeline_offset_norm": -0.007999999999999546,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0483200000000015
+        },
+        {
+          "ts_unix": 1791273300,
+          "status": 0.0,
+          "level": 51.31,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.014000000000000151,
+          "pipeline_offset_norm": 0.06599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.7660800000000004
+        },
+        {
+          "ts_unix": 1791273600,
+          "status": 0.0,
+          "level": 52.15,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.005999999999999848,
+          "pipeline_offset_norm": -0.01599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.1289599999999949
+        },
+        {
+          "ts_unix": 1791273900,
+          "status": 0.0,
+          "level": 52.91,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.0053333333333330304,
+          "pipeline_offset_norm": 0.06599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0214399999999972
+        }
+      ]
+    },
+    {
+      "id": "EVENT_2",
+      "facility": "S5_FACILITY_A",
+      "category": "pump_degradation",
+      "onset": "2026-10-05T12:00:00Z",
+      "end": "2026-10-06T16:00:00Z",
+      "trips_at": null,
+      "rows": 336,
+      "status_counts": {
+        "1.0": 258,
+        "0.0": 78
+      },
+      "level_range": [
+        29.88,
+        70.38
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.872561403508772,
+        "0.01": 0.8768645614035088,
+        "0.5": 0.9259122807017544,
+        "0.99": 0.9925287719298245,
+        "1": 0.9967368421052631
+      },
+      "running_leak_fraction": {
+        "0": -0.02326086170097308,
+        "0.01": -0.019217913021671564,
+        "0.5": -9.849772293568648e-05,
+        "0.99": 0.01574624285340887,
+        "1": 0.018680173869310646
+      },
+      "first_running_delay_min": 130.0,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791201300,
+          "status": 0.0,
+          "level": 49.25,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.006666666666666667,
+          "pipeline_offset_norm": 0.08599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.198231578947368
+        },
+        {
+          "ts_unix": 1791201600,
+          "status": 0.0,
+          "level": 50.17,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0006666666666668182,
+          "pipeline_offset_norm": 0.06599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.185347368421055
+        },
+        {
+          "ts_unix": 1791201900,
+          "status": 0.0,
+          "level": 51.04,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.02933333333333394,
+          "pipeline_offset_norm": -0.017999999999999544,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.1209263157894704
+        },
+        {
+          "ts_unix": 1791302100,
+          "status": 1.0,
+          "level": 30.48,
+          "pump_flow_norm": 0.8739649122807018,
+          "flow_gap_norm": 0.003649122807017576,
+          "discharge_offset_norm": 0.684666666666667,
+          "pipeline_offset_norm": 0.9880000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.29633684210526373
+        },
+        {
+          "ts_unix": 1791302400,
+          "status": 1.0,
+          "level": 30.28,
+          "pump_flow_norm": 0.9989473684210526,
+          "flow_gap_norm": 0.007508771929824593,
+          "discharge_offset_norm": 0.984666666666667,
+          "pipeline_offset_norm": 0.8819999999999982,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.25768421052631485
+        },
+        {
+          "ts_unix": 1791302700,
+          "status": 0.0,
+          "level": 29.73,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.0026666666666665152,
+          "pipeline_offset_norm": -0.08200000000000046,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.7086315789473694
+        }
+      ]
+    },
+    {
+      "id": "EVENT_3",
+      "facility": "S2_FACILITY_A",
+      "category": "pump_degradation",
+      "onset": "2026-10-05T20:00:00Z",
+      "end": "2026-10-06T20:00:00Z",
+      "trips_at": null,
+      "rows": 288,
+      "status_counts": {
+        "1.0": 214,
+        "0.0": 74
+      },
+      "level_range": [
+        29.96,
+        70.54
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.8954545454545455,
+        "0.01": 0.897490606060606,
+        "0.5": 0.9547424242424242,
+        "0.99": 0.9971021212121212,
+        "1": 1.0022727272727272
+      },
+      "running_leak_fraction": {
+        "0": -0.025950390940954415,
+        "0.01": -0.020433134141269925,
+        "0.5": 9.948892625094574e-05,
+        "0.99": 0.019381966299617213,
+        "1": 0.023595651890906733
+      },
+      "first_running_delay_min": 105.0,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791230100,
+          "status": 0.0,
+          "level": 53.45,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0053333333333330304,
+          "pipeline_offset_norm": -0.06599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0080000000000042
+        },
+        {
+          "ts_unix": 1791230400,
+          "status": 0.0,
+          "level": 54.28,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.0026666666666665152,
+          "pipeline_offset_norm": 0.00599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0865454545454523
+        },
+        {
+          "ts_unix": 1791230700,
+          "status": 0.0,
+          "level": 55.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.024000000000000153,
+          "pipeline_offset_norm": 0.00599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9425454545454531
+        },
+        {
+          "ts_unix": 1791316500,
+          "status": 1.0,
+          "level": 42.16,
+          "pump_flow_norm": 0.8954545454545455,
+          "flow_gap_norm": -0.012666666666666722,
+          "discharge_offset_norm": 0.684666666666667,
+          "pipeline_offset_norm": 0.94,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5498181818181841
+        },
+        {
+          "ts_unix": 1791316800,
+          "status": 1.0,
+          "level": 41.9,
+          "pump_flow_norm": 0.9996969696969698,
+          "flow_gap_norm": 0.00196969696969697,
+          "discharge_offset_norm": 0.9626666666666672,
+          "pipeline_offset_norm": 1.03,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.34036363636363376
+        },
+        {
+          "ts_unix": 1791317100,
+          "status": 1.0,
+          "level": 41.51,
+          "pump_flow_norm": 1.003121212121212,
+          "flow_gap_norm": 0.007545454545454573,
+          "discharge_offset_norm": 0.9886666666666664,
+          "pipeline_offset_norm": 1.054000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5105454545454553
+        }
+      ]
+    },
+    {
+      "id": "EVENT_4",
+      "facility": "S4_FACILITY_A",
+      "category": "pipeline_leak",
+      "onset": "2026-10-06T02:00:00Z",
+      "end": "2026-10-07T06:00:00Z",
+      "trips_at": null,
+      "rows": 336,
+      "status_counts": {
+        "1.0": 232,
+        "0.0": 104
+      },
+      "level_range": [
+        30.0,
+        70.69
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.9877037037037038,
+        "0.01": 0.9889207407407408,
+        "0.5": 1.000037037037037,
+        "0.99": 1.0162477777777779,
+        "1": 1.0196296296296297
+      },
+      "running_leak_fraction": {
+        "0": 0.0035369894634945664,
+        "0.01": 0.0070101575579948625,
+        "0.5": 0.06478765728486358,
+        "0.99": 0.1196435901158552,
+        "1": 0.12294451565647313
+      },
+      "first_running_delay_min": 0.0,
+      "signed_estimated_leak_bbl": 145.70034722222226,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791251700,
+          "status": 1.0,
+          "level": 46.03,
+          "pump_flow_norm": 1.0053333333333334,
+          "flow_gap_norm": 0.015037037037037003,
+          "discharge_offset_norm": 0.98,
+          "pipeline_offset_norm": 0.8819999999999982,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5503999999999997
+        },
+        {
+          "ts_unix": 1791252000,
+          "status": 1.0,
+          "level": 45.76,
+          "pump_flow_norm": 0.9941111111111111,
+          "flow_gap_norm": 0.011148148148148114,
+          "discharge_offset_norm": 0.9966666666666667,
+          "pipeline_offset_norm": 0.6680000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.345600000000004
+        },
+        {
+          "ts_unix": 1791252300,
+          "status": 1.0,
+          "level": 45.28,
+          "pump_flow_norm": 0.9991111111111111,
+          "flow_gap_norm": 0.023185185185185152,
+          "discharge_offset_norm": 0.9833333333333333,
+          "pipeline_offset_norm": 0.7680000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.614399999999996
+        },
+        {
+          "ts_unix": 1791352500,
+          "status": 1.0,
+          "level": 36.56,
+          "pump_flow_norm": 0.9924814814814814,
+          "flow_gap_norm": 0.1003333333333332,
+          "discharge_offset_norm": 1.0119999999999998,
+          "pipeline_offset_norm": -1.2080000000000017,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.7167999999999939
+        },
+        {
+          "ts_unix": 1791352800,
+          "status": 1.0,
+          "level": 36.34,
+          "pump_flow_norm": 0.9989629629629629,
+          "flow_gap_norm": -0.004962962962962996,
+          "discharge_offset_norm": 0.9973333333333327,
+          "pipeline_offset_norm": 1.121999999999998,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.2815999999999985
+        },
+        {
+          "ts_unix": 1791353100,
+          "status": 1.0,
+          "level": 35.75,
+          "pump_flow_norm": 1.002925925925926,
+          "flow_gap_norm": -0.00670370370370367,
+          "discharge_offset_norm": 0.98,
+          "pipeline_offset_norm": 1.0580000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.7552000000000043
+        }
+      ]
+    },
+    {
+      "id": "EVENT_5",
+      "facility": "S1_FACILITY_C",
+      "category": "pump_degradation",
+      "onset": "2026-10-06T12:00:00Z",
+      "end": "2026-10-08T00:20:00Z",
+      "trips_at": null,
+      "rows": 436,
+      "status_counts": {
+        "1.0": 328,
+        "0.0": 108
+      },
+      "level_range": [
+        29.75,
+        70.64
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.8557037037037037,
+        "0.01": 0.8590940740740741,
+        "0.5": 0.9296666666666668,
+        "0.99": 1.0007107407407407,
+        "1": 1.005037037037037
+      },
+      "running_leak_fraction": {
+        "0": -0.026817541241813903,
+        "0.01": -0.02088863123807208,
+        "0.5": -0.0004453656460856603,
+        "0.99": 0.020070026137960707,
+        "1": 0.023879279206967086
+      },
+      "first_running_delay_min": 20.0,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791287700,
+          "status": 0.0,
+          "level": 66.44,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.006000000000000606,
+          "pipeline_offset_norm": -0.11,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9344000000000052
+        },
+        {
+          "ts_unix": 1791288000,
+          "status": 0.0,
+          "level": 67.23,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.04733333333333273,
+          "pipeline_offset_norm": 0.07199999999999818,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.011200000000008
+        },
+        {
+          "ts_unix": 1791288300,
+          "status": 0.0,
+          "level": 67.92,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0053333333333330304,
+          "pipeline_offset_norm": -0.03199999999999818,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.8831999999999971
+        },
+        {
+          "ts_unix": 1791418500,
+          "status": 1.0,
+          "level": 50.34,
+          "pump_flow_norm": 0.8597407407407408,
+          "flow_gap_norm": 0.0006296296296297307,
+          "discharge_offset_norm": 0.5913333333333336,
+          "pipeline_offset_norm": 0.9559999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.24319999999999709
+        },
+        {
+          "ts_unix": 1791418800,
+          "status": 2.0,
+          "level": 49.93,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.0033333333333333335,
+          "pipeline_offset_norm": -0.00599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5248000000000047
+        },
+        {
+          "ts_unix": 1791419100,
+          "status": 2.0,
+          "level": 50.76,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.02,
+          "pipeline_offset_norm": 0.07199999999999818,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0623999999999978
+        }
+      ]
+    },
+    {
+      "id": "EVENT_6",
+      "facility": "S1_FACILITY_B",
+      "category": "pump_failure",
+      "onset": "2026-10-07T02:10:00Z",
+      "end": "2026-10-07T08:10:00Z",
+      "trips_at": null,
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        34.86,
+        76.15
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791338700,
+          "status": 1.0,
+          "level": 35.2,
+          "pump_flow_norm": 1.0038333333333334,
+          "flow_gap_norm": 0.0012666666666667273,
+          "discharge_offset_norm": 0.9739999999999994,
+          "pipeline_offset_norm": 0.9919999999999982,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.6911999999999975
+        },
+        {
+          "ts_unix": 1791339000,
+          "status": 2.0,
+          "level": 34.86,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.013999999999999393,
+          "pipeline_offset_norm": -0.0640000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5875200000000059
+        },
+        {
+          "ts_unix": 1791339300,
+          "status": 2.0,
+          "level": 35.62,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.007333333333332727,
+          "pipeline_offset_norm": 0.0,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.3132799999999965
+        },
+        {
+          "ts_unix": 1791360300,
+          "status": 2.0,
+          "level": 76.15,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.012666666666667274,
+          "pipeline_offset_norm": 0.08400000000000091,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.2787200000000156
+        },
+        {
+          "ts_unix": 1791360600,
+          "status": 1.0,
+          "level": 76.73,
+          "pump_flow_norm": 1.0093333333333334,
+          "flow_gap_norm": 0.01539999999999994,
+          "discharge_offset_norm": 0.999333333333334,
+          "pipeline_offset_norm": 1.0559999999999992,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0022399999999971
+        },
+        {
+          "ts_unix": 1791360900,
+          "status": 1.0,
+          "level": 76.38,
+          "pump_flow_norm": 0.9933333333333333,
+          "flow_gap_norm": -0.017533333333333304,
+          "discharge_offset_norm": 1.0039999999999993,
+          "pipeline_offset_norm": 0.8840000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.6048000000000147
+        }
+      ]
+    },
+    {
+      "id": "EVENT_7",
+      "facility": "S3_FACILITY_A",
+      "category": "pump_degradation",
+      "onset": "2026-10-07T08:00:00Z",
+      "end": "2026-10-08T20:00:00Z",
+      "trips_at": null,
+      "rows": 432,
+      "status_counts": {
+        "1.0": 326,
+        "0.0": 106
+      },
+      "level_range": [
+        29.7,
+        70.72
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.8580666666666666,
+        "0.01": 0.8604833333333334,
+        "0.5": 0.9319166666666667,
+        "0.99": 1.0030583333333332,
+        "1": 1.0071666666666668
+      },
+      "running_leak_fraction": {
+        "0": -0.022250922509225113,
+        "0.01": -0.017017892234731713,
+        "0.5": 8.61239057906582e-05,
+        "0.99": 0.018069166889170596,
+        "1": 0.026043443648356757
+      },
+      "first_running_delay_min": 0.0,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791359700,
+          "status": 1.0,
+          "level": 62.67,
+          "pump_flow_norm": 0.9953666666666666,
+          "flow_gap_norm": -0.0007666666666667273,
+          "discharge_offset_norm": 0.9626666666666672,
+          "pipeline_offset_norm": 1.004000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5183999999999982
+        },
+        {
+          "ts_unix": 1791360000,
+          "status": 1.0,
+          "level": 62.28,
+          "pump_flow_norm": 1.0020333333333333,
+          "flow_gap_norm": 0.0007666666666665757,
+          "discharge_offset_norm": 0.9966666666666667,
+          "pipeline_offset_norm": 0.98,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5054400000000008
+        },
+        {
+          "ts_unix": 1791360300,
+          "status": 1.0,
+          "level": 61.96,
+          "pump_flow_norm": 1.0011999999999999,
+          "flow_gap_norm": 0.006,
+          "discharge_offset_norm": 0.9966666666666667,
+          "pipeline_offset_norm": 1.0159999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.4147200000000003
+        },
+        {
+          "ts_unix": 1791489300,
+          "status": 1.0,
+          "level": 45.23,
+          "pump_flow_norm": 0.8604333333333334,
+          "flow_gap_norm": 0.0009333333333333939,
+          "discharge_offset_norm": 0.6539999999999994,
+          "pipeline_offset_norm": 1.0679999999999996,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.2980800000000052
+        },
+        {
+          "ts_unix": 1791489600,
+          "status": 2.0,
+          "level": 45.11,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.009333333333333181,
+          "pipeline_offset_norm": -0.02599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.1555199999999967
+        },
+        {
+          "ts_unix": 1791489900,
+          "status": 2.0,
+          "level": 45.82,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.011333333333333636,
+          "pipeline_offset_norm": -0.01599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9201600000000012
+        }
+      ]
+    },
+    {
+      "id": "EVENT_8",
+      "facility": "S4_FACILITY_C",
+      "category": "pump_degradation",
+      "onset": "2026-10-07T14:00:00Z",
+      "end": "2026-10-09T02:00:00Z",
+      "trips_at": null,
+      "rows": 432,
+      "status_counts": {
+        "1.0": 303,
+        "0.0": 129
+      },
+      "level_range": [
+        29.77,
+        70.59
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.8513968253968254,
+        "0.01": 0.8563536507936508,
+        "0.5": 0.9248571428571429,
+        "0.99": 0.9906844444444444,
+        "1": 0.9923492063492064
+      },
+      "running_leak_fraction": {
+        "0": -0.025141131679138784,
+        "0.01": -0.017436704720085915,
+        "0.5": -0.00010086746015747217,
+        "0.99": 0.019043888653796918,
+        "1": 0.021753153669724856
+      },
+      "first_running_delay_min": 145.0,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791381300,
+          "status": 0.0,
+          "level": 45.9,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.04,
+          "pipeline_offset_norm": -0.08400000000000091,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.8886857142857129
+        },
+        {
+          "ts_unix": 1791381600,
+          "status": 0.0,
+          "level": 46.65,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.00466666666666697,
+          "pipeline_offset_norm": -0.02,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9257142857142857
+        },
+        {
+          "ts_unix": 1791381900,
+          "status": 0.0,
+          "level": 47.5,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.026000000000000606,
+          "pipeline_offset_norm": -0.02800000000000182,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0491428571428587
+        },
+        {
+          "ts_unix": 1791510900,
+          "status": 1.0,
+          "level": 55.38,
+          "pump_flow_norm": 0.8562222222222222,
+          "flow_gap_norm": -0.0005079365079364791,
+          "discharge_offset_norm": 0.6113333333333336,
+          "pipeline_offset_norm": 0.925999999999999,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.16045714285713725
+        },
+        {
+          "ts_unix": 1791511200,
+          "status": 2.0,
+          "level": 54.97,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.012666666666667274,
+          "pipeline_offset_norm": 0.06,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5060571428571473
+        },
+        {
+          "ts_unix": 1791511500,
+          "status": 2.0,
+          "level": 55.63,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.008666666666666363,
+          "pipeline_offset_norm": 0.05,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.814628571428576
+        }
+      ]
+    },
+    {
+      "id": "EVENT_9",
+      "facility": "S1_FACILITY_C",
+      "category": "pump_failure",
+      "onset": "2026-10-08T00:20:00Z",
+      "end": "2026-10-08T06:20:00Z",
+      "trips_at": "2026-10-08T04:49:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        49.93,
+        92.0
+      ],
+      "off_well_rows": 18,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791418500,
+          "status": 1.0,
+          "level": 50.34,
+          "pump_flow_norm": 0.8597407407407408,
+          "flow_gap_norm": 0.0006296296296297307,
+          "discharge_offset_norm": 0.5913333333333336,
+          "pipeline_offset_norm": 0.9559999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.24319999999999709
+        },
+        {
+          "ts_unix": 1791418800,
+          "status": 2.0,
+          "level": 49.93,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.0033333333333333335,
+          "pipeline_offset_norm": -0.00599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5248000000000047
+        },
+        {
+          "ts_unix": 1791419100,
+          "status": 2.0,
+          "level": 50.76,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.02,
+          "pipeline_offset_norm": 0.07199999999999818,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0623999999999978
+        },
+        {
+          "ts_unix": 1791440100,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0053333333333330304,
+          "pipeline_offset_norm": 0.01,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791440400,
+          "status": 1.0,
+          "level": 91.95,
+          "pump_flow_norm": 0.9960740740740741,
+          "flow_gap_norm": 0.00033333333333336704,
+          "discharge_offset_norm": 1.005333333333333,
+          "pipeline_offset_norm": 1.0059999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.06399999999999637
+        },
+        {
+          "ts_unix": 1791440700,
+          "status": 1.0,
+          "level": 91.55,
+          "pump_flow_norm": 0.9957407407407407,
+          "flow_gap_norm": -0.006370370370370303,
+          "discharge_offset_norm": 1.0233333333333334,
+          "pipeline_offset_norm": 1.01,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5120000000000072
+        }
+      ]
+    },
+    {
+      "id": "EVENT_10",
+      "facility": "S5_FACILITY_B",
+      "category": "pipeline_leak",
+      "onset": "2026-10-08T06:00:00Z",
+      "end": "2026-10-09T07:00:00Z",
+      "trips_at": null,
+      "rows": 300,
+      "status_counts": {
+        "1.0": 208,
+        "0.0": 92
+      },
+      "level_range": [
+        29.5,
+        70.69
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.9801568627450981,
+        "0.01": 0.9856043137254901,
+        "0.5": 0.9990196078431373,
+        "0.99": 1.0142576470588234,
+        "1": 1.0161960784313726
+      },
+      "running_leak_fraction": {
+        "0": 0.001788126837797055,
+        "0.01": 0.006332198259043713,
+        "0.5": 0.05429846068078131,
+        "0.99": 0.09874256019812207,
+        "1": 0.10228331780055899
+      },
+      "first_running_delay_min": 10.0,
+      "signed_estimated_leak_bbl": 98.81180555555557,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791438900,
+          "status": 0.0,
+          "level": 68.14,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.030666666666666818,
+          "pipeline_offset_norm": -0.02,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9148235294117631
+        },
+        {
+          "ts_unix": 1791439200,
+          "status": 0.0,
+          "level": 68.99,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.0006666666666668182,
+          "pipeline_offset_norm": 0.03,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0799999999999927
+        },
+        {
+          "ts_unix": 1791439500,
+          "status": 0.0,
+          "level": 69.73,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.016666666666666666,
+          "pipeline_offset_norm": 0.09599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9402352941176587
+        },
+        {
+          "ts_unix": 1791528900,
+          "status": 0.0,
+          "level": 58.66,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.01533333333333303,
+          "pipeline_offset_norm": -0.004000000000000909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.7750588235294111
+        },
+        {
+          "ts_unix": 1791529200,
+          "status": 0.0,
+          "level": 59.54,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.015999999999999848,
+          "pipeline_offset_norm": -0.02,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.1181176470588268
+        },
+        {
+          "ts_unix": 1791529500,
+          "status": 0.0,
+          "level": 60.26,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0,
+          "pipeline_offset_norm": 0.09800000000000182,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9148235294117631
+        }
+      ]
+    },
+    {
+      "id": "EVENT_11",
+      "facility": "S2_FACILITY_B",
+      "category": "pump_failure",
+      "onset": "2026-10-08T09:00:00Z",
+      "end": "2026-10-08T15:00:00Z",
+      "trips_at": "2026-10-08T13:25:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        50.01,
+        92.0
+      ],
+      "off_well_rows": 19,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791449700,
+          "status": 1.0,
+          "level": 50.48,
+          "pump_flow_norm": 1.0025416666666667,
+          "flow_gap_norm": 0.0055833333333333715,
+          "discharge_offset_norm": 1.0066666666666666,
+          "pipeline_offset_norm": 1.06,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.44100000000000183
+        },
+        {
+          "ts_unix": 1791450000,
+          "status": 2.0,
+          "level": 50.01,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.001999999999999697,
+          "pipeline_offset_norm": -0.1340000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5921999999999985
+        },
+        {
+          "ts_unix": 1791450300,
+          "status": 2.0,
+          "level": 50.78,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.012666666666666515,
+          "pipeline_offset_norm": -0.012000000000000455,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9702000000000038
+        },
+        {
+          "ts_unix": 1791471300,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.011333333333333636,
+          "pipeline_offset_norm": -0.052000000000000456,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791471600,
+          "status": 1.0,
+          "level": 91.87,
+          "pump_flow_norm": 0.9924166666666667,
+          "flow_gap_norm": 0.001000000000000038,
+          "discharge_offset_norm": 1.0480000000000003,
+          "pipeline_offset_norm": 1.0359999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.16379999999999428
+        },
+        {
+          "ts_unix": 1791471900,
+          "status": 1.0,
+          "level": 91.54,
+          "pump_flow_norm": 1.002125,
+          "flow_gap_norm": -0.0036666666666667425,
+          "discharge_offset_norm": 0.9933333333333333,
+          "pipeline_offset_norm": 0.9340000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.41579999999999784
+        }
+      ]
+    },
+    {
+      "id": "EVENT_12",
+      "facility": "S2_FACILITY_C",
+      "category": "pump_failure",
+      "onset": "2026-10-08T09:30:00Z",
+      "end": "2026-10-08T15:30:00Z",
+      "trips_at": "2026-10-08T14:20:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        45.09,
+        92.0
+      ],
+      "off_well_rows": 13,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791451500,
+          "status": 1.0,
+          "level": 45.47,
+          "pump_flow_norm": 0.9895714285714285,
+          "flow_gap_norm": -0.006904761904761905,
+          "discharge_offset_norm": 0.9826666666666672,
+          "pipeline_offset_norm": 0.944000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.43200000000000177
+        },
+        {
+          "ts_unix": 1791451800,
+          "status": 2.0,
+          "level": 45.09,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.016666666666666666,
+          "pipeline_offset_norm": 0.01599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.4690285714285658
+        },
+        {
+          "ts_unix": 1791452100,
+          "status": 2.0,
+          "level": 45.87,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.03266666666666652,
+          "pipeline_offset_norm": -0.01599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9627428571428499
+        },
+        {
+          "ts_unix": 1791473100,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.031333333333333636,
+          "pipeline_offset_norm": 0.0640000000000009,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791473400,
+          "status": 1.0,
+          "level": 91.99,
+          "pump_flow_norm": 0.9967619047619046,
+          "flow_gap_norm": -0.014333333333333507,
+          "discharge_offset_norm": 0.9686666666666663,
+          "pipeline_offset_norm": 0.9640000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.012342857142863458
+        },
+        {
+          "ts_unix": 1791473700,
+          "status": 1.0,
+          "level": 91.51,
+          "pump_flow_norm": 0.9987142857142858,
+          "flow_gap_norm": 0.008000000000000087,
+          "discharge_offset_norm": 0.9839999999999994,
+          "pipeline_offset_norm": 1.0459999999999992,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5924571428571301
+        }
+      ]
+    },
+    {
+      "id": "EVENT_13",
+      "facility": "S2_FACILITY_A",
+      "category": "pump_failure",
+      "onset": "2026-10-08T10:00:00Z",
+      "end": "2026-10-08T16:00:00Z",
+      "trips_at": "2026-10-08T14:35:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        49.92,
+        92.0
+      ],
+      "off_well_rows": 17,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791453300,
+          "status": 1.0,
+          "level": 50.35,
+          "pump_flow_norm": 0.988030303030303,
+          "flow_gap_norm": -0.010727272727272755,
+          "discharge_offset_norm": 1.0093333333333339,
+          "pipeline_offset_norm": 0.98,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5890909090909036
+        },
+        {
+          "ts_unix": 1791453600,
+          "status": 2.0,
+          "level": 49.92,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.02066666666666682,
+          "pipeline_offset_norm": 0.01,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5629090909090905
+        },
+        {
+          "ts_unix": 1791453900,
+          "status": 2.0,
+          "level": 50.84,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.007333333333333485,
+          "pipeline_offset_norm": -0.02400000000000091,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.2043636363636385
+        },
+        {
+          "ts_unix": 1791474900,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.01933333333333318,
+          "pipeline_offset_norm": -0.09400000000000092,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791475200,
+          "status": 1.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.989,
+          "flow_gap_norm": -0.007090909090909118,
+          "discharge_offset_norm": 1.0280000000000002,
+          "pipeline_offset_norm": 0.9659999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791475500,
+          "status": 1.0,
+          "level": 91.59,
+          "pump_flow_norm": 0.995030303030303,
+          "flow_gap_norm": -0.004333333333333389,
+          "discharge_offset_norm": 1.015333333333333,
+          "pipeline_offset_norm": 0.915999999999999,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5367272727272683
+        }
+      ]
+    },
+    {
+      "id": "EVENT_14",
+      "facility": "S3_FACILITY_A",
+      "category": "pump_failure",
+      "onset": "2026-10-08T20:00:00Z",
+      "end": "2026-10-09T02:00:00Z",
+      "trips_at": "2026-10-09T01:04:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        45.11,
+        92.0
+      ],
+      "off_well_rows": 11,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791489300,
+          "status": 1.0,
+          "level": 45.23,
+          "pump_flow_norm": 0.8604333333333334,
+          "flow_gap_norm": 0.0009333333333333939,
+          "discharge_offset_norm": 0.6539999999999994,
+          "pipeline_offset_norm": 1.0679999999999996,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.2980800000000052
+        },
+        {
+          "ts_unix": 1791489600,
+          "status": 2.0,
+          "level": 45.11,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.009333333333333181,
+          "pipeline_offset_norm": -0.02599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.1555199999999967
+        },
+        {
+          "ts_unix": 1791489900,
+          "status": 2.0,
+          "level": 45.82,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.011333333333333636,
+          "pipeline_offset_norm": -0.01599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9201600000000012
+        },
+        {
+          "ts_unix": 1791510900,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.02666666666666667,
+          "pipeline_offset_norm": -0.02599999999999909,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791511200,
+          "status": 1.0,
+          "level": 91.99,
+          "pump_flow_norm": 0.9972333333333333,
+          "flow_gap_norm": -0.006033333333333455,
+          "discharge_offset_norm": 1.0280000000000002,
+          "pipeline_offset_norm": 1.0520000000000005,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.01296000000000663
+        },
+        {
+          "ts_unix": 1791511500,
+          "status": 1.0,
+          "level": 91.7,
+          "pump_flow_norm": 0.9942333333333333,
+          "flow_gap_norm": -0.009800000000000031,
+          "discharge_offset_norm": 0.9839999999999994,
+          "pipeline_offset_norm": 1.09,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.3758399999999897
+        }
+      ]
+    },
+    {
+      "id": "EVENT_15",
+      "facility": "S4_FACILITY_C",
+      "category": "pump_failure",
+      "onset": "2026-10-09T02:00:00Z",
+      "end": "2026-10-09T08:00:00Z",
+      "trips_at": "2026-10-09T05:48:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        54.97,
+        92.0
+      ],
+      "off_well_rows": 26,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791510900,
+          "status": 1.0,
+          "level": 55.38,
+          "pump_flow_norm": 0.8562222222222222,
+          "flow_gap_norm": -0.0005079365079364791,
+          "discharge_offset_norm": 0.6113333333333336,
+          "pipeline_offset_norm": 0.925999999999999,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.16045714285713725
+        },
+        {
+          "ts_unix": 1791511200,
+          "status": 2.0,
+          "level": 54.97,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.012666666666667274,
+          "pipeline_offset_norm": 0.06,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5060571428571473
+        },
+        {
+          "ts_unix": 1791511500,
+          "status": 2.0,
+          "level": 55.63,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.008666666666666363,
+          "pipeline_offset_norm": 0.05,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.814628571428576
+        },
+        {
+          "ts_unix": 1791532500,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.002666666666667273,
+          "pipeline_offset_norm": -0.06,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791532800,
+          "status": 1.0,
+          "level": 91.97,
+          "pump_flow_norm": 0.9981904761904763,
+          "flow_gap_norm": 3.174603174614724e-05,
+          "discharge_offset_norm": 1.0186666666666664,
+          "pipeline_offset_norm": 1.0880000000000019,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.03702857142857283
+        },
+        {
+          "ts_unix": 1791533100,
+          "status": 1.0,
+          "level": 91.55,
+          "pump_flow_norm": 1.0038730158730158,
+          "flow_gap_norm": 0.003523809523809495,
+          "discharge_offset_norm": 1.0293333333333339,
+          "pipeline_offset_norm": 0.9719999999999982,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5184000000000021
+        }
+      ]
+    },
+    {
+      "id": "EVENT_16",
+      "facility": "S1_FACILITY_B",
+      "category": "pipeline_leak",
+      "onset": "2026-10-09T04:00:00Z",
+      "end": "2026-10-10T02:00:00Z",
+      "trips_at": null,
+      "rows": 264,
+      "status_counts": {
+        "1.0": 194,
+        "0.0": 70
+      },
+      "level_range": [
+        29.77,
+        70.22
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.9845333333333333,
+        "0.01": 0.9878836666666667,
+        "0.5": 1.0013166666666669,
+        "0.99": 1.0127706666666667,
+        "1": 1.0140666666666667
+      },
+      "running_leak_fraction": {
+        "0": 0.004062720343820381,
+        "0.01": 0.00671705213094108,
+        "0.5": 0.061696977592879676,
+        "0.99": 0.09876300645611612,
+        "1": 0.1003789137804959
+      },
+      "first_running_delay_min": 0.0,
+      "signed_estimated_leak_bbl": 117.72395833333336,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791518100,
+          "status": 1.0,
+          "level": 46.23,
+          "pump_flow_norm": 0.9998,
+          "flow_gap_norm": -0.004899999999999939,
+          "discharge_offset_norm": 1.0219999999999998,
+          "pipeline_offset_norm": 1.0080000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.6739200000000011
+        },
+        {
+          "ts_unix": 1791518400,
+          "status": 1.0,
+          "level": 46.06,
+          "pump_flow_norm": 0.9935666666666666,
+          "flow_gap_norm": 0.005933333333333243,
+          "discharge_offset_norm": 0.9813333333333336,
+          "pipeline_offset_norm": 0.81,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.2937599999999907
+        },
+        {
+          "ts_unix": 1791518700,
+          "status": 1.0,
+          "level": 45.53,
+          "pump_flow_norm": 1.0127333333333333,
+          "flow_gap_norm": 0.03379999999999988,
+          "discharge_offset_norm": 1.02,
+          "pipeline_offset_norm": 0.6380000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.915840000000002
+        },
+        {
+          "ts_unix": 1791597300,
+          "status": 1.0,
+          "level": 30.6,
+          "pump_flow_norm": 0.9898666666666667,
+          "flow_gap_norm": 0.0839666666666667,
+          "discharge_offset_norm": 1.0339999999999994,
+          "pipeline_offset_norm": -1.0059999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.6047999999999963
+        },
+        {
+          "ts_unix": 1791597600,
+          "status": 1.0,
+          "level": 30.52,
+          "pump_flow_norm": 1.0057666666666667,
+          "flow_gap_norm": 0.007700000000000122,
+          "discharge_offset_norm": 1.0326666666666673,
+          "pipeline_offset_norm": 0.9180000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.1382400000000032
+        },
+        {
+          "ts_unix": 1791597900,
+          "status": 1.0,
+          "level": 30.05,
+          "pump_flow_norm": 0.9990666666666667,
+          "flow_gap_norm": 0.0027666666666665758,
+          "discharge_offset_norm": 1.0033333333333334,
+          "pipeline_offset_norm": 1.0480000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.812159999999998
+        }
+      ]
+    },
+    {
+      "id": "EVENT_17",
+      "facility": "S2_FACILITY_C",
+      "category": "pipeline_leak",
+      "onset": "2026-10-09T10:00:00Z",
+      "end": "2026-10-10T06:00:00Z",
+      "trips_at": null,
+      "rows": 240,
+      "status_counts": {
+        "1.0": 182,
+        "0.0": 58
+      },
+      "level_range": [
+        29.62,
+        70.04
+      ],
+      "off_well_rows": 0,
+      "running_flow_ratio": {
+        "0": 0.9820952380952381,
+        "0.01": 0.9863676190476189,
+        "0.5": 0.9989999999999999,
+        "0.99": 1.0123276190476191,
+        "1": 1.0143809523809524
+      },
+      "running_leak_fraction": {
+        "0": 0.0016904945904172575,
+        "0.01": 0.010067257882852594,
+        "0.5": 0.07414635707431555,
+        "0.99": 0.12239330983572887,
+        "1": 0.12670907709836687
+      },
+      "first_running_delay_min": 0.0,
+      "signed_estimated_leak_bbl": 89.58819444444445,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791539700,
+          "status": 1.0,
+          "level": 63.14,
+          "pump_flow_norm": 0.9961428571428572,
+          "flow_gap_norm": -0.0029047619047618614,
+          "discharge_offset_norm": 1.0513333333333337,
+          "pipeline_offset_norm": 0.954000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.8022857142857125
+        },
+        {
+          "ts_unix": 1791540000,
+          "status": 1.0,
+          "level": 62.88,
+          "pump_flow_norm": 0.9955714285714284,
+          "flow_gap_norm": 0.009047619047619047,
+          "discharge_offset_norm": 0.9853333333333331,
+          "pipeline_offset_norm": 0.6680000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.32091428571428326
+        },
+        {
+          "ts_unix": 1791540300,
+          "status": 1.0,
+          "level": 62.48,
+          "pump_flow_norm": 0.9984761904761905,
+          "flow_gap_norm": 0.019428571428571514,
+          "discharge_offset_norm": 1.045333333333333,
+          "pipeline_offset_norm": 0.7140000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.49371428571429277
+        },
+        {
+          "ts_unix": 1791611700,
+          "status": 0.0,
+          "level": 35.29,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.03400000000000015,
+          "pipeline_offset_norm": -0.05400000000000091,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.8639999999999947
+        },
+        {
+          "ts_unix": 1791612000,
+          "status": 0.0,
+          "level": 36.04,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.00466666666666697,
+          "pipeline_offset_norm": 0.004000000000000909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9257142857142857
+        },
+        {
+          "ts_unix": 1791612300,
+          "status": 0.0,
+          "level": 36.8,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.007333333333333485,
+          "pipeline_offset_norm": -0.0640000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9380571428571404
+        }
+      ]
+    },
+    {
+      "id": "EVENT_18",
+      "facility": "S4_FACILITY_B",
+      "category": "pump_failure",
+      "onset": "2026-10-09T18:00:00Z",
+      "end": "2026-10-10T00:00:00Z",
+      "trips_at": "2026-10-09T23:37:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        42.01,
+        92.0
+      ],
+      "off_well_rows": 4,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791568500,
+          "status": 1.0,
+          "level": 42.23,
+          "pump_flow_norm": 1.0004,
+          "flow_gap_norm": -0.0032444444444443233,
+          "discharge_offset_norm": 0.974666666666667,
+          "pipeline_offset_norm": 1.014000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5241600000000007
+        },
+        {
+          "ts_unix": 1791568800,
+          "status": 2.0,
+          "level": 42.01,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0053333333333330304,
+          "pipeline_offset_norm": 0.13199999999999817,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.29567999999999844
+        },
+        {
+          "ts_unix": 1791569100,
+          "status": 2.0,
+          "level": 42.54,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.028000000000000302,
+          "pipeline_offset_norm": 0.09400000000000092,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.7123200000000015
+        },
+        {
+          "ts_unix": 1791590100,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.011999999999999697,
+          "pipeline_offset_norm": 0.04199999999999818,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791590400,
+          "status": 1.0,
+          "level": 91.94,
+          "pump_flow_norm": 0.9902666666666666,
+          "flow_gap_norm": -0.007644444444444566,
+          "discharge_offset_norm": 1.0193333333333339,
+          "pipeline_offset_norm": 1.0080000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.08064000000000306
+        },
+        {
+          "ts_unix": 1791590700,
+          "status": 1.0,
+          "level": 91.78,
+          "pump_flow_norm": 1.0137777777777779,
+          "flow_gap_norm": 0.012355555555555637,
+          "discharge_offset_norm": 1.0373333333333328,
+          "pipeline_offset_norm": 1.0559999999999992,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.21503999999999543
+        }
+      ]
+    },
+    {
+      "id": "EVENT_19",
+      "facility": "S4_FACILITY_C",
+      "category": "pump_failure",
+      "onset": "2026-10-10T07:00:00Z",
+      "end": "2026-10-10T13:00:00Z",
+      "trips_at": "2026-10-10T12:15:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        40.99,
+        92.0
+      ],
+      "off_well_rows": 8,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791615300,
+          "status": 1.0,
+          "level": 41.37,
+          "pump_flow_norm": 0.9974920634920634,
+          "flow_gap_norm": -0.0070793650793651375,
+          "discharge_offset_norm": 0.9953333333333331,
+          "pipeline_offset_norm": 0.9980000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.4320000000000017
+        },
+        {
+          "ts_unix": 1791615600,
+          "status": 2.0,
+          "level": 40.99,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.05533333333333303,
+          "pipeline_offset_norm": 0.01599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.4690285714285658
+        },
+        {
+          "ts_unix": 1791615900,
+          "status": 2.0,
+          "level": 41.81,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.012666666666667274,
+          "pipeline_offset_norm": 0.004000000000000909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.012114285714286
+        },
+        {
+          "ts_unix": 1791636900,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.05066666666666606,
+          "pipeline_offset_norm": -0.001999999999998181,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791637200,
+          "status": 1.0,
+          "level": 92.0,
+          "pump_flow_norm": 1.0021587301587302,
+          "flow_gap_norm": 0.009428571428571515,
+          "discharge_offset_norm": 1.0013333333333336,
+          "pipeline_offset_norm": 0.9780000000000019,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791637500,
+          "status": 1.0,
+          "level": 91.57,
+          "pump_flow_norm": 0.9965714285714286,
+          "flow_gap_norm": 0.006158730158730043,
+          "discharge_offset_norm": 1.0026666666666673,
+          "pipeline_offset_norm": 0.9140000000000009,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5307428571428656
+        }
+      ]
+    },
+    {
+      "id": "EVENT_20",
+      "facility": "S4_FACILITY_D",
+      "category": "pump_failure",
+      "onset": "2026-10-10T07:30:00Z",
+      "end": "2026-10-10T13:30:00Z",
+      "trips_at": "2026-10-10T12:29:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        45.01,
+        92.0
+      ],
+      "off_well_rows": 12,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791617100,
+          "status": 1.0,
+          "level": 45.35,
+          "pump_flow_norm": 1.0014509803921567,
+          "flow_gap_norm": -0.0012941176470588948,
+          "discharge_offset_norm": 0.989333333333334,
+          "pipeline_offset_norm": 1.0059999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.7369411764705861
+        },
+        {
+          "ts_unix": 1791617400,
+          "status": 2.0,
+          "level": 45.01,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.011333333333333636,
+          "pipeline_offset_norm": 0.10800000000000182,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.4320000000000044
+        },
+        {
+          "ts_unix": 1791617700,
+          "status": 2.0,
+          "level": 45.75,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.00933333333333394,
+          "pipeline_offset_norm": 0.08400000000000091,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9402352941176496
+        },
+        {
+          "ts_unix": 1791638700,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.02466666666666697,
+          "pipeline_offset_norm": 0.00599999999999909,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791639000,
+          "status": 1.0,
+          "level": 91.99,
+          "pump_flow_norm": 1.0042745098039216,
+          "flow_gap_norm": 0.003803921568627558,
+          "discharge_offset_norm": 0.9739999999999994,
+          "pipeline_offset_norm": 1.054000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.012705882352947676
+        },
+        {
+          "ts_unix": 1791639300,
+          "status": 1.0,
+          "level": 91.5,
+          "pump_flow_norm": 0.9980392156862745,
+          "flow_gap_norm": 0.0025882352941176113,
+          "discharge_offset_norm": 0.990666666666666,
+          "pipeline_offset_norm": 1.0319999999999983,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.6225882352941111
+        }
+      ]
+    },
+    {
+      "id": "EVENT_21",
+      "facility": "S4_FACILITY_A",
+      "category": "pump_failure",
+      "onset": "2026-10-10T08:00:00Z",
+      "end": "2026-10-10T14:00:00Z",
+      "trips_at": "2026-10-10T11:57:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        54.92,
+        92.0
+      ],
+      "off_well_rows": 24,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791618900,
+          "status": 1.0,
+          "level": 55.33,
+          "pump_flow_norm": 1.0008148148148148,
+          "flow_gap_norm": -0.0011111111111111111,
+          "discharge_offset_norm": 0.9780000000000003,
+          "pipeline_offset_norm": 1.004000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5632000000000061
+        },
+        {
+          "ts_unix": 1791619200,
+          "status": 2.0,
+          "level": 54.92,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0013333333333336364,
+          "pipeline_offset_norm": -0.00599999999999909,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5247999999999956
+        },
+        {
+          "ts_unix": 1791619500,
+          "status": 2.0,
+          "level": 55.8,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.04933333333333394,
+          "pipeline_offset_norm": -0.12199999999999818,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.126399999999994
+        },
+        {
+          "ts_unix": 1791640500,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": -0.002666666666667273,
+          "pipeline_offset_norm": 0.05599999999999909,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791640800,
+          "status": 1.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.9957407407407407,
+          "flow_gap_norm": -0.0006666666666667341,
+          "discharge_offset_norm": 0.96,
+          "pipeline_offset_norm": 0.98,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791641100,
+          "status": 1.0,
+          "level": 91.55,
+          "pump_flow_norm": 0.9967407407407407,
+          "flow_gap_norm": 0.0077777777777777776,
+          "discharge_offset_norm": 1.0193333333333339,
+          "pipeline_offset_norm": 1.0380000000000018,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5760000000000036
+        }
+      ]
+    },
+    {
+      "id": "EVENT_22",
+      "facility": "S5_FACILITY_C",
+      "category": "pump_failure",
+      "onset": "2026-10-10T14:00:00Z",
+      "end": "2026-10-10T20:00:00Z",
+      "trips_at": "2026-10-10T17:33:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        60.04,
+        92.0
+      ],
+      "off_well_rows": 29,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791640500,
+          "status": 1.0,
+          "level": 60.41,
+          "pump_flow_norm": 0.9989743589743589,
+          "flow_gap_norm": 0.005589743589743636,
+          "discharge_offset_norm": 0.9986666666666664,
+          "pipeline_offset_norm": 1.0,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.35889230769231184
+        },
+        {
+          "ts_unix": 1791640800,
+          "status": 2.0,
+          "level": 60.04,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.005999999999999848,
+          "pipeline_offset_norm": -0.08799999999999955,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.4918153846153812
+        },
+        {
+          "ts_unix": 1791641100,
+          "status": 2.0,
+          "level": 60.72,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0026666666666665152,
+          "pipeline_offset_norm": -0.09400000000000092,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.9038769230769227
+        },
+        {
+          "ts_unix": 1791662100,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0026666666666665152,
+          "pipeline_offset_norm": 0.012000000000000455,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791662400,
+          "status": 1.0,
+          "level": 92.0,
+          "pump_flow_norm": 1.0067692307692309,
+          "flow_gap_norm": 0.003076923076923077,
+          "discharge_offset_norm": 0.9880000000000003,
+          "pipeline_offset_norm": 0.9780000000000019,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791662700,
+          "status": 1.0,
+          "level": 91.77,
+          "pump_flow_norm": 0.9963589743589744,
+          "flow_gap_norm": -0.0109230769230769,
+          "discharge_offset_norm": 1.0619999999999996,
+          "pipeline_offset_norm": 0.954000000000001,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.3057230769230822
+        }
+      ]
+    },
+    {
+      "id": "EVENT_23",
+      "facility": "S5_FACILITY_B",
+      "category": "pump_failure",
+      "onset": "2026-10-10T14:30:00Z",
+      "end": "2026-10-10T20:30:00Z",
+      "trips_at": "2026-10-10T18:56:00Z",
+      "rows": 72,
+      "status_counts": {
+        "2.0": 72
+      },
+      "level_range": [
+        50.08,
+        92.0
+      ],
+      "off_well_rows": 18,
+      "running_flow_ratio": {},
+      "running_leak_fraction": {},
+      "first_running_delay_min": null,
+      "onset_and_end_readings": [
+        {
+          "ts_unix": 1791642300,
+          "status": 1.0,
+          "level": 50.34,
+          "pump_flow_norm": 1.0003137254901961,
+          "flow_gap_norm": -0.008901960784313654,
+          "discharge_offset_norm": 0.984666666666667,
+          "pipeline_offset_norm": 0.97,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.49552941176469756
+        },
+        {
+          "ts_unix": 1791642600,
+          "status": 2.0,
+          "level": 50.08,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.0026666666666665152,
+          "pipeline_offset_norm": -0.1459999999999991,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.33035294117647707
+        },
+        {
+          "ts_unix": 1791642900,
+          "status": 2.0,
+          "level": 50.91,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.009333333333333181,
+          "pipeline_offset_norm": -0.02400000000000091,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": 1.0545882352941156
+        },
+        {
+          "ts_unix": 1791663900,
+          "status": 2.0,
+          "level": 92.0,
+          "pump_flow_norm": 0.0,
+          "flow_gap_norm": 0.0,
+          "discharge_offset_norm": 0.008000000000000304,
+          "pipeline_offset_norm": -0.05400000000000091,
+          "active_fraction": 0.0,
+          "tank_net_flow_norm": 0.0
+        },
+        {
+          "ts_unix": 1791664200,
+          "status": 1.0,
+          "level": 91.94,
+          "pump_flow_norm": 1.0053333333333332,
+          "flow_gap_norm": 0.0022352941176469873,
+          "discharge_offset_norm": 0.9793333333333339,
+          "pipeline_offset_norm": 0.91,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.07623529411764995
+        },
+        {
+          "ts_unix": 1791664500,
+          "status": 1.0,
+          "level": 91.53,
+          "pump_flow_norm": 1.0053333333333332,
+          "flow_gap_norm": 0.0010196078431372192,
+          "discharge_offset_norm": 1.0080000000000002,
+          "pipeline_offset_norm": 1.1080000000000019,
+          "active_fraction": 1.0,
+          "tank_net_flow_norm": -0.5209411764705839
+        }
+      ]
+    }
+  ],
+  "shut_ins": [
+    {
+      "facility": "S1_FACILITY_C",
+      "first_ts": 1791435000,
+      "last_ts": 1791440100,
+      "samples": 18,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_9",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "first_ts": 1791470100,
+      "last_ts": 1791474900,
+      "samples": 17,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_13",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "first_ts": 1791465900,
+      "last_ts": 1791471300,
+      "samples": 19,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_11",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "first_ts": 1791469500,
+      "last_ts": 1791473100,
+      "samples": 13,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_12",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "first_ts": 1791507900,
+      "last_ts": 1791510900,
+      "samples": 11,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_14",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "first_ts": 1791633600,
+      "last_ts": 1791640500,
+      "samples": 24,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_21",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "first_ts": 1791589200,
+      "last_ts": 1791590100,
+      "samples": 4,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_18",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "first_ts": 1791525000,
+      "last_ts": 1791532500,
+      "samples": 26,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_15",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "first_ts": 1791634800,
+      "last_ts": 1791636900,
+      "samples": 8,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_19",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "first_ts": 1791635400,
+      "last_ts": 1791638700,
+      "samples": 12,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_20",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "first_ts": 1791658800,
+      "last_ts": 1791663900,
+      "samples": 18,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_23",
+      "failure_throughout": true
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "first_ts": 1791653700,
+      "last_ts": 1791662100,
+      "samples": 29,
+      "first_level": 92.0,
+      "last_level": 92.0,
+      "event_id": "EVENT_22",
+      "failure_throughout": true
+    }
+  ],
+  "normal_off_runs": [
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 58
+    },
+    {
+      "facility": "S1_FACILITY_A",
+      "samples": 28
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 60
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_B",
+      "samples": 70
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 48
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S1_FACILITY_C",
+      "samples": 52
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 32
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 53
+    },
+    {
+      "facility": "S2_FACILITY_A",
+      "samples": 2
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 2
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 51
+    },
+    {
+      "facility": "S2_FACILITY_B",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 15
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 42
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S2_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 28
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 42
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 24
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S3_FACILITY_B",
+      "samples": 42
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_B",
+      "samples": 54
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 23
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 21
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_C",
+      "samples": 50
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S4_FACILITY_D",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 14
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 26
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_A",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 2
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 50
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 14
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 52
+    },
+    {
+      "facility": "S5_FACILITY_B",
+      "samples": 16
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 54
+    },
+    {
+      "facility": "S5_FACILITY_C",
+      "samples": 9
+    }
+  ],
+  "feature_ranges": {
+    "inflow_norm": {
+      "0": 0.0,
+      "0.01": 0.9890658823529411,
+      "0.5": 0.99995,
+      "0.99": 1.0093333333333332,
+      "1": 1.016875
+    },
+    "pump_flow_norm": {
+      "0": 0.0,
+      "0.01": 0.0,
+      "0.5": 0.9950333333333333,
+      "0.99": 1.0124444444444445,
+      "1": 1.0224444444444445
+    },
+    "receive_flow_norm": {
+      "0": 0.0,
+      "0.01": 0.0,
+      "0.5": 0.9940333333333333,
+      "0.99": 1.012487313131313,
+      "1": 1.0249583333333334
+    },
+    "flow_gap_norm": {
+      "0": -0.03283333333333333,
+      "0.01": -0.01751885714285721,
+      "0.5": 0.0,
+      "0.99": 0.08356233333333343,
+      "1": 0.12709523809523815
+    },
+    "tank_fraction": {
+      "0": 0.295,
+      "0.01": 0.30269999999999997,
+      "0.5": 0.5152,
+      "0.99": 0.898561,
+      "1": 0.92
+    },
+    "discharge_offset_norm": {
+      "0": -0.07,
+      "0.01": -0.038000000000000304,
+      "0.5": 0.9833333333333333,
+      "0.99": 1.0426666666666673,
+      "1": 1.08
+    },
+    "pipeline_offset_norm": {
+      "0": -1.2080000000000017,
+      "0.01": -0.4640000000000009,
+      "0.5": 0.9519999999999982,
+      "0.99": 1.128000000000002,
+      "1": 1.2340000000000009
+    },
+    "pump_running": {
+      "0": 0.0,
+      "0.01": 0.0,
+      "0.5": 1.0,
+      "0.99": 1.0,
+      "1": 1.0
+    },
+    "pump_fault": {
+      "0": 0.0,
+      "0.01": 0.0,
+      "0.5": 0.0,
+      "0.99": 1.0,
+      "1": 1.0
+    },
+    "wells_active_fraction": {
+      "0": 0.0,
+      "0.01": 1.0,
+      "0.5": 1.0,
+      "0.99": 1.0,
+      "1": 1.0
+    },
+    "well_water_norm": {
+      "0": 0.0,
+      "0.01": 0.989113660130719,
+      "0.5": 0.99995,
+      "0.99": 1.0093252083333333,
+      "1": 1.016875
+    },
+    "tank_net_flow_norm": {
+      "0": -1.1577599999999908,
+      "0.01": -0.8284772571428548,
+      "0.5": -0.3897600000000084,
+      "0.99": 1.2830400000000026,
+      "1": 1.6271999999999935
+    }
+  },
+  "normal_high_level_frames": 219,
+  "active_fraction_values": {
+    "1.0": 30041,
+    "0.0": 199
+  },
+  "inflow_sum_residual_bpd": {
+    "0": -0.1000000000003638,
+    "0.01": -0.10000000000013642,
+    "0.5": 0.0,
+    "0.99": 0.10000000000013642,
+    "1": 0.1000000000003638
+  },
+  "rule_baselines": {
+    "pipeline_leak": {
+      "tp": 644,
+      "fp": 0,
+      "fn": 808,
+      "tn": 28788
+    },
+    "pump_degradation": {
+      "tp": 885,
+      "fp": 46,
+      "fn": 1039,
+      "tn": 28270
+    },
+    "pump_failure": {
+      "tp": 936,
+      "fp": 0,
+      "fn": 0,
+      "tn": 29304
+    },
+    "facility_shut_in": {
+      "tp": 199,
+      "fp": 0,
+      "fn": 0,
+      "tn": 30041
+    }
+  },
+  "leave_one_system_out_current_frame_tree": {
+    "folds": [
+      {
+        "held_out": "S1",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 1.0,
+            "recall": 0.6212121212121212,
+            "f1": 0.7663551401869159,
+            "positive_frames": 264
+          },
+          "pump_degradation": {
+            "precision": 0.8128491620111732,
+            "recall": 0.6674311926605505,
+            "f1": 0.7329974811083123,
+            "positive_frames": 436
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 144
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 18
+          }
+        }
+      },
+      {
+        "held_out": "S2",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 1.0,
+            "recall": 0.6916666666666667,
+            "f1": 0.8177339901477833,
+            "positive_frames": 240
+          },
+          "pump_degradation": {
+            "precision": 0.7137681159420289,
+            "recall": 0.6840277777777778,
+            "f1": 0.6985815602836879,
+            "positive_frames": 288
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 216
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 49
+          }
+        }
+      },
+      {
+        "held_out": "S3",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 1.0,
+            "recall": 0.6538461538461539,
+            "f1": 0.7906976744186046,
+            "positive_frames": 312
+          },
+          "pump_degradation": {
+            "precision": 0.8909657320872274,
+            "recall": 0.6620370370370371,
+            "f1": 0.7596281540504648,
+            "positive_frames": 432
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 72
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 11
+          }
+        }
+      },
+      {
+        "held_out": "S4",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 1.0,
+            "recall": 0.6011904761904762,
+            "f1": 0.7509293680297398,
+            "positive_frames": 336
+          },
+          "pump_degradation": {
+            "precision": 0.7571059431524548,
+            "recall": 0.6782407407407407,
+            "f1": 0.7155067155067155,
+            "positive_frames": 432
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 360
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 74
+          }
+        }
+      },
+      {
+        "held_out": "S5",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 1.0,
+            "recall": 0.6833333333333333,
+            "f1": 0.8118811881188119,
+            "positive_frames": 300
+          },
+          "pump_degradation": {
+            "precision": 0.8327759197324415,
+            "recall": 0.7410714285714286,
+            "f1": 0.784251968503937,
+            "positive_frames": 336
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 144
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 47
+          }
+        }
+      }
+    ],
+    "pooled": {
+      "pipeline_leak": {
+        "precision": 1.0,
+        "recall": 0.6480716253443526,
+        "f1": 0.7864605098203092,
+        "positive_frames": 1452
+      },
+      "pump_degradation": {
+        "precision": 0.8019500304692261,
+        "recall": 0.683991683991684,
+        "f1": 0.738288920056101,
+        "positive_frames": 1924
+      },
+      "pump_failure": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "positive_frames": 936
+      },
+      "facility_shut_in": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "positive_frames": 199
+      }
+    }
+  },
+  "leave_one_system_out_causal96_memory_tree": {
+    "folds": [
+      {
+        "held_out": "S1",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 1.0,
+            "recall": 0.9962121212121212,
+            "f1": 0.9981024667931688,
+            "positive_frames": 264
+          },
+          "pump_degradation": {
+            "precision": 1.0,
+            "recall": 0.8761467889908257,
+            "f1": 0.9339853300733496,
+            "positive_frames": 436
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 144
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 18
+          }
+        }
+      },
+      {
+        "held_out": "S2",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 0.8913857677902621,
+            "recall": 0.9916666666666667,
+            "f1": 0.9388560157790927,
+            "positive_frames": 240
+          },
+          "pump_degradation": {
+            "precision": 1.0,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "positive_frames": 288
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 216
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 49
+          }
+        }
+      },
+      {
+        "held_out": "S3",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 0.9259259259259259,
+            "recall": 0.9615384615384616,
+            "f1": 0.9433962264150944,
+            "positive_frames": 312
+          },
+          "pump_degradation": {
+            "precision": 0.8392857142857143,
+            "recall": 0.8703703703703703,
+            "f1": 0.8545454545454545,
+            "positive_frames": 432
+          },
+          "pump_failure": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "positive_frames": 72
+          },
+          "facility_shut_in": {
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "positive_frames": 11
+          }
+        }
+      },
+      {
+        "held_out": "S4",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 0.9970326409495549,
+            "recall": 1.0,
+            "f1": 0.9985141158989599,
+            "positive_frames": 336
+          },
+          "pump_degradation": {
+            "precision": 1.0,
+            "recall": 0.8680555555555556,
+            "f1": 0.929368029739777,
+            "positive_frames": 432
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 360
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 74
+          }
+        }
+      },
+      {
+        "held_out": "S5",
+        "targets": {
+          "pipeline_leak": {
+            "precision": 0.9548387096774194,
+            "recall": 0.9866666666666667,
+            "f1": 0.9704918032786886,
+            "positive_frames": 300
+          },
+          "pump_degradation": {
+            "precision": 0.9965397923875432,
+            "recall": 0.8571428571428571,
+            "f1": 0.9216,
+            "positive_frames": 336
+          },
+          "pump_failure": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 144
+          },
+          "facility_shut_in": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "positive_frames": 47
+          }
+        }
+      }
+    ],
+    "pooled": {
+      "pipeline_leak": {
+        "precision": 0.9546968687541639,
+        "recall": 0.9869146005509641,
+        "f1": 0.9705384354893328,
+        "positive_frames": 1452
+      },
+      "pump_degradation": {
+        "precision": 0.9579008073817762,
+        "recall": 0.8633056133056133,
+        "f1": 0.9081465281574631,
+        "positive_frames": 1924
+      },
+      "pump_failure": {
+        "precision": 1.0,
+        "recall": 0.9230769230769231,
+        "f1": 0.96,
+        "positive_frames": 936
+      },
+      "facility_shut_in": {
+        "precision": 1.0,
+        "recall": 0.9447236180904522,
+        "f1": 0.9715762273901809,
+        "positive_frames": 199
+      }
+    }
+  }
+}
