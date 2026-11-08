@@ -122,13 +122,18 @@ export async function orchestrate(options: OrchestrateOptions): Promise<AgentRun
     children.forEach((c) => { if (c.status === "accepted") done.set(`plan_explainer:${c.incidentId}`, c); });
   }
   void triage;
-  const handoff = await spawn("handoff", root, undefined, "every run ends with the operator handoff", root.id);
+  // Nothing ongoing: the handoff is a fact, not prose to generate. The orchestrator writes it (no model call), so an
+  // empty shift can't end without a handoff (seen live: the model read old incidents until its budget ran out).
+  const handoff = ongoing.length ? await spawn("handoff", root, undefined, "every run ends with the operator handoff", root.id)
+    : node({ parentId: root.id, depth: 1, role: "handoff", incidentId: null, requestedBy: root.id, reason: "no ongoing incidents: deterministic handoff, no model call",
+        question: null, promptVersion: null, status: "deterministic",
+        output: { handoff: `No ongoing incidents at ${facts.now}. Detections from ${facts.detections}.`, evidenceIds: [], planIds: [] } satisfies HandoffOutput });
   const scored = nodes.filter((n) => n.score);
   const trace: AgentRunTrace = {
     id: `agents-${randomUUID()}`, runId: facts.runId, revision: facts.revision, nowUnix: facts.nowUnix, now: facts.now, startedAt: new Date(started).toISOString(), cycle: options.cycle ?? null, caseId: options.caseId ?? null,
     strategy: options.strategy, prompts: Object.fromEntries(Object.entries(options.prompts).map(([k, v]) => [k, v!.version])),
     guards: { maxDepth: guards.maxDepth, maxNodes: guards.maxNodes, maxTokens: guards.maxTokens, deadlineMs: guards.deadlineMs }, alertsView: alertsView(facts), board: facts.board, nodes,
-    outputs: { triage: outputs.triage ?? null, explanations: outputs.explanations, reviews: outputs.reviews, handoff: handoff.status === "accepted" ? handoff.output as HandoffOutput : null },
+    outputs: { triage: outputs.triage ?? null, explanations: outputs.explanations, reviews: outputs.reviews, handoff: handoff.status === "accepted" || handoff.status === "deterministic" ? handoff.output as HandoffOutput : null },
     totals: { nodes: scored.length, modelCalls: sum(nodes, "modelCalls"), inputTokens: sum(nodes, "inputTokens"), outputTokens: sum(nodes, "outputTokens"), latencyMs: Date.now() - started,
       accepted: nodes.filter((n) => n.status === "accepted").length, denied: nodes.filter((n) => n.status === "denied").length, maxDepth: Math.max(...nodes.map((n) => n.depth)) },
     score: strategyScore(facts, scored, sum(nodes, "inputTokens")),
@@ -139,7 +144,7 @@ export async function orchestrate(options: OrchestrateOptions): Promise<AgentRun
 function triggerReason(facts: RunFacts): string {
   const board = facts.board.filter((b) => b.heads.length).map((b) => b.facilityId);
   const ongoing = facts.incidents.filter((i) => i.status === "ongoing").length;
-  return `${ongoing} ongoing incidents from the software runtime${board.length ? `; board heads active at ${board.join(", ")}` : ""}`;
+  return `${ongoing} ongoing incidents, detections from ${facts.detections}${board.length ? `; board heads active at ${board.join(", ")}` : ""}`;
 }
 const sum = (nodes: TaskNode[], key: "modelCalls" | "inputTokens" | "outputTokens") => nodes.reduce((s, n) => s + n[key], 0);
 

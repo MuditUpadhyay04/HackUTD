@@ -19,6 +19,8 @@ export interface BoardFact { facilityId: string; status: string; heads: string[]
 export const STALE_AFTER_S = 600; // two 5-minute steps
 export interface RunFacts {
   runId: string; revision: number; nowUnix: number; now: string; scoresAvailable: boolean; coverageComplete: boolean;
+  /** Where the leak / degradation / failure detections came from, e.g. "board results (fpga, weights v4)". */
+  detections: string;
   recommendationReady: boolean; incidents: IncidentFact[]; board: BoardFact[];
 }
 
@@ -60,7 +62,9 @@ export function runFacts(snapshot: Snapshot, board: BoardFact[] = []): RunFacts 
       levelPct: i.levelPct ?? null, lostRevenuePerHour: i.lostRevenuePerHour ?? null, confidence: i.confidence, dataQuality: i.dataQuality?.quality ?? null,
       planningStatus: i.planningStatus ?? null, evidence: i.evidence.map((text, n) => ({ id: `${i.id}:evidence:${n}`, text: text.slice(0, 500) })), plans };
   };
+  const fromBoard = snapshot.runtime?.reasons?.find((r) => r.startsWith("Detections from "));
   return { runId: snapshot.runId, revision: snapshot.revision, nowUnix: snapshot.nowUnix, now: clock(snapshot.nowUnix), scoresAvailable: snapshot.runtime?.scoresAvailable ?? false,
+    detections: fromBoard ? fromBoard.slice("Detections from ".length).replace(/;.*$/, "") : "the software runtime (pump status only without a model)",
     coverageComplete: snapshot.coverage?.complete ?? false, recommendationReady: fresh,
     incidents: [...(snapshot.alerts ?? []), ...(snapshot.history ?? [])].map(incident),
     board: boardAt(board, snapshot.nowUnix) };

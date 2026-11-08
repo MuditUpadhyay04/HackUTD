@@ -36,6 +36,18 @@ describe("board provenance", () => {
   });
 });
 
+describe("empty shift", () => {
+  test("with no ongoing incidents the orchestrator writes the handoff itself and never asks the model for one", async () => {
+    const empty = { ...snapshot, alerts: [] } as unknown as typeof snapshot;
+    const { requests, model } = scripted({ triage: () => ({ name: "submit_triage", args: { order: [], notes: [] } }), handoff: () => ({ text: "should not be called" }) });
+    const trace = await orchestrate({ model, snapshot: empty, prompts, strategy: SEED_STRATEGIES[1]! });
+    expect(requests.some((r) => r.role === "handoff")).toBe(false);
+    const handoff = trace.nodes.find((n) => n.role === "handoff")!;
+    expect(handoff.status).toBe("deterministic");
+    expect(trace.outputs.handoff?.handoff).toStartWith("No ongoing incidents at ");
+  });
+});
+
 describe("orchestrator task tree", () => {
   test("grants, caches and refuses sub-agent requests under the guards, and records every node", async () => {
     const { model } = scripted({
