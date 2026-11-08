@@ -586,9 +586,11 @@ module fv_eog_alarm #(
             A7_m_ld1: assert (ld1 == 3'b000 || ld1 == ld1_mask({m_nsl != '0, m_esl != '0}));
         end
         if (ovr_off3) begin
-            // A1: |es_latch rises only when the model's es_latch is set; A2: a latch bit falls only in an ack window
+            // A1: |es_latch rises only when the model's es_latch is set. A2: |latch falls only inside an ack window
+            // and only if the model's ack cleared every bit of that type (the model applies the ack first)
             if (pmod_ja[0] && !p_ja[0]) A1_rise: assert (m_esl != '0);
-            if ((p_ja[0] && !pmod_ja[0]) || (p_ja[1] && !pmod_ja[1])) A2_fall: assert (ack_busy);
+            if ((p_ja[0] && !pmod_ja[0]) || (p_ja[1] && !pmod_ja[1]))
+                A2_fall: assert (ack_busy && (pmod_ja[0] || m_esl == '0) && (pmod_ja[1] || m_nsl == '0));
         end
     end
 `endif
