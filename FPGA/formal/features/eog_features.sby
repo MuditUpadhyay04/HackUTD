@@ -19,6 +19,12 @@
 # Depths: k-induction needs depth > the design's own accept-to-output latency and accept-to-accept interval (not
 # II_MAX / LAT_MAX: the checker's wait counters are reset by the design's progress within that window). A design
 # that takes longer per record needs a larger prove depth (or internal invariants under ifdef FORMAL).
+# prove / prove_f4 depth 20: against a throwaway one-record-at-a-time stub (accept-to-output 13 cycles, accept wait 13)
+# induction closed at length ~14; 20 leaves room for a design up to ~18 cycles per record. cover depth 40: C_two
+# (second record out) needs ~2 x latency + 3 steps (step 29 on the stub); the other goals step 15.
+# Measured on the stub (WSL, bitwuzla, machine shared with other jobs): prove 247 s, prove_f4 493 s, cover 31 s.
+# The harness was checked against stub mutants: no n_wells >= 1 in SHUT_IN -> F5_si, channel 11 without PREV_OK ->
+# F3_ch11, rounding dropped -> F4_ch, FEAT_SAT ignoring channels 9-11 -> F4_sat (each caught by bmc at depth 17).
 # Engine: bitwuzla. yices stalled for > 5 min on the first output step of a 16-step bmc that bitwuzla and boolector
 # finish in ~15 s (the 373-bit records and 512-bit CONFIG rows suit word-level solvers).
 
