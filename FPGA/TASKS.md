@@ -103,3 +103,9 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 32 | alarm | v4: ACKED SOURCE bit 2 (autonomous) | 0, as in #4 (ACKED carries only bit 4 = latch type) | T1.alarm.rtl | Settled by #22 (ACKED: only bit 4) |
 | 33 | countdown | v4: K·Δ width (spec says 24 × 17) | Full 32-bit K_CD × 17 (exact for any K_CD; identical for K_CD < 2^24, which ingest enforces) | T1.countdown.rtl | Accepted (no numerics change in the valid range) |
 | 34 | countdown | v4: HIST_RESET clears the ring on status codes 2/5/6/7 | Yes, literal "non-DROPPED"; those codes are never produced | T1.countdown.rtl | Accepted |
+| 35 | validate | `d = TS − last_ts` width | Exact 33-bit signed difference, as in `features_int.py` (a 32-bit wrap would turn jumps ≥ 2^31 s into OUT_OF_ORDER) | T1.validate.fv | Accepted (Mudit's code decides) |
+| 36 | validate | Is a slot's first record after power-up/soft reset flagged? | — | T1.validate.fv | Superseded by #24: the first record (no `last_ts`) gets `HIST_RESET` = 1 |
+| 37 | validate | INVALID outputs | Only observed-OK values (0 for the rest, held fields included); FLD_OK/WELLS_OK show observed OK. VALID/HELD: FLD_OK = 7F, WELLS_OK = 1 | T1.validate.fv | Proposed; must match `features_int.py` @ d1ba779 byte for byte (T0.2b vectors decide) |
+| 38 | validate | Re-check of #12 under v4 | PUMP_INCONS/WELL_INCONS only on VALID/HELD (Mudit computes them after the INVALID return) | T1.validate.fv | Accepted (Mudit's code decides; replaces #12's "only when inputs OK") |
+| 39 | validate | DROPPED payload | All values, FLD_OK, WELLS_OK and PREV_* = 0; plus #25 (SINCE_RESET = 0, WVER = 0) | T1.validate.fv | Accepted |
+| 40 | validate | PREV_LEVEL / PREV_OK on INVALID records | Whatever `features_int.py` does; the T0.2b vectors decide | T1.validate.fv | Proposed |
