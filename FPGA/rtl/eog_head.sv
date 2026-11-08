@@ -108,9 +108,6 @@ module eog_head #(
     localparam integer A_VER = EOG_WIN_WORDS - 1;           // 70
     localparam integer NBLOB = EOG_WIN_WORDS - 1;           // 70 blob words (0..69)
 
-    // reason bit 13 NO_MODEL, restored by TASKS.md spec question 23 (not yet in the generated eog_defs.svh)
-    localparam integer R_NO_MODEL = 13;
-
     localparam logic [1:0] S_IDLE = 2'd0, S_MAC = 2'd1, S_FIN = 2'd2, S_OUT = 2'd3;
 
     // ---------------------------------------------------------------------------------------------------
@@ -213,7 +210,7 @@ module eog_head #(
     assign r_wver    = (r_status == EOG_ST_DROPPED) ? 8'd0 : ver_r;
     always_comb begin
         r_reason = in_r[EOG_BC_REASON +: EOG_BC_REASON_W];
-        if (r_nomodel) r_reason[R_NO_MODEL] = 1'b1;
+        if (r_nomodel) r_reason[EOG_R_NO_MODEL] = 1'b1;
     end
 
     // features of issue cycle c: FEAT[4c..4c+3], zero beyond N_FEAT
