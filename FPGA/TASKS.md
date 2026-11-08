@@ -33,15 +33,15 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | fpga-rtl agent | DONE | bc4a760, merged into FPGA via `eog/integrate-unpack`; `reports/formal_unpack.txt`; sim PASS 108,846 records / 653,031 beats (13 cases x 3 runs) |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 99fef58, merged via `eog/integrate-unpack`; `reports/formal_unpack.txt` (prove = abc pdr unbounded, bmc depth 14, cover PASS) |
 | T1.validate.rtl | `eog_validate` | RTL | T0.1, T0.4 | fpga-rtl agent | REWORK R7 | **R7 rework done at 7353342** (step 5 only: hold_run cap 3, overflow → INVALID + FIELD_LOST, no history reset; self-check vs a transcription of #70 PASS, 55k records); waiting for T0.2c vectors. Previous: 4876df8 merged 86b93eb |
-| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REWORK R7 | **Spec question 70 (R7 option C): hold limit → INVALID, no history reset; vectors after T0.2c.** 6528bb6, merged 86b93eb; `reports/formal_validate.txt` (prove, bmc, bmc_w, cover PASS) |
+| T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.validate.fv` f4b8f30 (R7 #70/#71; integration `eog/integrate-validate-r7` running) |
 | T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | DONE | 0a84769, merged 78b2a21 via `eog/integrate-features-v4`; `reports/formal_features.txt`; sim PASS 133,420 records (18 v4 cases) |
 | T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 735fef2, merged 78b2a21; `reports/formal_features.txt` (cover, prove, prove_f4 PASS) |
 | T1.memory.rtl | `eog_memory` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** `eog/T1.memory.rtl` 560ee3b (lint/iverilog/yosys clean, II 3, latency 2) **v4 done: ac38fd3** (merge ddfc52c); bit-exact on all 15 v4 memory vector cases (6,230 records); latency 2, II 3 |
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
 | T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.countdown.rtl` 8b386e5 (v4 + rulings #20/#21; bit-exact on all 18 v4 countdown cases; latency 57, P = 4 at II 16) |
-| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.countdown.fv` fc085b1 (v4 + #20/#21; default tasks prove/bmc/cover; integration `eog/integrate-countdown` running) |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.head.rtl` 5358207 (v3 + v4 + rulings #23/#25; bit-exact on all 18 v4 head cases; latency 12, II 13; 16 DSP48E1 estimate) |
-| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | CLAIMED | **Spec v4: re-read the module spec + numerics.md; vectors after T0.2b.** |
+| T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.head.fv` 6b3b218 (v4; integration `eog/integrate-head`: lint ok, sim PASS 134,226 records + 10,336 debug captures on 23 cases; formal running) |
 | T1.alarm.rtl | `eog_alarm` | RTL | T0.1, T0.4 | fpga-rtl agent | DONE | ea519d9, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt`; sim PASS 200,130 records / 1,236 ALERTs (18 v4 cases x 3 modes incl. dropped ALERTs, BTN0 acks) |
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 0cf99c7, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt` (prove, bmc_seq, bmc_ack, bmc_mod, bmc_a8, cover PASS) |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | REVIEW | `eog/T1.pack.rtl` 9e684bc (v4; latency 1, 4 beats/record at 1 beat/cycle; smoke PASS all 19 pack_* cases incl. week/g1; #25 is owned upstream, pack copies) |
@@ -56,7 +56,7 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | ID | Task | Needs | Owner | Status | Output |
 | --- | --- | --- | --- | --- | --- |
 | T2.top | `rtl/eog_top.sv` + bounded top proof + full-practice-week sim vs `model/` (`spec/modules/eog_top.md`) | all T1 DONE | | TODO | |
-| T2.ps1 | ARM app v1 (`ps/eog_app.c`): UDP 7000/7003/7004/heartbeat → AXI-Lite windows, RESULT/ALERT/STATS packets back; keep `udp_mul.c` on 7777 | T0.1 | integration agent | CLAIMED | `eog/T2.ps1`: portable `eog_proto.{c,h}` + thin lwIP glue `eog_app.c`, host-tested against Mudit's `wire.py` |
+| T2.ps1 | ARM app v1 (`ps/eog_app.c`): UDP 7000/7003/7004/heartbeat → AXI-Lite windows, RESULT/ALERT/STATS packets back; keep `udp_mul.c` on 7777 | T0.1 | integration agent | DONE | 4251f8e, merged d658d41: `ps/eog_proto.{c,h}` (portable protocol + HAL), `ps/eog_app.c` (lwIP glue, unity build with udp_mul.c), `deploy/win_vitis_build_eog.bat`; host tests re-run by the lead: `bash FPGA/ps/test/run_tests.sh` PASS (C unit tests, 90 wire byte-compares vs Mudit wire.py on G0/G1/G2, loopback vs `hutd_ml.board` incl. 7 s heartbeat gap). Vitis build + board run → T2.bd1/T2.board1 |
 | T2.bd1 | Vivado block design v1: `eog_top` on GP0 at `0x43C1_0000` next to `axi_mul`; XDC for LEDs/BTN0/Pmods (O4); timing at 100 MHz | T2.top | | TODO | `vivado/` — **board machine only** |
 | T2.board1 | Board bring-up v1: practice data end to end, RESULTs match `model/` | T2.ps1, T2.bd1 | | TODO | report — **board machine only** |
 
@@ -148,3 +148,15 @@ Priority when capacity is limited: mul, div → validate, features, head → mem
 | 75 | ps | WEIGHTS commit with a bad blob header | ACK status 3 (#67); Mudit's fakeboard raises without an ACK | T2.ps1 | Accepted; note for Mudit's fakeboard |
 | 76 | ps | WEIGHTS commit while a swap is stuck | ACK status 0 (accepted, not swapped); no status code covers it | T2.ps1 | Proposed |
 | 77 | ps, wire | Server-side latch acknowledge: the plan mentions it, but there is no wire message, so `CTRL.server_ack` is never pulsed | — | T2.ps1 | **Open for Lucas/Jason** (needs a wire message, C2 change) |
+| 78 | head | II across a swap | No exception: II ≤ 16 holds with a pending swap (RTL: 14) | T1.head.fv | Accepted |
+| 79 | head | Swap deadline after a record boundary | Within 16 cycles | T1.head.fv | Accepted |
+| 80 | head | `swap_pending` timing | Registered or combinational in the request cycle; an immediate swap may never show `swap_pending` = 1 | T1.head.fv | Accepted (clarification) |
+| 81 | head | Readback | Exactly 1 cycle after `wb_raddr`, all 32 bits of words 0–70, works during soft reset; read-during-write and reads across a swap edge unspecified | T1.head.fv | Accepted |
+| 82 | head | Harness write assumptions (word 70 [31:8] = 0, S_OUT ≤ 31, no writes ≥ 71) | Proof restrictions only. The ARM writes word 70 = version & 0xFF; S_OUT may exceed 31 (#47: RTL handles 0–255) | T1.head.fv | Accepted as proof-only |
+| 83 | head | `dbg_valid` timing | Once per qualifying record, no later than its output transfer; `dbg_fac` stable while a record is in flight | T1.head.fv | Accepted |
+| 84 | head | N_FEAT < 31 | Proof-only; the window layout stays fixed | T1.head.fv | Accepted |
+| 85 | head | In-flight bound | 4 (RTL keeps 1) | T1.head.fv | Accepted |
+| 86 | countdown | Stale text: numerics §7 and module C2/C4 still say signed INFLOW and "NOT_FILLING = mean ≤ 0 when tripped" | Rulings #20/#21 govern; update the text, no version bump | T1.countdown.fv | Accepted; text fix by the lead |
+| 87 | countdown | HIST_RESET on DROPPED | Never set (conventions v4); bus contract | T1.countdown.fv | Accepted |
+| 88 | countdown | VALID/HELD with FAC ≥ N_FAC | 3 × 0xFFFF, NOT_FILLING = 0, no state change (#1) | T1.countdown.fv | Accepted |
+| 89 | model | `sat` case description says "signed inflow ring" | Fix wording (vectors already follow #20) | T1.countdown.fv | Sent to the model agent |
