@@ -107,6 +107,15 @@ What was left on disk, and what this session did with it:
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
 
+**Out-of-order fast path (Lucas, ~04:20):** T2.top started before the last T1 sign-offs (branch `eog/T2.top`, includes the
+countdown/head/regs RTL branches). Lucas can start now on his PC: Vivado block design with `eog_top` as a black box
+(eog_top.md ports, 0x43C1_0000, XDC, BTN0 polarity #8) and out-of-context synth of the merged modules for 100 MHz timing.
+Formal sign-off and check_all continue in parallel with bring-up; a real bug found there means an RTL patch and a rebuild.
+
+**Docs on main (~04:10):** PR #5 (`docs/fpga-plans`, docs only: spec, TASKS, KICKOFF, plans, HANDOFF, agent defs)
+merged into main as d16e111; main was merged back into FPGA (5449bbc) so the later full FPGA → main merge is clean.
+Plan: open the full FPGA → main PR after T2.top and the final `check_all`.
+
 **Sign-off standard agreed (Lucas, ~03:50):** three tiers (proven / bounded non-vacuous / simulated bit-exact), see
 `FPGA/TASKS.md` "Sign-off standard". Use it for every module and for `RTL_DONE_HANDOFF.md`. Lucas's decisions ~03:40:
 #59 add the regs `rec_in` tap (done, regs bfd6b44), #73 integration updates the plan table, #77 the server team adds
