@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition, type ReactNode } from "react";
-import type { DatasetInfo, SystemState } from "@/lib/engine/types";
+import type { BoardStatus, DatasetInfo, SystemState } from "@/lib/engine/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function Sidebar({
     { id: "handoff", label: "Shift handoff" },
   ];
   return (
-    <aside className="border-b border-line bg-[rgba(236,238,242,0.72)] px-3 pt-4 pb-3 backdrop-blur-[50px] backdrop-saturate-[1.8] lg:border-r lg:border-b-0 lg:pb-4">
+    <aside className="border-b-[0.5px] border-line bg-[rgba(236,238,242,0.72)] px-3 pt-4 pb-3 backdrop-blur-[50px] backdrop-saturate-[1.8] lg:border-r-[0.5px] lg:border-b-0 lg:pb-4">
       <div className="hidden gap-2 px-2 pb-5 lg:flex" aria-hidden>
         <i className="block size-3 rounded-full bg-[#ff5f57] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.15)]" />
         <i className="block size-3 rounded-full bg-[#febc2e] shadow-[inset_0_0_0_0.5px_rgba(0,0,0,0.15)]" />
@@ -119,7 +119,11 @@ export function Sidebar({
               <span className="sr-only">
                 {st === "crit" ? ", pump down" : st === "warn" ? ", needs an inspector" : st === "nodata" ? ", no data" : ", normal"}
               </span>
-              <span className="ml-auto pl-3 text-[12.5px] text-faint">{s.facilities.length}</span>
+              <span className="ml-auto pl-3 text-[12.5px] text-faint">
+                <span className="sr-only">. </span>
+                {s.facilities.length}
+                <span className="sr-only"> {s.facilities.length === 1 ? "facility" : "facilities"}</span>
+              </span>
             </button>
           );
         })}
@@ -133,16 +137,36 @@ export function Toolbar({
   current,
   replay,
   onReplay,
+  atUnix,
+  board,
 }: {
   datasets: DatasetInfo[];
   current: DatasetInfo;
   replay: boolean;
   onReplay: (on: boolean) => void;
+  atUnix?: number;
+  /** undefined = local mode (nothing shown); null = configured but unreachable. */
+  board?: BoardStatus | null;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
+  const nemotron = (
+    <Link
+      href={`/how-it-works?${new URLSearchParams({ dataset: current.id, ...(atUnix ? { at: String(atUnix) } : {}) })}`}
+      className={cn(
+        board === undefined ? "ml-auto" : "shrink-0",
+        "flex items-center gap-2 rounded-lg px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-black/[0.04]",
+      )}
+    >
+      <NemotronMark className="size-[18px]" />
+      <span>
+        <span className="hidden sm:inline">Agents run on </span>
+        <b className="font-semibold text-text">NVIDIA Nemotron</b>
+      </span>
+    </Link>
+  );
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-line bg-white/55 px-4 py-3.5 backdrop-blur-[30px] backdrop-saturate-[1.8] sm:px-7">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b-[0.5px] border-line bg-white/55 px-4 py-3.5 backdrop-blur-[30px] backdrop-saturate-[1.8] sm:px-7">
       <div role="radiogroup" aria-label="Time" className="inline-flex rounded-[9px] bg-[rgba(118,118,128,0.12)] p-0.5">
         {(["Now", "Replay"] as const).map((label) => {
           const on = label === "Replay" ? replay : !replay;
@@ -175,9 +199,13 @@ export function Toolbar({
       <Select value={current.id} onValueChange={(v) => start(() => router.push(`/?dataset=${encodeURIComponent(String(v))}`))}>
         <SelectTrigger
           aria-label="Dataset"
-          className="h-auto rounded-lg border-0 bg-white py-[5px] pr-2.5 pl-3 text-[13px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
+          className="h-auto rounded-lg border-0 bg-white py-[5px] pr-2.5 pl-3 text-[13px] shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)] [&>svg:last-child]:hidden"
         >
           <SelectValue>{current.label}</SelectValue>
+          {/* Mockup A's up/down popup chevron in place of the shared down arrow (hidden above). */}
+          <svg width="9" height="12" viewBox="0 0 9 12" className="size-auto" style={{ width: 9, height: 12 }} aria-hidden>
+            <path d="M1.5 4.5 4.5 1.5l3 3M1.5 7.5l3 3 3-3" fill="none" stroke="#3c3c43" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </SelectTrigger>
         <SelectContent>
           {datasets.map((d) => (
@@ -189,16 +217,48 @@ export function Toolbar({
       </Select>
       {pending && <span className="text-[13px] text-faint">Loading…</span>}
 
-      <Link
-        href="/how-it-works"
-        className="ml-auto flex items-center gap-2 rounded-lg px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:bg-black/[0.04]"
-      >
-        <NemotronMark className="size-[18px]" />
-        <span>
-          <span className="hidden sm:inline">Agents run on </span>
-          <b className="font-semibold text-text">NVIDIA Nemotron</b>
-        </span>
-      </Link>
+      {board === undefined ? (
+        nemotron
+      ) : (
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+          <BoardChip board={board} />
+          {nemotron}
+        </div>
+      )}
     </div>
+  );
+}
+
+/** Board health beside the Nemotron badge. Only rendered when a board is configured (live or simulated). */
+function BoardChip({ board }: { board: BoardStatus | null }) {
+  const state = !board || !board.online ? (board?.mode === "AUTONOMOUS" ? "own" : "offline") : board.mode === "AUTONOMOUS" ? "own" : "online";
+  const simulated = board?.source === "simulated";
+  const label = state === "online" ? "Board online" : state === "own" ? "Board on its own" : "Board offline";
+  const detail =
+    state === "offline"
+      ? "Showing the console's own detections"
+      : state === "own"
+        ? "The board lost the server and is watching on its own"
+        : board?.weightsVersion != null
+          ? `Model v${board.weightsVersion}`
+          : undefined;
+  const title = [simulated ? "Simulated board, not model output" : undefined, detail].filter(Boolean).join(". ") || undefined;
+  return (
+    <span
+      role="status"
+      title={title}
+      className="flex max-w-full items-center gap-1.5 rounded-lg bg-white px-2.5 py-[5px] text-[13px] text-text shadow-[0_0_0_0.5px_rgba(0,0,0,0.12),0_1px_2px_rgba(0,0,0,0.06)]"
+    >
+      <span
+        className={cn("size-2 shrink-0 rounded-full", state === "online" ? "bg-[#34c759]" : state === "own" ? "bg-warn-fill" : "bg-[#8e8e93]")}
+        aria-hidden
+      />
+      <span className="min-w-0">
+        {label}
+        {simulated && <span className="font-medium text-warn"> (simulated)</span>}
+        {state === "offline" && <span className="sr-only text-faint lg:not-sr-only">, using the console&apos;s own detections</span>}
+        {detail && state !== "offline" && <span className="sr-only">. {detail}</span>}
+      </span>
+    </span>
   );
 }

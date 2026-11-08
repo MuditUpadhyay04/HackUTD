@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { Console } from "@/components/console/console";
 import { getSnapshot, listDatasets } from "@/lib/engine";
+import { getBoard } from "@/lib/live/board";
 import { defaultDataset } from "@/lib/format";
 
 export default function Page({ searchParams }: PageProps<"/">) {
@@ -27,7 +28,9 @@ async function ConsoleForRequest({ searchParams }: { searchParams: PageProps<"/"
   const requested = typeof sp.dataset === "string" ? sp.dataset : undefined;
   const dataset = datasets.find((d) => d.id === requested) ?? defaultDataset(datasets)!;
   const at = typeof sp.at === "string" && sp.at.trim() !== "" ? Number(sp.at) : undefined;
-  const snapshot = await getSnapshot(dataset.id, Number.isFinite(at) ? at : undefined);
+  const local = await getSnapshot(dataset.id, Number.isFinite(at) ? at : undefined);
+  // Board data (FPGA via the team server) is layered on top of the local engine, never instead of it.
+  const snapshot = { ...local, board: await getBoard(local) };
   return <Console key={snapshot.dataset.id} snapshot={snapshot} datasets={datasets} />;
 }
 

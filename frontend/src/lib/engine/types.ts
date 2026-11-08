@@ -140,6 +140,7 @@ export interface FleetState {
 export interface Snapshot {
   dataset: DatasetInfo;
   limits: { warningPct: number; shutdownPct: number }; // from network.json defaults.tank_limits_pct
+  board?: BoardStatus | null; // undefined = local mode (no board configured); null = configured but unreachable
   nowUnix: number; // may be < dataset.nowUnix when time-travelling
   systems: SystemState[];
   alerts: Incident[]; // ongoing, sorted per SPEC alerts view
@@ -151,4 +152,44 @@ export interface Snapshot {
     revenueAtRiskPerHour: number;
     planCost: number;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Live board data (FPGA RESULT / ALERT / STATS via Jason's server; contract in docs/live-api.md).
+// All optional: absent in local mode, so the UI shows nothing extra and never invents model output.
+
+export type BoardAlarm = "none" | "night_shift" | "e_stop";
+export type AlarmState = "raised" | "cleared" | "acknowledged";
+
+export interface BoardScores {
+  /** Calibrated probabilities 0..1, model head order from the plan. */
+  pipeline_leak: number;
+  pump_degradation: number;
+  pump_failure: number;
+  facility_shut_in: number;
+}
+
+export interface BoardFacility {
+  facilityId: string;
+  updatedUnix: number;
+  scores: BoardScores | null; // null until the board has a model loaded
+  overThreshold: Category[] | string[]; // heads above their threshold
+  source: "rule" | "model" | "both" | "none"; // what raised the current state
+  sinceReset: number; // records of history behind the scores (saturates at 255)
+  alarm: BoardAlarm;
+  alarmState: AlarmState | null;
+  alarmSinceUnix: number | null;
+  replayed: boolean; // delivered from the board's buffer after the server came back
+  degradationTrend?: Series; // pump_degradation score over recent hours (0..1)
+}
+
+export interface BoardStatus {
+  source: "live" | "simulated"; // "simulated" = mock feed for development, always labelled in the UI
+  online: boolean; // server has heard from the board recently
+  mode: "NORMAL" | "AUTONOMOUS"; // AUTONOMOUS = board lost the server heartbeat and is buffering
+  lastSeenUnix: number | null;
+  weightsVersion: number | null;
+  autonomousSinceUnix: number | null;
+  replayedAlerts: number; // alerts delivered from the buffer since reconnect
+  facilities: BoardFacility[];
 }

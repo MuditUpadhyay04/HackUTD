@@ -3,6 +3,7 @@ import type { DataQuality, FacilityHealth, FacilityState, FleetState, Incident, 
 import { datasetInfo, loadDataset, Q_VALID, Q_HELD, Q_INVALID, type LoadedDataset } from "./datasets";
 import { facilityContexts, lastFinite, when, type FacilityCtx } from "./model";
 import { detect, type RawEvent } from "./detect";
+import { facilityName, minutes, systemNum } from "../format";
 import { allocateFleet, estimateTank, hoursToLimit, planOptions, truckBusyUntilMin, type TankJob, type Trucking } from "./plan";
 
 const facCache = new WeakMap<LoadedDataset, FacilityCtx[]>();
@@ -176,12 +177,9 @@ const CHANNELS = [
   ["inflow", "Tank inflow"],
 ] as const;
 
+/** Same duration format as the UI ("45m", "2h 30m"). */
 function fmtAgo(min: number): string {
-  const m = Math.max(0, Math.round(min));
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  const r = m % 60;
-  return r ? `${h} h ${r} min` : `${h} h`;
+  return minutes(Math.max(0, min));
 }
 
 /** Quality of a facility's key readings (level, pump status, pump flow, inflow) at step N. */
@@ -296,10 +294,17 @@ export function buildSnapshot(datasetId: string, atUnix?: number): Snapshot {
       const h = hoursToLimit(est, sd, job.capacityBbl);
       const r2 = (x: number) => (Number.isFinite(x) ? Math.round(x * 100) / 100 : 999);
       inc.hoursToLimit = { p10: r2(h.p10), p50: r2(h.p50), p90: r2(h.p90) };
+      // "Do nothing" names the same shutdown minute as the card countdown (rounded p50), not the
+      // plan simulation's own fractional trip time, so one screen never shows two minutes for it
+      const p50 = inc.hoursToLimit.p50;
+      if (!est.tripped && p50 > 0 && p50 < 999 && nowUnix + p50 * 3600 < inc.repairEndsUnix!)
+        for (const o of options)
+          if (o.kind === "do_nothing" && o.tankTrips) o.label = `Do nothing; wells shut in automatically at ${when(nowUnix + p50 * 3600, nowUnix)}`;
       if (est.tripped) inc.evidence.push(`Tank at shutdown (${sd}%); wells shut in until the repair ends at ${when(inc.repairEndsUnix!, nowUnix)}`);
       else {
         const rate = (est.inflowBpd / 24 / job.capacityBbl) * 100;
-        const hit = Number.isFinite(h.p50) ? nowUnix + h.p50 * 3600 : null;
+        // from the same rounded p50 the cards show, so one screen never shows two minutes for it
+        const hit = Number.isFinite(h.p50) ? nowUnix + inc.hoursToLimit.p50 * 3600 : null;
         inc.evidence.push(
           `Tank at ${est.levelPct.toFixed(1)}% and filling ${rate.toFixed(1)}%/h` +
             (hit && hit < inc.repairEndsUnix! ? `; reaches shutdown (${sd}%) around ${when(hit, nowUnix)}, before the repair at ${when(inc.repairEndsUnix!, nowUnix)}` : `; repair due ${when(inc.repairEndsUnix!, nowUnix)}`)
@@ -315,9 +320,8 @@ export function buildSnapshot(datasetId: string, atUnix?: number): Snapshot {
       else if (lq.q[N] !== Q_VALID && lq.q[N] !== Q_HELD)
         inc.evidence.push(`Tank level not reported since ${when(ds.t0 + lq.lastObs[N] * ds.dt, nowUnix)}; level projected from the last readings`);
       const fo = facOps(ds, e.fc);
-      if (fo.noSystem) inc.evidence.push(`ops.json has no entry for ${e.fc.sys.id}, so no trucks are assumed`);
-      else if (fo.estimated)
-        inc.evidence.push(`Truck travel times for ${e.fc.fac.id} are missing from ops.json; using typical times for ${e.fc.sys.id}`);
+      if (fo.noSystem) inc.evidence.push(`No truck fleet is set up for System ${systemNum(e.fc.sys.id)}, so the plan assumes no trucks`);
+      else if (fo.estimated) inc.evidence.push(`Travel times for ${facilityName(e.fc.fac.id)} are missing, so typical times are used`);
     });
     // truck assignments from the recommended plans
     const assignments: TruckAssignment[] = [];

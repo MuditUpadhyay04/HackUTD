@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
+import type { BoardStatus, DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
-import { InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
+import { cn } from "@/lib/utils";
+import { boardFacility, InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
 import { NetworkCard } from "./network";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
@@ -61,9 +62,12 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
     requestAnimationFrame(() => {
       document.getElementById(`system-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
       setFlash(id);
-      window.setTimeout(() => setFlash(null), 1400);
+      window.setTimeout(() => setFlash((f) => (f === id ? null : f)), 1400);
     });
   };
+
+  // Keep the approved 5-across tank grid for up to 5 systems of up to 5 tanks; larger networks get 3 wider columns.
+  const wideTanks = s.systems.length > 5 || s.systems.some((x) => x.facilities.length > 5);
 
   // Summary numbers
   const states = failures.map((a) => countdownState(a, s.nowUnix));
@@ -77,11 +81,12 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
   let headline: string;
   if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
   else if (sysWithFailures.length === 1) {
-    const sys = s.systems.find((x) => x.id === sysWithFailures[0]);
+    const fleet = s.systems.find((x) => x.id === sysWithFailures[0])?.fleetSize ?? 0;
+    const fleetClause = fleet === 0 ? "have no emergency trucks" : `share ${fleet === 1 ? "one truck" : `${count(fleet).toLowerCase()} trucks`}`;
     headline =
       failures.length === 1
         ? `One pump in System ${systemNum(sysWithFailures[0])} is down.`
-        : `${count(failures.length)} pumps in System ${systemNum(sysWithFailures[0])} are down and share ${count(sys?.fleetSize ?? 0).toLowerCase()} trucks.`;
+        : `${count(failures.length)} pumps in System ${systemNum(sysWithFailures[0])} are down and ${fleetClause}.`;
   } else headline = `${count(failures.length)} pumps are down across ${count(sysWithFailures.length).toLowerCase()} systems.`;
   if (noData.length)
     headline += ` ${count(noData.length)} ${noData.length === 1 ? "facility has" : "facilities have"} no recent readings.`;
@@ -113,11 +118,13 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         current={s.dataset}
         replay={!live || view === "replay"}
         onReplay={(on) => onView(on ? "replay" : "overview")}
+        atUnix={at}
+        board={s.board}
       />
 
       <main className="px-4 pt-7 pb-10 sm:px-7">
         <header>
-          <h1 className="tracking-display font-display text-[30px] leading-tight font-bold sm:text-[34px]">
+          <h1 className="tracking-display font-display text-[30px] leading-[1.1] font-bold sm:text-[34px]">
             {view === "handoff" ? "Shift handoff" : "Avon water network"}
           </h1>
           <p className="mt-1.5 text-[15px] text-muted-foreground">
@@ -150,6 +157,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
           </div>
         ) : (
           <>
+            {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
             <div className="mt-[22px] grid grid-cols-2 gap-3.5 xl:grid-cols-4">
               <StatCard label="Pumps down" value={String(failures.length)} tone={failures.length ? "crit" : undefined} />
               <StatCard
@@ -165,7 +173,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
             {failures.length ? (
               <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3">
                 {failures.map((a) => (
-                  <PumpCard key={a.id} incident={a} nowUnix={s.nowUnix} limits={s.limits} approvedAt={approvedAt(a.id)} onOpen={() => setIncident(a)} />
+                  <PumpCard key={a.id} incident={a} nowUnix={s.nowUnix} limits={s.limits} approvedAt={approvedAt(a.id)} onOpen={() => setIncident(a)} board={s.board} />
                 ))}
               </div>
             ) : (
@@ -187,15 +195,17 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
                   tickets={ticketsNow}
                   onOpen={setIncident}
                   onTicket={(a) => setTickets((t) => ({ ...t, [a.id]: s.nowUnix }))}
+                  board={s.board}
+                  nowUnix={s.nowUnix}
                 />
               </>
             )}
 
-            <SectionTitle title="Network" note="Water from the wells, through each pump, to the disposal site" />
-            <NetworkCard systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} />
+            <SectionTitle title="Network" note="Water from the wells, through each pump, to the disposal site. Flows in bpd (barrels per day)" />
+            <NetworkCard systems={s.systems} alerts={s.alerts} onFacility={(f) => setFacilityId(f.id)} board={s.board} nowUnix={s.nowUnix} />
 
             <SectionTitle title="Tanks" note={`Red line is shutdown at ${s.limits.shutdownPct}%`} />
-            <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className={cn("grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3", wideTanks ? "xl:grid-cols-3" : "xl:grid-cols-5")}>
               {s.systems.map((sys) => (
                 <SystemCard
                   key={sys.id}
@@ -217,6 +227,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         nowUnix={s.nowUnix}
         limits={s.limits}
         approvedAt={incident ? approvedAt(incident.id) : undefined}
+        boardFacility={incident ? boardFacility(s.board, incident.facilityId) : undefined}
+        boardSource={s.board?.source}
         onApprove={(a) => {
           setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
           setIncident(null);
@@ -226,6 +238,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
       <FacilitySheet
         facility={facilities.find((f) => f.id === facilityId) ?? null}
         incident={s.alerts.find((a) => a.facilityId === facilityId)}
+        boardFacility={facilityId ? boardFacility(s.board, facilityId) : undefined}
+        boardSource={s.board?.source}
         nowUnix={s.nowUnix}
         limits={s.limits}
         onClose={() => setFacilityId(null)}
@@ -240,9 +254,29 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
 
 function SectionTitle({ title, note }: { title: string; note?: string }) {
   return (
-    <h2 className="tracking-display mt-[34px] mb-3 flex items-baseline gap-2.5 font-display text-[20px] font-bold">
+    <h2 className="mt-[34px] tracking-[-0.015em] mb-3 flex items-baseline gap-2.5 font-display text-[20px] font-bold">
       {title}
       {note && <small className="text-[13px] font-normal tracking-normal text-faint">{note}</small>}
     </h2>
+  );
+}
+
+/** One sentence when the board ran without the server or replayed buffered alerts. */
+function BoardBanner({ board, nowUnix }: { board: BoardStatus; nowUnix: number }) {
+  const own = board.mode === "AUTONOMOUS";
+  const since = board.autonomousSinceUnix != null ? ` at ${clockFrom(board.autonomousSinceUnix, nowUnix)}` : "";
+  const n = board.replayedAlerts;
+  const alerts = `${n === 1 ? "1 alert was" : `${n} alerts were`} replayed`;
+  const text = own
+    ? `Board lost the server${since} and is watching on its own.${n > 0 ? ` ${alerts} from its buffer.` : ""}`
+    : board.autonomousSinceUnix != null
+      ? `Board lost the server${since} and kept watching. ${alerts} when it reconnected.`
+      : `${alerts[0].toUpperCase()}${alerts.slice(1)} from the board when it reconnected.`;
+  return (
+    <div role="status" className="glass mt-5 flex flex-wrap items-center gap-x-2.5 gap-y-1 px-[18px] py-3 text-[14px]">
+      <span className={cn("size-2 shrink-0 rounded-full", own ? "bg-warn-fill" : "bg-water")} aria-hidden />
+      <span className="min-w-0 flex-1 basis-64">{text}</span>
+      {board.source === "simulated" && <span className="text-[12.5px] font-medium text-warn">Simulated board</span>}
+    </div>
   );
 }

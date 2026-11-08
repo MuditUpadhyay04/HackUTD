@@ -231,7 +231,7 @@ export function detect(ds: LoadedDataset, facs: FacilityCtx[], N: number): Detec
           const psi = mean(recent.map((s) => s.psiDrop));
           estLeak = Math.max(0, mean(recent.map((s) => s.loss)));
           ev.push(
-            `Pipeline ${fc.fac.pipeline.id} ${ongoing ? "delivering" : "delivered"} ${Math.max(0, lossPct).toFixed(lossPct < 10 ? 1 : 0)}% less water than the pump sends (~${fmtNum(estLeak)} bbl/day lost)`
+            `Pipeline ${fc.fac.pipeline.id} ${ongoing ? "delivering" : "delivered"} ${Math.max(0, lossPct).toFixed(lossPct < 10 ? 1 : 0)}% less water than the pump sends (~${fmtNum(estLeak)} bpd lost)`
           );
           if (psi > 2 * cal.sPipe) ev.push(`Pressure at the disposal end ${psi.toFixed(0)} psi below normal while pumping`);
         } else {

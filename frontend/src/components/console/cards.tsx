@@ -1,8 +1,8 @@
 "use client";
 
 import { Check, Truck } from "lucide-react";
-import type { FacilityState, Incident, PlanOption, SystemState } from "@/lib/engine/types";
-import { categoryLabel, clockFrom, countdownState, facilityName, humanize, money, num, planText, systemNum } from "@/lib/format";
+import type { BoardFacility, BoardStatus, Category, FacilityState, Incident, PlanOption, SystemState } from "@/lib/engine/types";
+import { categoryLabel, clockFrom, countdownState, facilityName, facilityTitle, humanize, money, num, planText, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Limits } from "./tank";
 
@@ -10,7 +10,7 @@ export function StatCard({ label, value, tone }: { label: string; value: string;
   return (
     <div className="glass px-[18px] py-4">
       <p className="text-[13px] text-muted-foreground">{label}</p>
-      <p className={cn("tracking-display mt-1.5 font-display text-[28px] leading-tight font-semibold", tone === "crit" && "text-crit")}>
+      <p className={cn("tracking-display mt-1.5 font-display text-[28px] leading-[1.4] font-semibold", tone === "crit" && "text-crit")}>
         {value}
       </p>
     </div>
@@ -46,7 +46,7 @@ function Countdown({ hours, className }: { hours: number; className?: string }) 
   const total = Math.max(0, Math.round(hours * 60));
   const h = Math.floor(total / 60);
   const m = total % 60;
-  const unit = "mx-[3px] text-[22px] font-medium tracking-normal text-muted-foreground";
+  const unit = "mr-[6px] ml-[2px] text-[22px] font-medium tracking-normal text-muted-foreground";
   return (
     <span className={cn("font-display text-[56px] leading-none font-semibold tracking-[-0.035em] tabular-nums", className)}>
       {h > 0 && (
@@ -75,12 +75,15 @@ export function PumpCard({
   limits,
   approvedAt,
   onOpen,
+  board,
 }: {
   incident: Incident;
   nowUnix: number;
   limits: Limits;
   approvedAt?: number;
   onOpen: () => void;
+  /** Live board data; undefined or null shows nothing extra. */
+  board?: BoardStatus | null;
 }) {
   const cd = countdownState(a, nowUnix);
   const urgent = cd.kind === "counting" && cd.hours < 2;
@@ -95,7 +98,7 @@ export function PumpCard({
       <button type="button" onClick={onOpen} className="-m-2 flex items-center gap-3 rounded-xl p-2 text-left transition-colors hover:bg-black/[0.03]">
         <Ring pct={level} shutdownPct={limits.shutdownPct} tone={tone} />
         <span className="min-w-0">
-          <span className="block text-[17px] font-semibold">{facilityName(a.facilityId).replace(" ", ", Facility ")}</span>
+          <span className="block text-[17px] font-semibold">{facilityTitle(a.facilityId)}</span>
           <span className="block text-[13px] text-faint">Pump down since {clockFrom(a.onsetUnix, nowUnix)}</span>
         </span>
       </button>
@@ -120,10 +123,11 @@ export function PumpCard({
                   : "Not enough readings to estimate"}
         </p>
         {dq && <p className="mt-0.5 text-[12.5px] text-faint">{dataQualityLine(dq)}</p>}
+        <BoardLine board={board} facilityId={a.facilityId} category={a.category} nowUnix={nowUnix} className="mt-2" />
       </div>
 
       {a.plan && (
-        <div className="mt-[18px] flex items-start gap-3 border-t border-line pt-3.5">
+        <div className="mt-[18px] flex items-start gap-3 border-t-[0.5px] border-line pt-3.5">
           <p className="text-[14px] leading-snug font-medium">
             <span className="mb-0.5 block text-[12.5px] font-normal text-faint">Recommended</span>
             {planText(a.plan.label, nowUnix)}
@@ -176,11 +180,15 @@ export function InspectorRows({
   tickets,
   onOpen,
   onTicket,
+  board,
+  nowUnix,
 }: {
   items: Incident[];
   tickets: Record<string, number>;
   onOpen: (a: Incident) => void;
   onTicket: (a: Incident) => void;
+  board?: BoardStatus | null;
+  nowUnix?: number;
 }) {
   return (
     <div className="glass overflow-hidden">
@@ -189,17 +197,17 @@ export function InspectorRows({
           key={a.id}
           className={cn(
             "grid grid-cols-[26px_1fr_auto] items-center gap-x-3 gap-y-0.5 px-[18px] py-[13px] text-[14px] sm:grid-cols-[26px_1.2fr_1fr_1fr_auto]",
-            i > 0 && "border-t border-line",
+            i > 0 && "border-t-[0.5px] border-line",
           )}
         >
           {a.category === "pipeline_leak" ? <Drop /> : <Gauge />}
           <button type="button" onClick={() => onOpen(a)} className="text-left font-semibold hover:underline">
             {categoryLabel[a.category]}
           </button>
-          <span className="col-start-2 text-muted-foreground sm:col-start-auto">{humanize(a.assetId).replace(/^S(\d+) /i, "System $1, ")}</span>
+          <span className="col-start-2 text-muted-foreground sm:col-start-auto">{humanize(a.assetId)}</span>
           <span className="col-start-2 text-muted-foreground tabular-nums sm:col-start-auto">
             {a.estLeakBblPerDay != null
-              ? `${num(a.estLeakBblPerDay)} bbl a day lost`
+              ? <>{num(a.estLeakBblPerDay)} <abbr title="barrels per day" className="no-underline">bpd</abbr> lost</>
               : a.capacityLossPct != null
                 ? `${num(a.capacityLossPct, 1)}% less water`
                 : ""}
@@ -215,9 +223,95 @@ export function InspectorRows({
               </button>
             )}
           </span>
+          <BoardLine
+            board={board}
+            facilityId={a.facilityId}
+            category={a.category}
+            nowUnix={nowUnix ?? a.onsetUnix}
+            className="col-start-2 sm:col-span-3 sm:col-start-2"
+          />
         </div>
       ))}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Live board data. Shown only when the board sent it; never derived or invented here.
+
+export function boardFacility(board: BoardStatus | null | undefined, facilityId: string): BoardFacility | undefined {
+  return board?.facilities.find((f) => f.facilityId === facilityId);
+}
+
+/** Alarm wording and tone: "Night Shift alarm" (orange), "E-STOP latched" (red), cleared or acknowledged (grey). */
+export function boardAlarm(f: BoardFacility | undefined, nowUnix: number) {
+  if (!f || f.alarm === "none") return undefined;
+  const night = f.alarm === "night_shift";
+  const st = f.alarmState;
+  const active = st === "raised" || st === null;
+  const short = night
+    ? st === "raised" || st === null ? "Night Shift alarm" : `Night Shift alarm ${st}`
+    : st === "raised" ? "E-STOP latched" : st === null ? "E-STOP" : `E-STOP ${st}`;
+  const at = f.alarmSinceUnix != null ? ` at ${clockFrom(f.alarmSinceUnix, nowUnix)}` : "";
+  const long = night && st === "raised" ? `Night Shift alarm raised${at}` : `${short}${at}`;
+  const tone: "crit" | "warn" | "off" = !active ? "off" : night ? "warn" : "crit";
+  return { short, long, tone };
+}
+
+const sourceText = { both: "rule and model agree", model: "raised by the model", rule: "raised by a rule" } as const;
+
+export function AlarmChip({ alarm, label }: { alarm: NonNullable<ReturnType<typeof boardAlarm>>; label?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-px text-[12px] font-semibold whitespace-nowrap",
+        alarm.tone === "crit" ? "bg-crit/12 text-crit" : alarm.tone === "warn" ? "bg-warn-fill/15 text-warn" : "bg-black/[0.05] text-faint",
+      )}
+    >
+      <span
+        className={cn("size-1.5 rounded-full", alarm.tone === "crit" ? "bg-crit" : alarm.tone === "warn" ? "bg-warn-fill" : "bg-[#8e8e93]")}
+        aria-hidden
+      />
+      {label ?? alarm.short}
+    </span>
+  );
+}
+
+/** One small line: alarm chip, "Model 98% sure, rule and model agree", "Replayed from the board". */
+function BoardLine({
+  board,
+  facilityId,
+  category,
+  nowUnix,
+  className,
+}: {
+  board?: BoardStatus | null;
+  facilityId: string;
+  category: Category;
+  nowUnix: number;
+  className?: string;
+}) {
+  const f = boardFacility(board, facilityId);
+  if (!board || !f) return null;
+  const alarm = boardAlarm(f, nowUnix);
+  const score = f.scores ? f.scores[category] : undefined;
+  const src = f.source !== "none" ? sourceText[f.source] : undefined;
+  let text =
+    score != null ? (board.source === "simulated" ? `Simulated score ${Math.round(score * 100)}%` : `Model ${Math.round(score * 100)}% sure`) : "";
+  if (src) text = text ? `${text}, ${src}` : src[0].toUpperCase() + src.slice(1);
+  if (!alarm && !text && !f.replayed) return null;
+  return (
+    <p className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-muted-foreground", className)}>
+      {alarm && (
+        <span title={alarm.long}>
+          <AlarmChip alarm={alarm} />
+          {alarm.long !== alarm.short && <span className="sr-only">, {alarm.long.slice(alarm.short.length).trim()}</span>}
+        </span>
+      )}
+      {board.source === "simulated" && <span className="font-medium text-warn">Simulated board</span>}
+      {text && <span>{text}</span>}
+      {f.replayed && <span className="text-faint">Replayed from the board</span>}
+    </p>
   );
 }
 
@@ -241,6 +335,8 @@ export function SystemCard({
   highlight?: boolean;
   onTank: (f: FacilityState) => void;
 }) {
+  // More than 4 tanks: tighter gaps and smaller text so the labels never run together (approved look keeps 4 or fewer).
+  const dense = s.facilities.length > 4;
   return (
     <section
       id={`system-${s.id}`}
@@ -258,7 +354,7 @@ export function SystemCard({
           <span className="sr-only">trucks</span>
         </span>
       </div>
-      <div className="mt-3.5 flex items-end gap-2.5">
+      <div className={cn("mt-3.5 flex items-end", dense ? "gap-1" : "gap-2.5")}>
         {s.facilities.map((f) => {
           const noData = f.health === "no_data";
           const known = Number.isFinite(f.tank.levelPct);
@@ -281,16 +377,23 @@ export function SystemCard({
                 <span className="absolute inset-x-0 h-[1.5px] bg-crit/90" style={{ top: `${100 - limits.shutdownPct}%` }} />
               </span>
               {noData ? (
-                <span className="text-[13px] leading-[22px] font-semibold whitespace-nowrap text-faint">No data</span>
+                <span className={cn("leading-[22px] font-semibold whitespace-nowrap text-faint", dense ? "text-[11px]" : "text-[13px]")}>No data</span>
               ) : (
-                <span className={cn("text-[15px] font-semibold tabular-nums", f.health === "failure" && "text-crit")}>
+                <span className={cn("font-semibold tabular-nums", dense ? "text-[12px] leading-[22px]" : "text-[15px]", f.health === "failure" && "text-crit")}>
                   {pct != null ? `${pct}%` : "No data"}
                 </span>
               )}
-              <span className="-mt-1 max-w-full truncate text-[11.5px] text-faint">
-                {f.letter}
-                {label && ` ${label}`}
-              </span>
+              {dense ? (
+                <span className="-mt-1 flex max-w-full flex-col items-center text-[11px] leading-tight text-faint" title={label ? `${f.letter} ${label}` : undefined}>
+                  <span>{f.letter}</span>
+                  {label && <span className="max-w-full truncate">{label}</span>}
+                </span>
+              ) : (
+                <span className="-mt-1 max-w-full truncate text-[11.5px] text-faint">
+                  {f.letter}
+                  {label && ` ${label}`}
+                </span>
+              )}
             </button>
           );
         })}
@@ -314,7 +417,7 @@ export function SensorRows({ items, onOpen }: { items: FacilityState[]; onOpen: 
           key={f.id}
           className={cn(
             "grid grid-cols-[26px_1fr_auto] items-center gap-x-3 gap-y-0.5 px-[18px] py-[13px] text-[14px] sm:grid-cols-[26px_1.2fr_2fr_auto]",
-            i > 0 && "border-t border-line",
+            i > 0 && "border-t-[0.5px] border-line",
           )}
         >
           <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
@@ -322,7 +425,7 @@ export function SensorRows({ items, onOpen }: { items: FacilityState[]; onOpen: 
             <path d="M9 5.2v4.6" stroke="#8e8e93" strokeWidth="1.8" strokeLinecap="round" />
             <circle cx="9" cy="12.6" r="1.1" fill="#8e8e93" />
           </svg>
-          <span className="font-semibold">{facilityName(f.id).replace(" ", ", Facility ")}</span>
+          <span className="font-semibold">{facilityTitle(f.id)}</span>
           <span className="col-start-2 text-muted-foreground sm:col-start-auto">
             {humanize(f.dataQuality.reasons[0] ?? "Sensor readings missing")}
             {f.dataQuality.reasons.length > 1 && ` (+${f.dataQuality.reasons.length - 1} more)`}

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { FacilityState, Incident, SystemState } from "@/lib/engine/types";
+import type { BoardStatus, FacilityState, Incident, SystemState } from "@/lib/engine/types";
 import { facilityName, num, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { AlarmChip, boardAlarm, boardFacility } from "./cards";
 
 const ROW = 70; // px per facility row in the schematic
 const W = 940;
@@ -43,17 +44,26 @@ export function NetworkCard({
   systems,
   alerts,
   onFacility,
+  board,
+  nowUnix = 0,
 }: {
   systems: SystemState[];
   alerts: Incident[];
   onFacility: (f: FacilityState) => void;
+  /** Live board data; only facilities with an alarm get a marker. */
+  board?: BoardStatus | null;
+  nowUnix?: number;
 }) {
+  const simulated = board?.source === "simulated";
+  const alarmOf = (f: FacilityState) => boardAlarm(boardFacility(board, f.id), nowUnix);
   const [picked, setPicked] = useState<string | null>(null);
   const sys = systems.find((s) => s.id === picked) ?? pickSystem(systems, alerts);
   if (!sys) return null;
 
   const down = new Set(alerts.filter((a) => a.category === "pump_failure").map((a) => a.systemId));
   const attention = new Set(alerts.map((a) => a.systemId));
+  // Same rule as the sidebar: a system with no alert but a facility without readings shows as "no data".
+  const noData = new Set(systems.filter((s) => s.facilities.some((f) => f.health === "no_data")).map((s) => s.id));
   const rows = sys.facilities;
   const h = Math.max(1, rows.length) * ROW + 24;
   const midY = (i: number) => 12 + i * ROW + ROW / 2;
@@ -79,11 +89,17 @@ export function NetworkCard({
                   on && "bg-white font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.12),0_0_0_0.5px_rgba(0,0,0,0.04)]",
                 )}
               >
-                {attention.has(s.id) && (
+                {attention.has(s.id) ? (
                   <span className={cn("size-1.5 rounded-full", down.has(s.id) ? "bg-crit" : "bg-warn-fill")} aria-hidden />
+                ) : (
+                  noData.has(s.id) && <span className="size-1.5 rounded-full bg-[#8e8e93]" aria-hidden />
                 )}
                 System {systemNum(s.id)}
-                {attention.has(s.id) && <span className="sr-only">{down.has(s.id) ? ", pump down" : ", needs an inspector"}</span>}
+                {attention.has(s.id) ? (
+                  <span className="sr-only">{down.has(s.id) ? ", pump down" : ", needs an inspector"}</span>
+                ) : (
+                  noData.has(s.id) && <span className="sr-only">, no data</span>
+                )}
               </button>
             );
           })}
@@ -91,12 +107,25 @@ export function NetworkCard({
         <Legend />
       </div>
 
-      <div className="overflow-x-auto px-2 py-2">
+      {/* Phones: one row per facility with its pipe drawn underneath, then the disposal site. */}
+      <ul className="flex flex-col px-4 py-2 sm:hidden">
+        {rows.map((f) => (
+          <CompactRow key={f.id} f={f} maxFlow={maxFlow} alarm={alarmOf(f)} simulated={simulated} onClick={() => onFacility(f)} />
+        ))}
+        <li className="flex items-center justify-between gap-3 border-t border-line pt-3 pb-1">
+          <span className="text-[14px] font-semibold">Disposal site</span>
+          <span className="text-[13px] text-muted-foreground tabular-nums">
+            {num(sys.disposal.pressurePsi)} psi, {num(totalIn)} bpd in
+          </span>
+        </li>
+      </ul>
+
+      <div className="hidden overflow-x-auto px-2 py-2 sm:block">
         <svg
           viewBox={`0 0 ${W} ${h}`}
           className="block h-auto w-full min-w-[680px]"
           role="img"
-          aria-label={`Pipe flow for System ${systemNum(sys.id)}: ${rows.length} facilities pumping to ${sys.disposal.id}`}
+          aria-label={`Pipe flow for System ${systemNum(sys.id)}: ${rows.length} facilities pumping to the disposal site`}
         >
           {/* manifold + trunk to the disposal site */}
           {rows.length > 1 && (
@@ -113,7 +142,7 @@ export function NetworkCard({
           </g>
 
           {rows.map((f, i) => (
-            <FacilityRow key={f.id} f={f} y={midY(i)} trunkY={trunkY} maxFlow={maxFlow} onClick={() => onFacility(f)} />
+            <FacilityRow key={f.id} f={f} y={midY(i)} trunkY={trunkY} maxFlow={maxFlow} alarm={alarmOf(f)} simulated={simulated} onClick={() => onFacility(f)} />
           ))}
         </svg>
       </div>
@@ -125,14 +154,19 @@ function FacilityRow({
   f,
   y,
   maxFlow,
+  alarm,
+  simulated,
   onClick,
 }: {
   f: FacilityState;
   y: number;
   trunkY: number;
   maxFlow: number;
+  alarm?: Alarm;
+  simulated?: boolean;
   onClick: () => void;
 }) {
+  const alarmText = alarm ? `${alarm.long}${simulated ? " (simulated board)" : ""}` : "";
   const st = pipeStatus(f);
   const color = statusColor[st];
   const flow = Number.isFinite(f.pump.flowBpd) ? f.pump.flowBpd : 0;
@@ -166,7 +200,7 @@ function FacilityRow({
     <g
       role="button"
       tabIndex={0}
-      aria-label={`${facilityName(f.id)}: ${label}. Open details`}
+      aria-label={`${facilityName(f.id)}: ${label}.${alarm ? ` ${alarmText}.` : ""} Open details`}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -220,6 +254,15 @@ function FacilityRow({
         <circle cx={X.pump} cy={y + 6} r={4} fill={moving ? color : "rgba(60,60,67,0.35)"} />
       )}
 
+      {alarm && (
+        <g transform={`translate(${X.pump + 12},${y - 9})`}>
+          <title>{alarmText}</title>
+          <circle r={7} fill={alarm.tone === "crit" ? "#ff3b30" : alarm.tone === "warn" ? "#ff9500" : "#8e8e93"} stroke="#fff" strokeWidth={1.5} />
+          <path d="M0 -3.4V0.6" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
+          <circle cy={3} r={1} fill="#fff" />
+        </g>
+      )}
+
       {/* pipeline to the manifold */}
       <line
         x1={X.pipeStart}
@@ -263,5 +306,70 @@ function Legend() {
         <span className="h-[4px] w-5 rounded-full bg-warn-fill" aria-hidden /> Leak or worn pump
       </span>
     </div>
+  );
+}
+
+type Alarm = NonNullable<ReturnType<typeof boardAlarm>>;
+
+function CompactRow({
+  f,
+  maxFlow,
+  alarm,
+  simulated,
+  onClick,
+}: {
+  f: FacilityState;
+  maxFlow: number;
+  alarm?: Alarm;
+  simulated?: boolean;
+  onClick: () => void;
+}) {
+  const st = pipeStatus(f);
+  const color = statusColor[st];
+  const flow = Number.isFinite(f.pump.flowBpd) ? f.pump.flowBpd : 0;
+  const recv = Number.isFinite(f.pipeline.receiveFlowBpd) ? f.pipeline.receiveFlowBpd : 0;
+  const moving = flow > 1 && st !== "down" && st !== "nodata";
+  const thick = moving ? 3 + 5 * Math.min(1, flow / maxFlow) : 3;
+  const level = Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct) : null;
+  const text =
+    st === "down"
+      ? "Pump down, no flow"
+      : st === "nodata"
+        ? "No recent readings"
+        : st === "shut"
+          ? "Wells shut in"
+          : st === "leak"
+            ? flow > 1
+              ? `${num(flow)} sent, ${num(recv)} arrives`
+              : "Leak suspected, pump off"
+            : st === "worn" && flow <= 1
+              ? "Pump wearing out, off"
+              : flow > 1
+                ? `${num(flow)} bpd`
+                : "Pump off, tank filling";
+  return (
+    <li>
+      <button type="button" onClick={onClick} className="w-full rounded-xl py-2.5 text-left transition-colors active:bg-black/[0.04]">
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="text-[14px] font-semibold">
+            Facility {f.letter}
+            <span className="ml-2 font-normal text-muted-foreground tabular-nums">{level != null && st !== "nodata" ? `${level}%` : ""}</span>
+          </span>
+          <span className={cn("text-[13px] tabular-nums", st === "down" ? "font-semibold text-crit" : st === "leak" || st === "worn" ? "text-warn" : "text-muted-foreground")}>
+            {text}
+          </span>
+        </span>
+        <svg className="mt-2 block h-3 w-full" viewBox="0 0 300 12" preserveAspectRatio="none" aria-hidden>
+          <line x1={2} x2={298} y1={6} y2={6} stroke={color} strokeWidth={thick} strokeLinecap="round" strokeDasharray={st === "down" ? "8 7" : undefined} />
+          {moving && <line className="pipe-flow" x1={2} x2={298} y1={6} y2={6} stroke="#fff" strokeOpacity={0.75} strokeWidth={Math.max(1.5, thick / 3)} />}
+        </svg>
+        {alarm && (
+          <span className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px]">
+            <AlarmChip alarm={alarm} label={alarm.long} />
+            {simulated && <span className="font-medium text-warn">(simulated)</span>}
+          </span>
+        )}
+      </button>
+    </li>
   );
 }

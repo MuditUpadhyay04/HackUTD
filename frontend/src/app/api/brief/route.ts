@@ -11,6 +11,10 @@ const SOLVER = "plan solver";
 
 type Step = { agent: string; model: string; text: string };
 
+// Same count words as the console headline (console.tsx), so the brief says "Three pumps", not "3 pumps".
+const words = ["No", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"];
+const count = (n: number) => words[n] ?? String(n);
+
 // Same order as the console's default (page.tsx): "test", then mock_test*, then the first dataset.
 // TODO: switch to defaultDataset from "@/lib/engine" once the engine exports it.
 function defaultDataset(datasets: DatasetInfo[]) {
@@ -144,7 +148,7 @@ function draftBrief(s: Snapshot): { steps: Step[]; handoff: string } {
     if (cd.kind !== "shut_in" && cost > 0) text += ` for ${money(cost)}`;
     if (cd.kind === "counting") text += `, ${duration(cd.hours)} before shutdown`;
     else if (cd.kind === "shut_in" && !/already shut in/i.test(label)) text += ", already shut in";
-    else if (cd.kind === "repair_first") text += ", repaired before the tank fills";
+    else if (cd.kind === "repair_first" && !/^No action needed/i.test(label)) text += ", repaired before the tank fills";
     else if (cd.kind === "not_filling") text += ", tank not filling";
     text += ".";
     const q = qualityNote(a);
@@ -159,7 +163,7 @@ function draftBrief(s: Snapshot): { steps: Step[]; handoff: string } {
     steps.push({
       agent: "Inspection agent",
       model: m,
-      text: `${insp.length} ${insp.length === 1 ? "asset needs" : "assets need"} an inspector: ${insp.map((a) => humanize(a.assetId)).join(", ")}.`,
+      text: `${count(insp.length)} ${insp.length === 1 ? "problem needs" : "problems need"} an inspector: ${insp.map((a) => humanize(a.assetId)).join(", ")}.`,
     });
   }
 
@@ -193,10 +197,10 @@ function draftBrief(s: Snapshot): { steps: Step[]; handoff: string } {
       const states = failures.map((a) => ({ a, cd: countdownState(a, s.nowUnix) }));
       const next = states.find((x) => x.cd.kind === "counting");
       const shut = states.filter((x) => x.cd.kind === "shut_in").map((x) => facilityName(x.a.facilityId));
-      let line = `${failures.length} ${failures.length === 1 ? "pump is" : "pumps are"} down.`;
+      let line = `${count(failures.length)} ${failures.length === 1 ? "pump is" : "pumps are"} down.`;
       if (shut.length) line += ` ${shut.join(" and ")} ${shut.length === 1 ? "is" : "are"} already shut in.`;
       if (next && next.cd.kind === "counting")
-        line += ` ${facilityName(next.a.facilityId)} is next to shut in, at about ${clockFrom(next.cd.at, s.nowUnix)}.`;
+        line += ` ${facilityName(next.a.facilityId)} is next to reach shutdown, at about ${clockFrom(next.cd.at, s.nowUnix)}.`;
       parts.push(line);
       const act = states.filter((x) => x.cd.kind === "counting" && (x.a.plan?.cost ?? 0) > 0).map((x) => x.a);
       const safe = states.filter((x) => x.cd.kind === "repair_first").map((x) => x.a);
@@ -207,7 +211,7 @@ function draftBrief(s: Snapshot): { steps: Step[]; handoff: string } {
       if (safe.length)
         parts.push(`${list(safe.map((a) => facilityName(a.facilityId)))} will be repaired before ${safe.length === 1 ? "its tank fills" : "their tanks fill"}.`);
     }
-    if (insp.length) parts.push(`Send inspectors to ${insp.map((a) => humanize(a.assetId)).join(" and ")}.`);
+    if (insp.length) parts.push(`Send ${insp.length === 1 ? "an inspector" : "inspectors"} to ${insp.map((a) => humanize(a.assetId)).join(" and ")}.`);
     parts.push(...quality);
     handoff = parts.join(" ");
   }

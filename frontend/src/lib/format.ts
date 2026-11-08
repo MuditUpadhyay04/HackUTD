@@ -37,7 +37,9 @@ const timeFmt = new Intl.DateTimeFormat("en-GB", {
   timeZone: "UTC",
 });
 
-export const clock = (unix: number) => timeFmt.format(new Date(unix * 1000));
+/** Nearest whole minute: every clock in the app rounds the same way (never truncates seconds). */
+const toMinute = (unix: number) => Math.round(unix / 60) * 60;
+export const clock = (unix: number) => timeFmt.format(new Date(toMinute(unix) * 1000));
 export const day = (unix: number) => dayFmt.format(new Date(unix * 1000));
 
 /** "S13" or "s13" -> "13", for "System 13" labels. */
@@ -85,12 +87,12 @@ export function humanize(text: string) {
 }
 
 const shortDay = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: "UTC" });
-/** "Tue 12:15" — for axes that span more than a day. */
-export const dayClock = (unix: number) => `${shortDay.format(new Date(unix * 1000))} ${clock(unix)}`;
+/** "Tue 12:15", for axes that span more than a day. */
+export const dayClock = (unix: number) => `${shortDay.format(new Date(toMinute(unix) * 1000))} ${clock(unix)}`;
 
 /** Clock time, with the weekday added when it isn't the same day as `ref`. */
 export function clockFrom(unix: number, ref: number) {
-  const sameDay = Math.floor(unix / 86400) === Math.floor(ref / 86400);
+  const sameDay = Math.floor(toMinute(unix) / 86400) === Math.floor(ref / 86400);
   return sameDay ? clock(unix) : dayClock(unix);
 }
 
@@ -112,4 +114,10 @@ export function planText(label: string, nowUnix: number) {
     .replace(/\bin (?:(\d+)h\s?)?(\d+)m\b/g, (_m, h: string | undefined, m: string) =>
       `at ${clockFrom(nowUnix + (Number(h ?? 0) * 60 + Number(m)) * 60, nowUnix)}`,
     );
+}
+
+/** Naming rule (one name per thing): titles use facilityTitle ("S4, Facility A"); sentences, lists and
+ *  compact labels use facilityName ("S4 A"); assets use humanize ("S4 pump A", "well A2"). */
+export function facilityTitle(id: string) {
+  return facilityName(id).replace(" ", ", Facility ");
 }

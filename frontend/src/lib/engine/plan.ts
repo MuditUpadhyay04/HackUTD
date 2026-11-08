@@ -1,7 +1,7 @@
 // Tank countdown + cheapest-plan solver (SPEC "Plans").
 import type { PlanOption } from "./types";
 import type { LoadedDataset } from "./datasets";
-import { clock, fmtDur, type FacilityCtx } from "./model";
+import { fmtDur, when, type FacilityCtx } from "./model";
 
 // ---------------------------------------------------------------- tank state
 export interface PlanWell {
@@ -325,6 +325,10 @@ function candidates(job: TankJob, tk: Trucking, maxTrucks: number): Cand[] {
           if (partial === sub[0]) out.push({ ...p0, res: r0 }); // tripping variant, once per subset
           continue;
         }
+        // the same trucks without this well already hold the tank: shutting it in for the last minute
+        // before the repair only adds cost (that smaller subset is enumerated on its own)
+        const rDrop = simulate(job, tk, { trucks: k, trips: m, shut: sub.filter((w) => w !== partial).map((w) => ({ w, start: 0 })) });
+        if (rDrop.tripAt === null) continue;
         // latest whole minute the partial well can start without tripping
         let lo = 0;
         let hi = H1;
@@ -359,8 +363,9 @@ export function bestPlan(job: TankJob, tk: Trucking, maxTrucks: number): Cand {
 }
 
 function label(job: TankJob, c: Cand): string {
-  const tripClock = (min: number) => clock(job.startUnix + Math.round(min * 60));
-  const repairClock = clock(job.startUnix + Math.round(job.horizonMin * 60));
+  // same convention as the UI's clockFrom: weekday added when not the same UTC day as the plan time
+  const tripClock = (min: number) => when(job.startUnix + min * 60, job.startUnix);
+  const repairClock = when(job.startUnix + job.horizonMin * 60, job.startUnix);
   const parts: string[] = [];
   if (c.trucks > 0) {
     const t = c.trucks === 1 ? "1 truck" : `${c.trucks} trucks`;

@@ -129,13 +129,14 @@ export function calibrate(facs: FacilityCtx[], N: number): Calibration {
 }
 
 export const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+/** "HH:MM", rounded to the nearest minute (never truncated, so it matches the UI's clock). */
 export function clock(unix: number): string {
-  const d = new Date(unix * 1000);
+  const d = new Date(Math.round(unix / 60) * 60000);
   return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
 }
 /** "11:05" if same UTC day as ref, else "Thu 11:05" */
 export function when(unix: number, refUnix: number): string {
-  const a = new Date(unix * 1000);
+  const a = new Date(Math.round(unix / 60) * 60000);
   const b = new Date(refUnix * 1000);
   const same = a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
   return same ? clock(unix) : `${DAY[a.getUTCDay()]} ${clock(unix)}`;
