@@ -82,12 +82,12 @@ export function useSimulation(datasetId: string | undefined, feed: BoardFeed | n
     void load(c.signal);
     return () => c.abort();
   }, [load]);
-  // While the board streams into this dataset, refresh the story every 5 s (the server rebuilds incrementally and
+  // While the board streams into this dataset, refresh the story every 3 s (the server rebuilds incrementally and
   // serves the previous story while the next one builds).
   const liveHere = !!(tl && feed?.online && feed.lastTsUnix != null && feed.lastTsUnix >= tl.startUnix && feed.lastTsUnix <= tl.datasetNowUnix);
   useEffect(() => {
     if (!liveHere) return;
-    const id = setInterval(() => void load(), 5000);
+    const id = setInterval(() => void load(), 3000);
     return () => clearInterval(id);
   }, [liveHere, load]);
 

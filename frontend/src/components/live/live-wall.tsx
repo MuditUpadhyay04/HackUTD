@@ -129,7 +129,7 @@ export function LiveWall() {
           <Panel><p className="px-6 py-10 text-[20px]" style={{ color: C.dim }}>{sim.error ? `Couldn't build the week: ${sim.error}` : dataset ? "Loading the week…" : "No dataset yet: upload one in the full console, or point the API at a data folder."}</p></Panel>
         ) : view === "operator" ? (
           <div key="operator" className="wall-fade flex flex-col gap-4">
-            {!live && dataset && <Showcase datasetId={dataset.id} tl={sim.tl} setT={sim.setT} setPlaying={sim.setPlaying} />}
+            {dataset && <Showcase datasetId={dataset.id} tl={sim.tl} setT={sim.setT} setPlaying={sim.setPlaying} />}
             <Operator story={story(sim.tl, sim.t, live ? feed?.flagged ?? [] : [])} tl={sim.tl} at={sim.t}
               nemotron={live && dataset ? <Nemotron datasetId={dataset.id} tl={sim.tl} at={sim.t} /> : null} />
           </div>
@@ -202,6 +202,10 @@ function Big({ label, value, sub, tone }: { label: string; value: string; sub?: 
 /** 1. Is the chip getting the data? */
 function Feed({ feed, rate, live }: { feed: BoardFeed | null; rate: number; live: boolean }) {
   const on = !!feed?.online;
+  // Every facility answers every 5-minute step: over the range the board covered, results should be steps x facilities.
+  const expected = feed?.firstTsUnix != null && feed.lastTsUnix != null && feed.facilities
+    ? (Math.round((feed.lastTsUnix - feed.firstTsUnix) / 300) + 1) * feed.facilities : 0;
+  const missing = !on && expected > 0 ? Math.max(0, expected - (feed?.results ?? 0)) : 0;
   const hops = ["Sensors", "PC", feed?.source === "fpga" ? "FPGA" : "Board", "Console"];
   // dots move faster the more records per second actually arrive
   const dur = on ? Math.max(0.25, Math.min(2.5, 60 / Math.max(rate, 1))) : 0;
@@ -226,6 +230,11 @@ function Feed({ feed, rate, live }: { feed: BoardFeed | null; rate: number; live
             <Big label="Live rate" value={on ? `${Math.round(rate).toLocaleString()}/s` : "—"} sub="measured, records per second" />
             <Big label="Lost or bad packets" value={feed?.stats ? String(feed.stats.seqGaps + feed.stats.badPackets) : "—"} tone={!feed?.stats ? undefined : feed.stats.seqGaps + feed.stats.badPackets > 0 ? C.warn : C.ok} sub="from the board's own counters" />
           </div>
+          {missing > 0 && (
+            <p role="alert" className="mt-3 rounded-lg px-3 py-2 text-[14px]" style={{ background: "color-mix(in oklab, var(--crit) 12%, transparent)", color: C.crit }}>
+              {missing.toLocaleString()} of {expected.toLocaleString()} results never arrived: the data was sent faster than the board took it. Replay slower (stream, or a lower --pps) before trusting the story.
+            </p>
+          )}
         </div>
         <div className="min-w-0">
           <p className="mb-1.5 text-[13px]" style={{ color: C.dim }}>What it just decided</p>
@@ -272,7 +281,7 @@ function story(tl: SimulationTimeline, at: number, flagged: NonNullable<BoardFee
   const shut = failures.map((i) => plan.get(i.id)).filter((p): p is NonNullable<typeof p> => !!p && p.shutdownUnix != null && p.shutdownUnix > at);
   const unsaved = shut.filter((p) => p.planShutdownUnix != null || p.kind === "do_nothing").sort((a, b) => a.shutdownUnix! - b.shutdownUnix!)[0];
   const covered = shut.filter((p) => !(p.planShutdownUnix != null || p.kind === "do_nothing")).sort((a, b) => a.shutdownUnix! - b.shutdownUnix!)[0];
-  return { ongoing, items, plan, sum, nextArrival, failures, inspections, unsaved, covered };
+  return { ongoing, items, plan, sum, nextArrival, failures, inspections, unsaved, covered, planned: costed.length };
 }
 type Story = ReturnType<typeof story>;
 
@@ -326,11 +335,16 @@ function Operator({ story: st, tl, at, nemotron }: { story: Story; tl: Simulatio
         ) },
         { id: "money", label: "the money", className: "xl:col-span-2", node: (
       <Panel>
-        <div className="grid grid-cols-3 gap-4 px-6 py-4">
-          <Big label="If nobody had acted" value={money(st.sum("doNothingCost"))} tone={C.crit} />
-          <Big label="Our plans cost" value={money(st.sum("cost"))} />
-          <Big label="Kept" value={money(st.sum("kept"))} tone={C.ok} />
-        </div>
+        {st.planned === 0 ? (
+          // three $0 tiles read as "broken": say what the money is waiting for
+          <p className="px-6 py-5 text-[18px]" style={{ color: C.dim }}>No pump has failed yet. The money starts counting at the first pump failure, when the planner prices the plan against doing nothing.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-4 px-6 py-4">
+            <Big label="If nobody had acted" value={money(st.sum("doNothingCost"))} tone={C.crit} />
+            <Big label="Our plans cost" value={money(st.sum("cost"))} />
+            <Big label="Kept" value={money(st.sum("kept"))} tone={C.ok} sub={`${st.planned} pump failure${st.planned === 1 ? "" : "s"} planned so far`} />
+          </div>
+        )}
       </Panel>
         ) },
         ...(nemotron ? [{ id: "nemotron", label: "Nemotron's shift handoff", className: "xl:col-span-2", node: nemotron }] : []),
@@ -524,7 +538,10 @@ function Showcase({ datasetId, tl, setT, setPlaying }: { datasetId: string; tl: 
       setHandoff({ text: readable(model ?? fallback ?? ""), byModel: !!model });
       await wait(600);
       setStage("saved");
-    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setStage("error"); }
+    } catch (e) {
+      // The savings never depend on Nemotron: show them, and say what happened to the handoff.
+      setErr(e instanceof Error ? e.message : String(e)); setHandoff(null); setStage("saved");
+    }
   };
 
   const icon = (st: string) => st === "accepted" || st === "done" ? { t: "✓", c: C.ok } : st === "deterministic" ? { t: "✓", c: C.warn } : st === "rejected" || st === "failed" ? { t: "↺", c: C.warn } : { t: "…", c: C.dim };
@@ -569,9 +586,14 @@ function Showcase({ datasetId, tl, setT, setPlaying }: { datasetId: string; tl: 
           )}
           {stage === "saved" && (
             <div className="wall-fade">
-              <p className="text-[14px] font-semibold tracking-[0.1em] uppercase" style={{ color: C.dim }}>Kept this week</p>
-              <p className="text-[64px] leading-none font-bold tabular-nums" style={{ color: C.ok }}>{money(kept)}</p>
+              <p className="text-[14px] font-semibold tracking-[0.1em] uppercase" style={{ color: C.dim }}>
+                {tl.nowUnix < tl.datasetNowUnix ? `Kept so far (the board is at ${dayClock(tl.nowUnix)})` : "Kept this week"}
+              </p>
+              {failures === 0
+                ? <p className="text-[30px] leading-tight font-bold" style={{ color: C.ok }}>No pump failures to plan{inspections ? `: ${inspections} ${inspections === 1 ? "thing" : "things"} for an inspector` : ""}.</p>
+                : <p className="text-[64px] leading-none font-bold tabular-nums" style={{ color: C.ok }}>{money(kept)}</p>}
               <p className="mt-2 text-[16px]" style={{ color: C.dim }}>If nobody acted: <b style={{ color: C.crit }}>{money(tl.totals.doNothing)}</b> · our plans: <b style={{ color: C.text }}>{money(tl.totals.plan)}</b> · {failures} pump failures, {inspections} inspections</p>
+              {!handoff && err && <p className="mt-4 text-[14px]" style={{ color: C.warn }}>Nemotron’s handoff isn’t available right now ({err}). The plans and savings above come from the planner and don’t need it.</p>}
               {handoff?.text && (
                 <div className="mt-4 rounded-lg px-4 py-3" style={{ background: "rgba(118,185,0,0.08)", boxShadow: `inset 3px 0 0 ${C.chip}` }}>
                   <p className="text-[16px] leading-relaxed">{handoff.text}</p>
