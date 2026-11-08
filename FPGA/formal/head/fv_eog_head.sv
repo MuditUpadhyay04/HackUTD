@@ -53,7 +53,7 @@
 //                   (accepted, output not yet transferred, transfer cycle included), at most once
 //   H8_data         at that pulse dbg_rec_no = its REC_NO and dbg_feat = its 31 features
 //   H8_logit(_b)    dbg_logits = its output LOGITS (whichever comes first)
-//   H8_live         a qualifying record has had its pulse by the cycle its output transfers
+//   H8_live         a qualifying record has had its pulse by the cycle its output transfers (bmc tasks)
 //   covers          C_swap (a swap between two records, both with a model), C_sat (a saturated logit), C_sat5 (a
 //                   saturated logit predicted from nonzero terms), C_nomodel, C_coalesce (a request while pending,
 //                   then one swap), C_rb (a readback checked), C_srst (a record with a model after a soft reset),
@@ -72,6 +72,9 @@
 //   LAT_MAX       st_lat bound (spec: 128)
 //   SWAP_MAX      H2_live bound (the spec says "next record boundary" without a number; 16 = II_MAX)
 //   II_EXCL_SWAP  1 excludes cycles with a pending swap from st_ii (the spec does not; default 0 = strict)
+//   H8_LIVE       1 checks H8_live. 0 in prove: a record may wait at the output (out_ready = 0) longer than any
+//                 induction depth, so "pulse seen" cannot be related to an accept outside the window; bmc tasks
+//                 check it from reset
 //
 // Input assumptions (upstream contract, eog_countdown -> eog_head; eog_regs -> weight and debug ports):
 //   STATUS in {VALID, HELD, INVALID, DROPPED}; REASON[NO_MODEL] = 0 (only the head sets it). FEAT, RULES and CD are
@@ -94,7 +97,8 @@ module fv_eog_head #(
     parameter integer MAX_INFLIGHT = 4,
     parameter integer LAT_MAX      = 128,
     parameter integer SWAP_MAX     = 16,
-    parameter integer II_EXCL_SWAP = 0
+    parameter integer II_EXCL_SWAP = 0,
+    parameter integer H8_LIVE      = 1
 ) (
     input logic         clk,          // top-level inputs are free: the solver drives them
     input logic         rst_n,
@@ -490,7 +494,7 @@ module fv_eog_head #(
             H4_nm: assert (out_data[EOG_BL_REASON + F_R_NO_MODEL] == t_nm);
             if (f_dseen)
                 H8_logit_b: assert (o_logits == f_dlog);
-            if (out_ready && f_tq)
+            if (H8_LIVE != 0 && out_ready && f_tq)
                 H8_live: assert (f_dseen || d_track);
         end
         if (d_track) begin
