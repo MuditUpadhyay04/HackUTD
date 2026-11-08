@@ -212,7 +212,8 @@ module tb_eog_regs;
         chk(ack_n - ack0 == ((c0 && d[4]) ? 1 : 0), $sformatf("G7 %s: write %h %h: %0d ack_srv pulses", what, a, d, ack_n - ack0));
         repeat (2) @(posedge clk);   // soft_rst may still be high in the cycle after BVALID
         chk(sr_rise_n - sr0 == ((c0 && d[1]) ? 1 : 0), $sformatf("G7 %s: write %h %h: %0d soft_rst pulses", what, a, d, sr_rise_n - sr0));
-        chk(wb_n - wb0 == ((a >= 16'h4000 && a <= 16'h4118) ? 1 : 0),
+        chk(wb_n - wb0 == ((a >= 16'h4000 && a <= 16'h4118 && s != 4'h0) ? 1 : 0),   // WSTRB = 0: no-op (#101)
+           
             $sformatf("%s: write %h: %0d wb_we pulses", what, a, wb_n - wb0));
     endtask
 
@@ -495,7 +496,9 @@ module tb_eog_regs;
         chk(wb_last_a == 5 && wb_last_d == {cfgsave[31:24], 8'hBB, cfgsave[15:8], 8'hDD},
             $sformatf("weights: partial strobe RMW (#62) gave %h", wb_last_d));
         rd_chk(16'h4014, wmem[5], "weights: readback after partial write");
-        wr_chk(16'h411C, 32'h1, 4'hF, -1, "write past the weight window");   // expects no wb_we (unmapped)
+        wr_chk(16'h411C, 32'h1, 4'hF, -1, "write past the weight window");
+        wr_chk(16'h4018, 32'h12345678, 4'h0, -1, "weight write with WSTRB = 0 (#101: no wb_we)");
+        rd_chk(16'h4018, wmem[6], "weights: WSTRB = 0 write changed nothing");   // expects no wb_we (unmapped)
 
         // ---- soft reset keeps CONFIG, GLOBAL, DBG; clears STATS
         axi_rd(16'h1000 + 64 * 17 + 8, cfgsave);
