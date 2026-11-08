@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { DomainError, type AnalysisRecord, type ImportedDataset, type OperatorAction, type RunInput, type RunRecord, type ScenarioRecord, type Snapshot, type SystemPlanResult, type TruckAssignment } from "@hackutd/contracts";
 import type { Job, Store } from "./store";
 import { importDataset } from "./features/datasets/service";
+import { findDatasetFolders, readDatasetFolder } from "./features/datasets/folders";
 import { buildRunSnapshot, planningInputForSnapshot, readBoardIndex } from "./features/runtimes/service";
 import type { RegisteredModel } from "./features/runtimes/model";
 import { validateSystemPlan } from "./features/planning/validator";
@@ -18,6 +19,31 @@ export class Application {
     this.agents = createAnalysisService({ store, provider: config.provider, sessionDir: config.sessionDir });
     this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl, boardSource: config.boardSource });
     this.modelFingerprint = model ? createHash("sha256").update(JSON.stringify(model)).digest("hex") : null;
+  }
+  private folderStamps = new Map<string, string>();
+  private folderSync: Promise<void> | null = null;
+  readonly folderErrors = new Map<string, string>();
+  /** Import every dataset folder under DATA_ROOT that is new or changed since the last look. Concurrent callers share
+   * one pass; a bad folder is reported (folderErrors, console) and skipped, never fatal. */
+  syncFolders(): Promise<void> {
+    if (!this.config.dataRoots?.length) return Promise.resolve();
+    this.folderSync ??= (async () => {
+      try {
+        for (const root of this.config.dataRoots!) for (const f of await findDatasetFolders(root)) {
+          if (this.folderStamps.get(f.path) === f.stamp) continue;
+          try {
+            const info = await this.upload(await readDatasetFolder(f.path), f.label);
+            this.folderErrors.delete(f.path);
+            console.log(`[datasets] ${f.label}: ${info.id.slice(0, 12)} from ${f.path}${info.hardwareEligible ? "" : ` (software only: ${info.hardwareReasons.join("; ")})`}`);
+          } catch (e) {
+            this.folderErrors.set(f.path, e instanceof Error ? e.message : String(e));
+            console.error(`[datasets] ${f.path} not loaded: ${this.folderErrors.get(f.path)}`);
+          }
+          this.folderStamps.set(f.path, f.stamp);
+        }
+      } finally { this.folderSync = null; }
+    })();
+    return this.folderSync;
   }
   async upload(files: { network: string; ops: string; telemetry: string }, label?: string) {
     const dataset = await importDataset(files, label);

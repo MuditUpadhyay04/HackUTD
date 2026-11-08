@@ -1,5 +1,5 @@
 import { checkProse, lintProse, type ProseLint } from "../prose";
-import { groundingForRun, priorityOrder, type IncidentFact, type RunFacts } from "./facts";
+import { groundingForRun, priorityOrder, type IncidentFact, type PlanFact, type RunFacts } from "./facts";
 import { alertsView, comparePlans, inspectionAdvice, requireIncident, wellEconomics } from "./specialists";
 import type { ToolDef } from "./subagent";
 
@@ -57,6 +57,49 @@ const idInput = { type: "object", properties: { incidentId: str }, required: ["i
 const empty = { type: "object", properties: {}, additionalProperties: false };
 function keys(input: Record<string, unknown>, allowed: string[]) { if (Object.keys(input).some((k) => !allowed.includes(k))) throw new Error(`Unexpected field; allowed: ${allowed.join(", ")}`); }
 const ongoing = (facts: RunFacts) => facts.incidents.filter((i) => i.status === "ongoing");
+
+/** Tool results as the agents see them: every solver plan ID replaced by the plan's short ref (P1, P2, ...). */
+export function forAgent(facts: RunFacts, value: unknown): unknown {
+  const refs = new Map(facts.incidents.flatMap((i) => i.plans.map((p) => [p.planId, p.ref] as const)));
+  const walk = (v: unknown): unknown => typeof v === "string" ? refs.get(v) ?? v
+    : Array.isArray(v) ? v.map(walk)
+    : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).filter(([k]) => k !== "ref").map(([k, x]) => [k, walk(x)])) : v;
+  return walk(value);
+}
+function agentTools(ctx: RoleContext, tools: ToolDef[]): ToolDef[] {
+  return tools.map((t) => ({ ...t, execute: async (input: Record<string, unknown>) => forAgent(ctx.facts, await t.execute(input)) }));
+}
+/** A plan reference from an agent -> the solver's plan ID: the ref (P3, p3, "P-3", "plan 3"), the full ID, or a unique
+ * prefix of it (8+ characters, with or without "option:"). Undefined when nothing or more than one plan matches. */
+export function resolvePlanRef(plans: PlanFact[], ref: unknown): string | undefined {
+  const value = String(ref ?? "").trim();
+  const exact = plans.find((p) => p.planId === value);
+  if (exact) return exact.planId;
+  const n = /^(?:p|plan)[\s_-]*0*(\d+)$/i.exec(value)?.[1];
+  if (n) return plans.find((p) => p.ref === `P${n}`)?.planId;
+  const bare = value.replace(/^option:/i, "").toLowerCase();
+  if (bare.length < 8) return undefined;
+  const hits = plans.filter((p) => p.planId.replace(/^option:/, "").startsWith(bare));
+  return hits.length === 1 ? hits[0]!.planId : undefined;
+}
+const planList = (plans: PlanFact[]) => plans.map((p) => `${p.ref} (${p.label}${p.recommended ? ", recommended" : ""})`).join("; ");
+/** Scoped roles work on exactly one incident, so any reference is taken as that one unless it names a different
+ * incident or facility (models truncate the long run-scoped IDs). */
+function sameIncident(ctx: RoleContext, ref: unknown): boolean {
+  const i = ctx.incident!, value = String(ref ?? "");
+  if (value === i.incidentId || value.includes(i.facilityId) || value === i.facilityLabel) return true;
+  const other = ctx.facts.incidents.find((x) => x.incidentId !== i.incidentId && (x.incidentId === value || value.includes(x.facilityId) || value === x.facilityLabel));
+  return !other;
+}
+/** Explainer choice: a plan reference, or "recommended" / the plan's exact label or kind when that names one plan. */
+function resolveChoice(plans: PlanFact[], ref: unknown): string | undefined {
+  const byRef = resolvePlanRef(plans, ref);
+  if (byRef) return byRef;
+  const value = String(ref ?? "").trim().toLowerCase();
+  if (/^(?:the\s+)?(?:solver'?s?\s+)?recommended(?:\s+plan)?$/.test(value)) return plans.find((p) => p.recommended)?.planId;
+  const hits = plans.filter((p) => p.label.toLowerCase() === value || p.kind.toLowerCase() === value);
+  return hits.length === 1 ? hits[0]!.planId : undefined;
+}
 function compactIncident(i: IncidentFact) {
   return { incidentId: i.incidentId, facility: i.facilityLabel, facilityId: i.facilityId, category: i.categoryLabel, status: i.status, age: i.age, countdown: i.countdown,
     levelPct: i.levelPct, lostRevenuePerHour: i.lostRevenuePerHour, dataQuality: i.dataQuality, evidence: i.evidence,
@@ -79,11 +122,11 @@ export function resolveIncidentRef(facts: RunFacts, ref: unknown): string {
 export const ROLES: Record<Exclude<Role, "critic">, RoleSpec> = {
   triage: {
     role: "triage", maxSteps: 8, childRoles: ["plan_explainer", "evidence_reviewer"], proseTarget: 220,
-    tools: (ctx) => [
+    tools: (ctx) => agentTools(ctx, [
       { name: "list_incidents", description: "Everything needed for triage: ongoing and recent incidents with evidence and plan summaries, the telemetry time now, and board results.", inputSchema: empty, execute: () => ({ now: ctx.facts.now, incidents: ctx.facts.incidents.map(compactIncident), board: ctx.facts.board }) },
       { name: "alerts_view", description: "The deterministic rule 7 order the console shows.", inputSchema: empty, execute: () => alertsView(ctx.facts) },
       readIncident(ctx),
-    ],
+    ]),
     data: (ctx) => ({ facts: ctx.facts, view: alertsView(ctx.facts) }),
     task: (ctx) => `Triage run ${ctx.facts.runId} at ${ctx.facts.now}: ${ongoing(ctx.facts).length} ongoing incidents.`,
     submit: { name: "submit_triage", description: "Submit your priority order of the ongoing incidents and one note per ongoing incident; identify each by incident ID or facility ID.", inputSchema: { type: "object", properties: {
@@ -107,33 +150,34 @@ export const ROLES: Record<Exclude<Role, "critic">, RoleSpec> = {
   },
   plan_explainer: {
     role: "plan_explainer", maxSteps: 8, childRoles: ["evidence_reviewer"], proseTarget: 400,
-    tools: (ctx) => [readIncident(ctx),
+    tools: (ctx) => agentTools(ctx, [readIncident(ctx),
       { name: "compare_plans", description: "Deterministic fleet planner: validated options for this incident, cheapest first, with cost deltas.", inputSchema: idInput, execute: (i) => { scoped(ctx, i.incidentId); return comparePlans(ctx.facts, i.incidentId); } },
-      { name: "well_economics", description: "Deterministic well economist: lost revenue per hour and countdown for this incident.", inputSchema: idInput, execute: (i) => { scoped(ctx, i.incidentId); return wellEconomics(ctx.facts, i.incidentId); } }],
+      { name: "well_economics", description: "Deterministic well economist: lost revenue per hour and countdown for this incident.", inputSchema: idInput, execute: (i) => { scoped(ctx, i.incidentId); return wellEconomics(ctx.facts, i.incidentId); } }]),
     data: (ctx) => ({ incident: ctx.incident, compare: comparePlans(ctx.facts, ctx.incident!.incidentId), economics: wellEconomics(ctx.facts, ctx.incident!.incidentId), reviews: ctx.outputs.reviews, now: ctx.facts.now }),
     task: (ctx) => `Explain the options for incident ${ctx.incident!.incidentId} (${ctx.incident!.facilityLabel} ${ctx.incident!.categoryLabel}).${ctx.question ? ` Question from the requester: ${ctx.question}` : ""}`,
     submit: { name: "submit_explanation", description: "Submit the option to present first and a short explanation of the trade-off.", inputSchema: { type: "object", properties: { incidentId: str, presentFirstPlanId: str, explanation: str }, required: ["incidentId", "presentFirstPlanId", "explanation"], additionalProperties: false } },
     validate(ctx, input) {
       keys(input, ["incidentId", "presentFirstPlanId", "explanation"]);
       const i = ctx.incident!;
-      if (input.incidentId !== i.incidentId) throw new Error(`incidentId must be ${i.incidentId}`);
-      if (!i.plans.some((p) => p.planId === input.presentFirstPlanId)) throw new Error(`presentFirstPlanId must be one of: ${i.plans.map((p) => p.planId).join(", ")}`);
+      if (!sameIncident(ctx, input.incidentId)) throw new Error(`incidentId must be ${i.incidentId}`);
+      const planId = resolveChoice(i.plans, input.presentFirstPlanId);
+      if (!planId) throw new Error(`presentFirstPlanId must be one of this incident's plans: ${planList(i.plans)}`);
       const explanation = checkProse(groundingForRun(ctx.facts, this.data(ctx)), input.explanation, { field: "explanation", maxLength: 700 });
-      return { incidentId: i.incidentId, presentFirstPlanId: String(input.presentFirstPlanId), explanation } satisfies ExplainerOutput;
+      return { incidentId: i.incidentId, presentFirstPlanId: planId, explanation } satisfies ExplainerOutput;
     },
     prose: (o) => (o as ExplainerOutput).explanation,
     agreement: (ctx, o) => ctx.incident!.plans.find((p) => p.recommended)?.planId === (o as ExplainerOutput).presentFirstPlanId ? 1 : 0,
   },
   evidence_reviewer: {
     role: "evidence_reviewer", maxSteps: 4, childRoles: [], proseTarget: 250,
-    tools: (ctx) => [readIncident(ctx),
-      { name: "inspection_advice", description: "Deterministic inspection view for leaks and worn pumps.", inputSchema: idInput, execute: (i) => { scoped(ctx, i.incidentId); return inspectionAdvice(ctx.facts, i.incidentId); } }],
+    tools: (ctx) => agentTools(ctx, [readIncident(ctx),
+      { name: "inspection_advice", description: "Deterministic inspection view for leaks and worn pumps.", inputSchema: idInput, execute: (i) => { scoped(ctx, i.incidentId); return inspectionAdvice(ctx.facts, i.incidentId); } }]),
     data: (ctx) => ({ incident: ctx.incident, inspection: inspectionAdvice(ctx.facts, ctx.incident!.incidentId), board: ctx.facts.board.filter((b) => b.facilityId === ctx.incident!.facilityId), now: ctx.facts.now }),
     task: (ctx) => `Review the evidence for incident ${ctx.incident!.incidentId} (${ctx.incident!.facilityLabel}). Question: ${ctx.question ?? "Is the evidence consistent and is the data quality good enough to act on?"}`,
     submit: { name: "submit_review", description: "Submit a one or two sentence answer.", inputSchema: { type: "object", properties: { incidentId: str, answer: str }, required: ["incidentId", "answer"], additionalProperties: false } },
     validate(ctx, input) {
       keys(input, ["incidentId", "answer"]);
-      if (input.incidentId !== ctx.incident!.incidentId) throw new Error(`incidentId must be ${ctx.incident!.incidentId}`);
+      if (!sameIncident(ctx, input.incidentId)) throw new Error(`incidentId must be ${ctx.incident!.incidentId}`);
       return { incidentId: ctx.incident!.incidentId, answer: checkProse(groundingForRun(ctx.facts, this.data(ctx)), input.answer, { field: "answer", maxLength: 400 }) } satisfies ReviewOutput;
     },
     prose: (o) => (o as ReviewOutput).answer,
@@ -142,7 +186,7 @@ export const ROLES: Record<Exclude<Role, "critic">, RoleSpec> = {
   handoff: {
     role: "handoff", maxSteps: 8, childRoles: ["plan_explainer", "evidence_reviewer"], proseTarget: 600,
     requestHint: "If read_agent_notes lists pumpFailuresWithoutPlanExplanation, call request_subtask for a plan_explainer on the first of them before you write.",
-    tools: (ctx) => [
+    tools: (ctx) => agentTools(ctx, [
       { name: "list_incidents", description: "Ongoing and recent incidents with evidence IDs and plan summaries, and the telemetry time now.", inputSchema: empty, execute: () => ({ now: ctx.facts.now, incidents: ctx.facts.incidents.map(compactIncident) }) },
       { name: "read_agent_notes", description: "Accepted triage notes, plan explanations and evidence reviews from this run.", inputSchema: empty, execute: () => {
         // Deterministic gap list: ongoing pump failures with validated plans that no plan explainer has covered yet.
@@ -150,17 +194,19 @@ export const ROLES: Record<Exclude<Role, "critic">, RoleSpec> = {
         const unexplained = priorityOrder(ctx.facts).filter((id) => { const i = ctx.facts.incidents.find((x) => x.incidentId === id)!; return i.category === "pump_failure" && i.plans.length && !explained.has(id); });
         return { ...ctx.outputs, pumpFailuresWithoutPlanExplanation: unexplained };
       } },
-      readIncident(ctx)],
+      readIncident(ctx)]),
     data: (ctx) => ({ facts: ctx.facts, outputs: ctx.outputs, view: alertsView(ctx.facts) }),
     task: (ctx) => `Write the shift handoff for run ${ctx.facts.runId} at ${ctx.facts.now}.`,
     submit: { name: "submit_handoff", description: "Submit the handoff paragraph with evidence and plan IDs as citations (IDs go in the arrays).", inputSchema: { type: "object", properties: {
       handoff: str, evidenceIds: { type: "array", items: str }, planIds: { type: "array", items: str } }, required: ["handoff", "evidenceIds", "planIds"], additionalProperties: false } },
     validate(ctx, input) {
       keys(input, ["handoff", "evidenceIds", "planIds"]);
-      const evidence = new Set(ctx.facts.incidents.flatMap((i) => i.evidence.map((e) => e.id))), plans = new Set(ctx.facts.incidents.flatMap((i) => i.plans.map((p) => p.planId)));
-      const ev = input.evidenceIds as unknown[], pl = input.planIds as unknown[];
-      if (!Array.isArray(ev) || ev.some((e) => !evidence.has(String(e)))) throw new Error("evidenceIds must be evidence IDs from the tools");
-      if (!Array.isArray(pl) || pl.some((p) => !plans.has(String(p)))) throw new Error("planIds must be plan IDs from the tools");
+      const evidence = new Set(ctx.facts.incidents.flatMap((i) => i.evidence.map((e) => e.id))), allPlans = ctx.facts.incidents.flatMap((i) => i.plans);
+      const ev = input.evidenceIds as unknown[], raw = input.planIds as unknown[];
+      if (!Array.isArray(ev) || ev.some((e) => !evidence.has(String(e)))) throw new Error(`evidenceIds must be evidence IDs from the tools; not found: ${(Array.isArray(ev) ? ev : []).filter((e) => !evidence.has(String(e))).slice(0, 3).join(", ")}`);
+      if (!Array.isArray(raw)) throw new Error("planIds must be an array of plan IDs from the tools (P1, P2, ...)");
+      const pl = raw.map((p) => resolvePlanRef(allPlans, p));
+      if (pl.some((p) => !p)) throw new Error(`planIds must be plan IDs from the tools; not found: ${raw.filter((_, k) => !pl[k]).slice(0, 3).join(", ")}; valid: ${allPlans.map((p) => p.ref).join(", ") || "(none)"}`);
       if (ongoing(ctx.facts).length && !ev.length) throw new Error("Cite at least one evidence ID");
       const handoff = checkProse(groundingForRun(ctx.facts, this.data(ctx)), input.handoff, { field: "handoff", maxLength: 900 });
       return { handoff, evidenceIds: [...new Set(ev.map(String))], planIds: [...new Set(pl.map(String))] } satisfies HandoffOutput;

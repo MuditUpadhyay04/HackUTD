@@ -258,3 +258,28 @@ def test_deterministic(enc, tmp_path):
     a = golden.build(DATA, tmp_path / "a", "g0")
     b = golden.build(DATA, tmp_path / "b", "g0")
     assert a["sha256"] == b["sha256"]
+
+
+@needs_data
+def test_unseen_network_rehearsal(tmp_path):
+    """A practice week reshaped into an unseen network (judging rehearsal) keeps its physics and goes through the real
+    encoder: S6.. systems, other facility counts and names, 1..6 wells, another week, a mock-test cut."""
+    import pandas as pd
+    from hutd_ml import unseen
+    rep = unseen.make(DATA, tmp_path, seed=3, n_systems=6, n_fac=20, cut=0.6)
+    assert rep["systems"] == 6 and rep["facilities"] == 20 and rep["cut"]["ongoing"] >= 0
+    folder = tmp_path / "full_week"
+    net = json.loads((folder / "network.json").read_text())
+    assert [s["id"] for s in net["systems"]] == [f"S{i}" for i in range(6, 12)]
+    tel = pd.read_csv(folder / "telemetry.csv")
+    wells = tel[tel.metric == "water_bpd"].pivot(index="ts_unix", columns="asset_id", values="value")
+    inflow = tel[tel.metric == "inflow_bpd"].pivot(index="ts_unix", columns="asset_id", values="value")
+    for s in net["systems"]:
+        for f in s["facilities"]:
+            gap = (inflow[f["id"]] - wells[[w["id"] for w in f["wells"]]].sum(axis=1)).abs().max()
+            assert gap < 1.0, (f["id"], gap)       # inflow is still the sum of the wells
+    enc = encode.encode_dataset(folder)
+    assert len(enc.facilities) == 20 and len(enc.timestamps) == tel.ts_unix.nunique()
+    assert (enc.timestamps - enc.timestamps[0]).max() % 300 == 0
+    assert all(e["facility"].startswith(("S6", "S7", "S8", "S9", "S10", "S11")) for e in
+               json.loads((folder / "answer_key.json").read_text()))

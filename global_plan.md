@@ -246,10 +246,12 @@ flowchart LR
    v4's board detections now open the API's incidents. It passes 6/6 on the software board with live Nemotron. On
    Lucas's laptop it runs by double-click (`ml\win_agents_setup.bat`, then `ml\win_combined_suite.bat`, from a
    snapshot of `main`); store and forward instead: `ml\win_combined_suite_board.bat`, and Mudit runs the agent stages.
-4. **Judging dry run:**
-   - `mock_test_*` end to end;
-   - then a fresh folder;
-   - then `test/` when it appears (check ≤ 32 facilities / ≤ 8 wells);
+4. **Judging dry run** ([`docs/plan/mudit/judging_day.md`](docs/plan/mudit/judging_day.md)):
+   - **rehearsed on an unseen network** (Sun 09:30, software board + live Nemotron): `python -m hutd_ml.unseen` turns
+     the practice week into S6–S11 with other names, facility and well counts, sizes, week and ops; board stages
+     bit-exact, 39 / 39 events found, `combined_suite` 8 / 8, console correct;
+   - on the board: the same rehearsal with `--reset-cmd`, then `ml\win_demo.bat` on a practice folder;
+   - then `test/` when it appears (check ≤ 32 facilities / ≤ 8 wells; the API loads it from `DATA_ROOT`);
    - no code changes between runs.
 
 **Fallback at every step:** if the board is unavailable, run `fakeboard.py` in its place (bit-exact, same JSON).
@@ -294,7 +296,7 @@ Mudit's integration branch; `main` receives merges from them.
 | I-14 | `frontend/src/lib/engine/types.ts` forks `@hackutd/contracts`; use the shared contracts. | Gurneal + Jason | PR #6 review finding 5; C10 |
 | I-15 | ~~Nemotron live check~~ **Done** (agent loop POC): the endpoint reports `max_model_len` 1,048,576 (the runbook's 4,096 is out of date). Context window, output budget and thinking mode come from env (`NEMOTRON_CONTEXT_WINDOW`, `NEMOTRON_MAX_OUTPUT_TOKENS`, `NEMOTRON_THINKING`, off by default). The `qwen3_coder` tool-call parser works with thinking on or off. | Mudit + Jason | — |
 | I-16 | The Postgres learning store and migration `002_agent_learning.sql` are untested against a live database (memory mode + a JSON file so far). | Mudit + Jason | Agent plan §9.5 |
-| I-17 | **Agent output quality** (measured by `combined_suite`, Sun 07:35–07:50). Acceptance varies by run; the orchestrator now writes deterministic fallbacks for triage / handoff, so the operator never gets a blank. **Left:** (a) handoffs exceed the 900-character cap with several incidents (950, 1,119, 2,635 seen); (b) on the API path, explainers mangle 64-hex plan IDs, so give the model short aliases (P1, P2) mapped server-side; (c) fluent but empty claims still pass the grounded check. | Mudit + Jason | `docs/plan/mudit/nemotron_v4_fpga_test.md` §5 |
+| I-17 | **Agent output quality** (measured by `combined_suite`, Sun 07:35–07:50). Acceptance varies by run; the orchestrator now writes deterministic fallbacks for triage / handoff, so the operator never gets a blank. **Left:** (a) handoffs exceed the 900-character cap with several incidents (950, 1,119, 2,635 seen); (b) ~~explainers mangle 64-hex plan IDs~~ **done** (Sun 09:40): short refs P1, P2, … mapped server-side; acceptance on the API path is still low with many incidents (2 / 8 at 10 incidents), the explainers spend their calls on subtask requests; (c) fluent but empty claims still pass the grounded check. | Mudit + Jason | `docs/plan/mudit/nemotron_v4_fpga_test.md` §5 |
 | I-18 | Prompt promotion statistics: 2–4 samples per version is below the noise (an identical template once "won"). Repeat each case 2–3 times and promote on a confidence bound before claiming a gain (hard rule 10). | Mudit | Agent plan §9.3 |
 | I-19 | `listen.py`: an auth-token option and a source field on POST (C11 emit side, for I-1). Note: a Python client calling the Nemotron endpoint needs a User-Agent, because Cloudflare refuses urllib's default (error 1010). | Mudit | Agent plan §5 |
 
@@ -345,6 +347,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 09:40 | **Judging-day hardening, rehearsed on an unseen network** (`docs/plan/mudit/judging_day.md`). `hutd_ml.unseen` reshapes the practice week into S6–S11 (24–30 facilities, 1–6 wells, another week); board stages bit-exact, v4 finds 39 / 39 events, `combined_suite` 8 / 8 with live Nemotron. Fixed on the way: (1) the console's server-side API base was port 80, so the page failed with 503 (`frontend/src/lib/api.ts`); (2) the API loads dataset folders from `DATA_ROOT`, as the console README promised; `test/` is picked by default; (3) upload limits 40 MB / 1 M rows → 160 MB / 2.5 M rows (a 30-facility network is 53 MB); (4) facilities the board checked and found clear are `ok`, not `unknown`; the console no longer calls `unknown` "sensor readings missing"; (5) agents cite plans by short refs (P1, P2, …) mapped back to the solver's IDs, and scoped roles accept truncated incident IDs (I-17). Also `ml\win_demo.bat` (one-click demo, not yet run on Windows) and `ml\win_board_temp.bat` (Zynq die temperature over JTAG, read-only). API 134 pass / 1 skip / 0 fail; ML 15 / 15. |
 | Sun Nov 8 08:40 | **Lucas's board-session docs on `main`** (from `eog/T2.bd1` @ `9cf0841`, docs only, as with PR #5): `FPGA/docs/BOARD_SESSION.md` (read first on the board machine; `CLAUDE.md` points there), `LAPTOP_WORKORDER.md`, `SD_BOOT_WEIGHTS.md`, `HANDOFF.md`, `TASKS.md` (every T1 module DONE, T2.top REVIEW, T2.sd DONE), reports (bring-up, board suite 12/12, lead response, RTL sign-off, summary). **O17 resolved:** 50 MHz, D2 skipped. **O16 updated:** a debug build passes 5/5, so the lwIP / GEM TX path is the suspect; the demo skips server-down. **Combined suite by double-click** on Lucas's laptop: `ml\win_agents_setup.bat`, `ml\win_combined_suite.bat`, `ml\win_combined_suite_board.bat` (store and forward, no Bun needed). Lucas: merge `main` back into `FPGA` so the later FPGA → `main` PR stays clean. |
 | Sun Nov 8 08:20 | **The v4 board suite passes on hardware** (Lucas, Sun 08:05, 50 MHz build): B1–B3, B5, B6, L1 (the demo path, full week), L2 (live swap v3 → v4), L3 (mock test + 3 snapshots), every RESULT and ALERT bit-exact; T1 29,941 records/s end to end (PC-sender-bound). Both suites now use UTF-8 for all text I/O, since Windows' default encoding would break on Nemotron's prose. Next: the combined suite on real board results. |
 | Sun Nov 8 08:05 | **Status set (Mudit):** with PR #12 merged, Nemotron + FPGA + v4 is integrated end to end, **not yet validated on the board** (Lucas runs `ml/COMBINED_TEST.md`). The only open areas are the **front end** and **Photon** (§7 status table). Jason's PR #9 closed (ownership recorded, O18). |

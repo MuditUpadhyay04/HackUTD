@@ -5,7 +5,9 @@ import type { Grounding } from "../prose";
  * Scoped, display-ready facts for the orchestrated sub-agents. Everything is derived deterministically from the run
  * snapshot (runtime inputs only, "now" from telemetry) and optional board results; nothing reads the answer key.
  */
-export interface PlanFact { planId: string; label: string; kind: string; costUsd: number; trucks: number; shutIns: number; tankTrips: boolean; recommended: boolean }
+/** `ref`: a short run-unique name (P1, P2, ...) the agents use instead of the solver's 71-character option ID, which
+ * models can't copy reliably; validators map it back, so stored outputs keep the solver's IDs. */
+export interface PlanFact { planId: string; ref: string; label: string; kind: string; costUsd: number; trucks: number; shutIns: number; tankTrips: boolean; recommended: boolean }
 export interface IncidentFact {
   incidentId: string; category: string; categoryLabel: string; status: string; systemId: string; facilityId: string; facilityLabel: string; assetId: string;
   age: string; countdown: string; hoursToLimit: number | null; levelPct: number | null; lostRevenuePerHour: number | null;
@@ -55,7 +57,7 @@ export function runFacts(snapshot: Snapshot, board: BoardFact[] = []): RunFacts 
     const cd = countdown(i);
     const options = [i.plan, ...(i.options ?? [])].filter((p): p is NonNullable<typeof p> => !!p && fresh && p.inputRevision === snapshot.revision);
     const seen = new Set<string>();
-    const plans = options.filter((p) => !seen.has(p.id) && seen.add(p.id)).map((p) => ({ planId: p.id, label: p.label, kind: p.kind, costUsd: Math.round(p.cost), trucks: p.trucks,
+    const plans = options.filter((p) => !seen.has(p.id) && seen.add(p.id)).map((p) => ({ planId: p.id, ref: "", label: p.label, kind: p.kind, costUsd: Math.round(p.cost), trucks: p.trucks,
       shutIns: p.shutIns.length, tankTrips: p.tankTrips, recommended: p.id === i.plan?.id }));
     return { incidentId: i.id, category: i.category, categoryLabel: CATEGORY_LABEL[i.category] ?? i.category, status: i.status, systemId: i.systemId, facilityId: i.facilityId,
       facilityLabel: facilityLabel(i.facilityId), assetId: i.assetId, age: duration((snapshot.nowUnix - i.onsetUnix) / 3600), countdown: cd.text, hoursToLimit: cd.hours,
@@ -66,8 +68,14 @@ export function runFacts(snapshot: Snapshot, board: BoardFact[] = []): RunFacts 
   return { runId: snapshot.runId, revision: snapshot.revision, nowUnix: snapshot.nowUnix, now: clock(snapshot.nowUnix), scoresAvailable: snapshot.runtime?.scoresAvailable ?? false,
     detections: fromBoard ? fromBoard.slice("Detections from ".length).replace(/;.*$/, "") : "the software runtime (pump status only without a model)",
     coverageComplete: snapshot.coverage?.complete ?? false, recommendationReady: fresh,
-    incidents: [...(snapshot.alerts ?? []), ...(snapshot.history ?? [])].map(incident),
+    incidents: numberPlans([...(snapshot.alerts ?? []), ...(snapshot.history ?? [])].map(incident)),
     board: boardAt(board, snapshot.nowUnix) };
+}
+
+function numberPlans(incidents: IncidentFact[]): IncidentFact[] {
+  let n = 0;
+  for (const i of incidents) for (const p of i.plans) p.ref = `P${++n}`;
+  return incidents;
 }
 
 /** Rule 7: pump failures first, soonest shutdown first, ties to higher lost revenue per hour; then the rest. */
@@ -81,7 +89,7 @@ export function priorityOrder(facts: RunFacts): string[] {
 
 export function groundingForRun(facts: RunFacts, data: unknown = facts): Grounding {
   return {
-    entities: facts.incidents.flatMap((i) => [i.incidentId, i.systemId, i.facilityId, i.assetId, ...i.plans.map((p) => p.planId), ...i.evidence.map((e) => e.id)]),
+    entities: facts.incidents.flatMap((i) => [i.incidentId, i.systemId, i.facilityId, i.assetId, ...i.plans.flatMap((p) => [p.planId, p.ref]), ...i.evidence.map((e) => e.id)]),
     labels: facts.incidents.flatMap((i) => [i.category, i.status, i.planningStatus ?? "", ...i.plans.map((p) => p.kind)]),
     categories: facts.incidents.map((i) => i.category),
     data,

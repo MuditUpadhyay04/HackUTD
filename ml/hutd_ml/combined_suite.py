@@ -335,7 +335,8 @@ def main(argv=None):
     lines = load_jsonl(jsonl)
     first_ts = min(d["ts_unix"] for d in lines if d.get("type") == "result")
     last_ts = max(d["ts_unix"] for d in lines if d.get("type") == "result")
-    cutoffs = [last_ts if c == "last" else first_ts + int(c) * 300 for c in a.cutoffs.split(",")]
+    # a shorter week (the judges' test/ folder may be) clamps to its last step instead of asking for the future
+    cutoffs = list(dict.fromkeys(last_ts if c == "last" else min(last_ts, first_ts + int(c) * 300) for c in a.cutoffs.split(",")))
 
     if "N1" not in skip:
         cases = [(data, c, jsonl, lines) for c in cutoffs]

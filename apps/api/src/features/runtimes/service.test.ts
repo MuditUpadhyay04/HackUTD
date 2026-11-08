@@ -111,6 +111,11 @@ describe("board results as the detection source (test plan step 2)", () => {
     const later = await buildRunSnapshot(long(), { runId: "run", at: 2100, runtime: "software" }, { board });
     expect(later.alerts.some((i) => i.category === "pipeline_leak")).toBe(false);
     expect(later.history.find((i) => i.category === "pipeline_leak")).toMatchObject({ status: "resolved", endUnix: 1800 });
+    // checked by the board and clear: "ok"; at a cutoff the board never scored: "unknown", never healthy (hard rule 9)
+    expect(s.systems[0]!.facilities[0]!.health).toBe("leak");
+    expect(later.systems[0]!.facilities[0]!.health).toBe("ok");
+    const unscored = boardIndex([line(0, [], []), line(300, [], []), line(600, [], [])]);
+    expect((await buildRunSnapshot(long(), { runId: "run", at: 900, runtime: "software" }, { board: unscored })).systems[0]!.facilities[0]!.health).toBe("unknown");
   });
 
   test("an INVALID board record freezes the streak instead of resolving it", async () => {

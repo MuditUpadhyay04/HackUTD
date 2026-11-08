@@ -7,6 +7,8 @@ export interface AppConfig {
   sessionDir: string; modelMetadataPath?: string; provider?: Provider;
   /** Agent learning state in memory mode (shared with scripts/agent-weeks.ts) and the board results file listen.py writes. */
   agentLearningFile?: string; boardJsonl?: string; boardSource?: "fpga" | "fakeboard";
+  /** Folder(s) searched for dataset folders (network.json + ops.json + telemetry.csv), e.g. the reference repo's root. */
+  dataRoots?: string[];
 }
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const memory = env.STORAGE_MODE === "memory";
@@ -31,7 +33,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     allowedOrigins: (env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000").split(",").filter(Boolean),
     sessionDir: env.FX_SESSIONS_DIR ?? ".data/fx-sessions", modelMetadataPath: env.MODEL_METADATA_PATH, provider,
     agentLearningFile: env.AGENT_LEARNING_FILE ?? ".data/agent-learning.json", boardJsonl: env.BOARD_JSONL || undefined,
-    boardSource: env.BOARD_SOURCE === "fpga" || env.BOARD_SOURCE === "fakeboard" ? env.BOARD_SOURCE : undefined };
+    boardSource: env.BOARD_SOURCE === "fpga" || env.BOARD_SOURCE === "fakeboard" ? env.BOARD_SOURCE : undefined,
+    dataRoots: (env.DATA_ROOT ?? "").split(process.platform === "win32" ? ";" : ":").map((s) => s.trim()).filter(Boolean) };
 }
 
 function optionalInteger(raw: string | undefined, name: string, min: number): number | undefined {
