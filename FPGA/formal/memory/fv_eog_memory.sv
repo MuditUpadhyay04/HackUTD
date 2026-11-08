@@ -61,19 +61,14 @@ module fv_eog_memory (
     assign out_ready = $anyseq;
     assign in_data   = $anyseq;
 `else
-    // one reset of free length at the start (cycle 0 is a reset cycle, eog_fv_init), never again; then in_valid =
-    // out_ready = 1 from the second cycle after the reset on: records follow each other at the DUT's own rate
-    // (back-to-back records of one slot are the hazard case); gaps and back-pressure are covered by the prove and
-    // bmc tasks. The free reset length lets any shorter trace be padded to the full depth (see the .sby `skip`).
-    logic [1:0] d_t;   // cycles since the reset was released (saturating)
+    // one reset in cycle 0, then in_valid = out_ready = 1 from cycle 2 on: records follow each other at the DUT's
+    // own rate (back-to-back records of one slot are the hazard case); gaps and back-pressure are covered by the
+    // prove and bmc tasks. (A reset of free length here makes the arithmetic bmc several times slower.)
+    logic [1:0] d_t;
     initial d_t = 2'd0;
-    always_ff @(posedge clk) begin
-        if (!rst_n)            d_t <= 2'd0;
-        else if (d_t != 2'd3)  d_t <= d_t + 2'd1;
-    end
-    assign rst_n     = $anyseq;
-    always_ff @(posedge clk) if (f_past_valid && $past(rst_n)) A_onerst: assume (rst_n);
-    assign in_valid  = rst_n && (d_t >= 2'd1);
+    always_ff @(posedge clk) if (d_t != 2'd3) d_t <= d_t + 2'd1;
+    assign rst_n     = (d_t != 2'd0);
+    assign in_valid  = (d_t >= 2'd2);
     assign out_ready = 1'b1;
  `ifndef FV_DEEP
     assign in_data   = $anyseq;
@@ -531,7 +526,8 @@ module fv_eog_memory (
         cv_bp:        cover (c_bp && f_out_cnt >= 8'd2);
         // #44 / M1: an INVALID (or other non-DROPPED) HIST_RESET record cleared a slot that had run: its next
         // VALID/HELD record (no HIST_RESET of its own) shows has_run = 0
-        cv_inv_clear: cover (h_upd && !h_hr && !h_run && c_pclr && c_p29 == 16'd16384 && fout(out_data, 29) == 16'd0);
+        cv_inv_clear: cover (h_upd && !h_hr && !h_run && c_pseen && c_pclr && c_p29 == 16'd16384 &&
+                             fout(out_data, 29) == 16'd0);
     end
 `endif
 
