@@ -68,6 +68,7 @@ module eog_features #(
     localparam integer FO_PUMP_ST = 2;
 
     localparam logic [15:0] ONE16 = 16'(EOG_ONE);
+    localparam logic [PW:0] RND   = {{(PW + 1 - EOG_FEAT_SHIFT){1'b0}}, 1'b1, {(EOG_FEAT_SHIFT - 1){1'b0}}};  // 2^(S-1)
 
     localparam logic [1:0] S_IDLE = 2'd0, S_CALC = 2'd1, S_OUT = 2'd2;
 
@@ -198,7 +199,7 @@ module eog_features #(
     logic [YW-1:0] y;
     logic          y_sat;
     logic [15:0]   y_val;
-    assign p_rnd = {mul_p[PW-1], mul_p} + ((PW+1)'(1) << (EOG_FEAT_SHIFT - 1));
+    assign p_rnd = {mul_p[PW-1], mul_p} + RND;
     assign y     = p_rnd[PW:EOG_FEAT_SHIFT];
     assign y_sat = !((&y[YW-1:15]) || !(|y[YW-1:15]));     // y outside [-32768, 32767]
     assign y_val = y_sat ? (y[YW-1] ? 16'h8000 : 16'h7FFF) : y[15:0];
