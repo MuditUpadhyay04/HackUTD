@@ -158,11 +158,11 @@ module eog_regs (
         r = old;
         for (int b = 0; b < 4; b++)
             if (strb[b]) r[8*b +: 8] = nw[8*b +: 8];
-        return r;
+        merge = r;
     endfunction
 
     function automatic logic [31:0] sat_inc(input logic [31:0] x, input logic inc);
-        return (inc && !(&x)) ? x + 32'd1 : x;
+        sat_inc = (inc && !(&x)) ? x + 32'd1 : x;
     endfunction
 
     // ------------------------------------------------------------------------------------------------------
@@ -245,7 +245,7 @@ module eog_regs (
     // CONFIG table
     // ------------------------------------------------------------------------------------------------------
     function automatic logic [FW-1:0] fac_idx(input logic [FW-1:0] f);
-        return (32'(f) < N_FAC) ? f : '0;
+        fac_idx = (32'(f) < N_FAC) ? f : '0;
     endfunction
 
     wire [FW-1:0] rv_i = fac_idx(cfg_fac_v);
@@ -475,8 +475,11 @@ module eog_regs (
             d_busy <= 1'b1;
             d_beat <= 3'd0;
         end else if (d_valid && d_ready) begin
-            d_beat <= d_beat + 3'd1;
-            if (d_beat == 3'(NBEAT - 1)) d_busy <= 1'b0;
+            if (d_beat == 3'(NBEAT - 1)) begin
+                d_busy <= 1'b0;
+                d_beat <= 3'd0;
+            end else
+                d_beat <= d_beat + 3'd1;
         end
     end
 
