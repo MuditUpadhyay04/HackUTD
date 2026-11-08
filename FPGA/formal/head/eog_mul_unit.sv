@@ -1,4 +1,4 @@
-// eog_mul_unit.sv -- formal-only stand-in for rtl/eog_mul.sv used by eog_head's bmc_unit task (Verify role,
+// eog_mul_unit.sv -- formal-only stand-in for rtl/eog_mul.sv used by eog_head's bmc_arith task (Verify role,
 // task T1.head.fv). Same name, parameters and ports as eog_mul.
 //
 // The product is EXACT whenever one operand is 0, 1 or -1 (-1 only for a signed operand): p = 0, the other operand
