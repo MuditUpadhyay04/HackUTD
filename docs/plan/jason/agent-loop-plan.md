@@ -344,7 +344,7 @@ ALLOW_INSECURE_LOCAL=1
 ENV
 chmod 600 .env
 git check-ignore -v .env     # must print: .gitignore:2:.env  .env
-bun run test && bun run typecheck   # expect 110 pass, 1 skip, 0 fail; tsc clean
+bun run test && bun run typecheck   # expect 124 pass, 1 skip, 0 fail; tsc clean
 ```
 
 The fakeboard listens on 127.0.0.2, which macOS doesn't have by default. Add it once (undo with
@@ -411,9 +411,9 @@ error. Repeat the last two lines a few times to see the acceptance rate.
   - At the S2 cutoff (Thu 11:55 UTC) the board heads were: pump_failure at S2 A/B/C, pump_degradation at S3 A and
     S4 C, and pipeline_leak at S5 B. These come from the fakeboard, not the FPGA (rule 11).
 - **Tests and checks.**
-  - `bun run test`: **125 pass, 1 skip, 0 fail** (126 tests, 19 files). C1 had 110 pass.
+  - `bun run test`: **124 pass, 1 skip, 0 fail** (125 tests, 19 files). C1 had 110 pass.
   - `bun run typecheck`: clean.
-  - Agent tests: 39. They cover delegation guards, depth 2 and 3, cache and refusals, the identical-template guard,
+  - Agent tests: 38 (the `features/agents` folder, including the integration route checks run separately). They cover delegation guards, depth 2 and 3, cache and refusals, the identical-template guard,
     promotion and retirement, "untested" challengers, the strategy tuner, outcome records and the API service.
 - **Rule audit.**
   - `rg answer_key apps packages frontend/src` finds only comments saying it is never read.
