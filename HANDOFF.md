@@ -31,6 +31,9 @@ far used v1 numerics, so:
   `origin/ml`; until then trust the spec text.
 - **Spec questions 1–19:** answered against v1. Re-check each against v4 and `features_int.py` (notably #10, #12,
   #16 word numbers); where Mudit's code decides it, his code wins.
+- **Spec question 70 (Lucas, Sun 02:03): R7 = option C.** Past the hold limit the record goes INVALID instead of
+  resetting history. Validate RTL + proofs reopened (`REWORK R7`, small: step 5 only); model T0.2c after Mudit's
+  T0.5. Lucas says the judging data **will** have missing readings, so this must land before T2.top's full-week run.
 - **Spec questions 67–69 (Lucas, Sun 01:59) are ARM-app rules for T2.ps1** (WEIGHTS_ACK status 3, fixed
   192.168.1.50 destinations, ACK to sender, re-sent CONFIG sequence). Pass them to the T2.ps1 agent.
 - **Spec questions 20–25 (Lucas, Sun 01:17) override the `numerics.md` v4 text** to match Mudit's `ml` @ 8e67750
