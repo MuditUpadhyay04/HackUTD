@@ -1,0 +1,69 @@
+# SymbiYosys job for eog_head (spec/modules/eog_head.md, numerics.md section 8; spec v2). Verify role, task T1.head.fv.
+#   bash scripts/formal.sh head          # every task; report in reports/formal_head.txt
+# Harness: fv_eog_head.sv (property map and parameters in its header).
+#
+# prove      k-induction, N_FEAT = 31, abstract multiplier, SH = 0 (word-68 VER shadow, wb_raddr assumed 68).
+#            Stage contract (handshake, one in / one out in order, II <= 16 at full size, latency <= 128), HDR, CPY,
+#            WV, H2_* (swap protocol), H3_ver, RB (VER bits), RST, H4_zero, H4_nm.
+#            depth 24: longer than a record's accept-to-output time at N_FEAT = 31 for a 16-cycle-II head, so the
+#            tracked record's accept falls inside the induction window (raise it if the RTL's latency is longer, or
+#            add internal invariants under ifdef FORMAL).
+# bmc_bank   N_FEAT = 31, abstract multiplier, SH = 1 (shadow of an anyconst word, B[0..3] and word 68 in both banks).
+#            RB over every word (and so H3 for every word, after a swap back), H3_ver, H1 + H6 (H1H6_logit: a record
+#            with FEAT = 0 gets sat16((B + rnd) >>> S_OUT) of the bank active at its accept, any B, S_OUT 0..31), plus
+#            everything in prove. depth 32: reset, two writes, a swap, a record (~12-20 cycles) with writes and a
+#            second swap request during it.
+# bmc_arith  N_FEAT = 3, real rtl/eog_mul.sv, SH = 2 (all 13 used words), features 0 / 32767 / +-2^j, weights free.
+#            H1 + H5 (H1H5_logit: 64-bit harness sum of every term), H6, wiring of W[k][i] to FEAT[i].
+#            depth 20: reset, 4 writes for one class, a swap, a record at N_FEAT = 3.
+# bmc_acc    N_FEAT = 31, real multiplier, SH = 2 (all 69 words), features and weights in {0, 1, -1, 32767, -32768}:
+#            H5 at full width (|acc| up to 31 * 2^30 + 2^31, beyond 32 and 35 bits). depth 40: reset, 18 writes
+#            (one class), a swap, a record at N_FEAT = 31.
+# cover      N_FEAT = 3, real multiplier, SH = 2: C_swap (swap between two records with models), C_sat (saturated
+#            logit), C_sat5 (saturated predicted logit with nonzero features), C_nomodel, C_coalesce, C_rb.
+#            depth 40.
+# Run times against the verifier's throwaway stub (WSL, yices): see the report in the task hand-off.
+
+[tasks]
+prove
+bmc_bank   bmc
+bmc_arith  bmc
+bmc_acc    bmc
+cover
+
+[options]
+prove:     mode prove
+prove:     depth 24
+bmc:       mode bmc
+bmc_bank:  depth 32
+bmc_arith: depth 20
+bmc_acc:   depth 40
+cover:     mode cover
+cover:     depth 40
+
+[engines]
+smtbmc yices
+
+[script]
+prove:     read_verilog -formal -sv -I . eog_mul_abstract.sv
+bmc_bank:  read_verilog -formal -sv -I . eog_mul_abstract.sv
+bmc_arith: read_verilog -formal -sv -I . eog_mul.sv
+bmc_acc:   read_verilog -formal -sv -I . eog_mul.sv
+cover:     read_verilog -formal -sv -I . eog_mul.sv
+read_verilog -formal -sv -I . eog_fv_props.sv
+read_verilog -formal -sv -I . eog_head.sv
+read_verilog -formal -sv -I . fv_eog_head.sv
+prove:     chparam -set N_FEAT 31 -set SH 0 -set MUL_REAL 0 fv_eog_head
+bmc_bank:  chparam -set N_FEAT 31 -set SH 1 -set MUL_REAL 0 fv_eog_head
+bmc_arith: chparam -set N_FEAT 3  -set SH 2 -set MUL_REAL 1 -set FSET 1 fv_eog_head
+bmc_acc:   chparam -set N_FEAT 31 -set SH 2 -set MUL_REAL 1 -set FSET 2 -set WSET 2 fv_eog_head
+cover:     chparam -set N_FEAT 3  -set SH 2 -set MUL_REAL 1 -set FSET 1 fv_eog_head
+prep -top fv_eog_head
+
+[files]
+../common/eog_fv_props.sv
+../common/eog_mul_abstract.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_mul.sv
+../../rtl/eog_head.sv
+fv_eog_head.sv
