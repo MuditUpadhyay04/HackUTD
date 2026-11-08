@@ -41,7 +41,7 @@ far used v1 numerics, so:
   HIST_RESET, DROPPED `SINCE_RESET`/`WVER` = 0). No version bump. T0.2b and every v4 rework must apply them.
 - Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
 
-- **Last updated:** 2026-11-08 ~03:50 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
+- **Last updated:** 2026-11-08 ~08:15 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
 - **Repo:** `C:\Users\gurne\Documents\Lucas HackUTD\HackUTD\HackUTD` (the inner folder; the outer `HackUTD\` is
@@ -106,6 +106,18 @@ What was left on disk, and what this session did with it:
 **Spec v4 replan (Nov 8 ~01:10, after a third usage cutoff and an account switch).** Lucas's order: T0.2b first,
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
+
+**STATE ~08:15: every T1 module DONE on spec v4** (regs last, e921032). `FPGA/reports/RTL_DONE_HANDOFF.md` is written
+(proven / bounded / simulated per module, estimates, open items, board steps). T2.top REVIEW (top formal not closed).
+T2.ps1, T2.sd DONE (host). Final `check_all.sh` running on FPGA (≈2 h: countdown and head formal dominate); refresh
+`reports/SUMMARY.md` and push when it ends.
+**Board (laptop) findings:** `D:\LEAD_board_findings.md` (laptop) → lead response `FPGA/reports/LEAD_board_response.md`
+(B4 replay corruption is not the RTL: E0–E5 experiments; 100 MHz fails by 8 ns in validate, prototyped plan; 50 MHz
+demo; memory ram_style; trial merge of `eog/T2.bd1` passes on local branch `scratch/bd1-trial`, not pushed).
+**Waiting on Lucas: D1–D5** in that response. Lucas's ground rule: no RTL/spec/ARM-app edits for board findings until
+he approves.
+**Next after approval:** merge `eog/T2.bd1` (D4), then the approved fixes, re-run `check_all`, then the full FPGA → main
+PR.
 
 **SD boot + default weights (Lucas, ~05:30):** the board always boots from microSD and loads `weights.eog` at boot
 (read-only card; UDP 7004 still overrides at run time; CONFIG still comes from the PC). Branch `eog/T2.sd`; overview for
