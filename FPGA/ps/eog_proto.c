@@ -18,9 +18,12 @@
  * AUTONOMOUS is the hardware's STATUS.autonomous (HB_TIMEOUT_MS from GLOBAL, 0 = never), so the ARM's buffering
  * and the ALERT SOURCE bit 2 set by eog_alarm always agree. While it is 1, RESULT/ALERT stay in the rings; the
  * first eog_poll() after it falls replays them in order, then new ones follow.
+ * SD boot (FPGA/docs/SD_BOOT_WEIGHTS.md): eog_boot_load_weights() reads weights.eog through hal_read_file, checks
+ * its wrapper, then loads it with eog_weights_load(), the same validate + bank write + swap the COMMIT path uses.
  */
 #include "eog_proto.h"
 
+#include <stdio.h>
 #include <string.h>
 
 static struct {
@@ -37,6 +40,8 @@ static struct {
     uint8_t  al_replay[EOG_AL_RING];
     /* WEIGHTS assembly */
     uint8_t  blob[EOG_MAX_BLOB];
+    /* SD boot file (+1 byte so a file longer than the largest valid one is seen as too long) */
+    uint8_t  file[EOG_SD_HDR_LEN + EOG_MAX_BLOB + 1];
     uint8_t  pkt[EOG_HDR_LEN + EOG_RESULT_PER_PKT * EOG_RESULT_LEN];
 } G;
 
@@ -75,12 +80,13 @@ static int64_t asr64(int64_t v, unsigned s)
 
 static int32_t sat16(int64_t v) { return v < -32768 ? -32768 : v > 32767 ? 32767 : (int32_t)v; }
 
-int eog_blob_check(const uint8_t *b, uint32_t len)
+/* Header and self-test vectors of a weight blob: EOG_LOAD_SWAPPED (0, valid), _LENGTH, _HEADER or _SELFTEST. */
+static int blob_validate(const uint8_t *b, uint32_t len)
 {
-    if (len < EOG_BLOB_HDR_LEN) return EOG_W_LENGTH;
+    if (len < EOG_BLOB_HDR_LEN || len > EOG_MAX_BLOB) return EOG_LOAD_LENGTH;
     unsigned s_out = b[4], nv = b[5];
-    if (eog_le16(b) != 1 || b[2] != 4 || b[3] != 31 || eog_le16(b + 6) != 1) return EOG_W_SELFTEST;
-    if (len < EOG_BLOB_HDR_LEN + EOG_BLOB_VEC_LEN * nv) return EOG_W_LENGTH;
+    if (eog_le16(b) != 1 || b[2] != 4 || b[3] != 31 || eog_le16(b + 6) != 1) return EOG_LOAD_HEADER;
+    if (len < EOG_BLOB_HDR_LEN + EOG_BLOB_VEC_LEN * nv) return EOG_LOAD_LENGTH;
     for (unsigned v = 0; v < nv; v++) {
         const uint8_t *x = b + EOG_BLOB_HDR_LEN + EOG_BLOB_VEC_LEN * v;
         for (unsigned k = 0; k < 4; k++) {
@@ -88,10 +94,16 @@ int eog_blob_check(const uint8_t *b, uint32_t len)
             for (unsigned i = 0; i < 31; i++)
                 acc += (int64_t)(int16_t)eog_le16(b + 8 + 2 * (31 * k + i)) * (int16_t)eog_le16(x + 2 * i);
             if (s_out > 0 && s_out < 63) acc += (int64_t)1 << (s_out - 1);
-            if (sat16(asr64(acc, s_out)) != (int16_t)eog_le16(x + 62 + 2 * k)) return EOG_W_SELFTEST;
+            if (sat16(asr64(acc, s_out)) != (int16_t)eog_le16(x + 62 + 2 * k)) return EOG_LOAD_SELFTEST;
         }
     }
-    return EOG_W_OK;
+    return EOG_LOAD_SWAPPED;
+}
+
+int eog_blob_check(const uint8_t *b, uint32_t len)
+{
+    int r = blob_validate(b, len);
+    return r == EOG_LOAD_LENGTH ? EOG_W_LENGTH : r == EOG_LOAD_SWAPPED ? EOG_W_OK : EOG_W_SELFTEST;
 }
 
 static int hdr_ok(const uint8_t *buf, uint32_t len)
@@ -344,13 +356,28 @@ static int wait_swap_idle(void)
     return -1;
 }
 
-static int load_bank(const uint8_t *b, uint8_t ver)
+int eog_weights_load(const uint8_t *b, uint32_t len, uint8_t ver)
 {
-    if (wait_swap_idle()) return EOG_W_OK;            /* a previous swap is stuck: leave the banks alone */
+    int r = blob_validate(b, len);
+    if (r != EOG_LOAD_SWAPPED) return r;
+    if (wait_swap_idle()) return EOG_LOAD_BUSY;       /* a previous swap is stuck: leave the banks alone */
     for (unsigned w = 0; w < EOG_BLOB_HDR_LEN / 4; w++) hal_reg_write(EOG_R_WEIGHTS + 4 * w, eog_le32(b + 4 * w));
     hal_reg_write(EOG_R_WVER, ver);
     ctrl_pulse(EOG_CTRL_SWAP_REQ);
-    return wait_swap_idle() ? EOG_W_OK : EOG_W_SWAPPED;   /* OK = accepted, swap still pending */
+    return wait_swap_idle() ? EOG_LOAD_PENDING : EOG_LOAD_SWAPPED;
+}
+
+/* eog_weights_load() result -> WEIGHTS_ACK status (#67): header and self-test failures are both 3; a load that is
+ * accepted but not yet swapped (pending or busy) is 0. */
+static uint8_t load_to_ack(int r)
+{
+    switch (r) {
+    case EOG_LOAD_SWAPPED: return EOG_W_SWAPPED;
+    case EOG_LOAD_LENGTH:  return EOG_W_LENGTH;
+    case EOG_LOAD_HEADER:
+    case EOG_LOAD_SELFTEST: return EOG_W_SELFTEST;
+    default:               return EOG_W_OK;
+    }
 }
 
 static void on_weights(uint32_t ip, uint16_t port, const uint8_t *buf, uint32_t len)
@@ -365,8 +392,7 @@ static void on_weights(uint32_t ip, uint16_t port, const uint8_t *buf, uint32_t 
         uint32_t total = eog_le32(buf + 24), crc = eog_le32(buf + 28);
         if (total > S.blob_len) status = EOG_W_LENGTH;
         else if (eog_crc32(G.blob, total) != crc) status = EOG_W_CRC;
-        else if ((status = (uint8_t)eog_blob_check(G.blob, total)) == EOG_W_OK)
-            status = (uint8_t)load_bank(G.blob, (uint8_t)aux);
+        else status = load_to_ack(eog_weights_load(G.blob, total, (uint8_t)aux));
         S.blob_len = 0;
     } else if ((uint64_t)off + n > EOG_MAX_BLOB || len < EOG_HDR_LEN + 8u + n) {
         status = EOG_W_LENGTH;
@@ -429,4 +455,74 @@ void eog_poll(void)
         G.last_stats = now;
         send_stats(now);
     }
+}
+
+/* ---------- SD boot load ---------- */
+static const char *const sd_reasons[EOG_SD_N] = {
+    "ok", "no card or no FAT file system", "weights.eog not found", "read error", "file shorter than 16 B",
+    "bad magic", "bad wrapper format", "version 0", "length mismatch", "CRC mismatch", "bad blob header",
+    "self-test failed", "swap timeout", "previous swap still pending",
+};
+
+const char *eog_sd_reason(int code) { return code >= 0 && code < EOG_SD_N ? sd_reasons[code] : "?"; }
+
+static int sd_fail(int code, const char *detail)
+{
+    char msg[160];
+    snprintf(msg, sizeof msg, "SD weights: %s%s%s; no model until WEIGHTS arrive on 7004", sd_reasons[code],
+             detail[0] ? ", " : "", detail);
+    hal_log(msg);
+    return code;
+}
+
+int eog_boot_load_weights(void)
+{
+    char d[96] = "";
+    int n = hal_read_file(EOG_SD_FILE, G.file, sizeof G.file);
+    if (n == EOG_FILE_NO_CARD) return sd_fail(EOG_SD_NO_CARD, d);
+    if (n == EOG_FILE_MISSING) return sd_fail(EOG_SD_NO_FILE, d);
+    if (n < 0) return sd_fail(EOG_SD_IO, d);
+    uint32_t size = (uint32_t)n;
+    const uint8_t *f = G.file;
+    if (size < EOG_SD_HDR_LEN) {
+        snprintf(d, sizeof d, "%u B", (unsigned)size);
+        return sd_fail(EOG_SD_SHORT, d);
+    }
+    if (eog_le32(f) != EOG_SD_MAGIC) {
+        snprintf(d, sizeof d, "0x%08lx", (unsigned long)eog_le32(f));
+        return sd_fail(EOG_SD_MAGIC_BAD, d);
+    }
+    if (f[5] != EOG_SD_FORMAT) {
+        snprintf(d, sizeof d, "%u", f[5]);
+        return sd_fail(EOG_SD_FORMAT_BAD, d);
+    }
+    uint8_t ver = f[4];
+    if (ver == 0) return sd_fail(EOG_SD_VERSION0, d);
+    uint32_t len = eog_le16(f + 6);
+    if (len > EOG_MAX_BLOB || size != EOG_SD_HDR_LEN + len) {
+        snprintf(d, sizeof d, "header says %u B, file has %u B after the header", (unsigned)len,
+                 (unsigned)(size - EOG_SD_HDR_LEN));
+        return sd_fail(EOG_SD_LENGTH, d);
+    }
+    const uint8_t *blob = f + EOG_SD_HDR_LEN;
+    uint32_t crc = eog_crc32(blob, len);
+    if (crc != eog_le32(f + 8)) {
+        snprintf(d, sizeof d, "file 0x%08lx, computed 0x%08lx", (unsigned long)eog_le32(f + 8), (unsigned long)crc);
+        return sd_fail(EOG_SD_CRC, d);
+    }
+    snprintf(d, sizeof d, "format %u, heads %u, features %u, feature set %u", (unsigned)eog_le16(blob), blob[2],
+             blob[3], (unsigned)eog_le16(blob + 6));
+    switch (eog_weights_load(blob, len, ver)) {
+    case EOG_LOAD_SWAPPED: break;
+    case EOG_LOAD_LENGTH:  return sd_fail(EOG_SD_LENGTH, "blob shorter than its header + self-test vectors");
+    case EOG_LOAD_HEADER:  return sd_fail(EOG_SD_HEADER, d);
+    case EOG_LOAD_SELFTEST: return sd_fail(EOG_SD_SELFTEST, "a vector disagrees with its expected logits");
+    case EOG_LOAD_PENDING: return sd_fail(EOG_SD_SWAP_TIMEOUT, "swap_pending still 1; the model may switch later");
+    default:               return sd_fail(EOG_SD_SWAP_BUSY, "nothing written");
+    }
+    char msg[96];
+    snprintf(msg, sizeof msg, "SD weights v%u active (%u B blob, CRC32 0x%08lx)", ver, (unsigned)len,
+             (unsigned long)crc);
+    hal_log(msg);
+    return EOG_SD_OK;
 }
