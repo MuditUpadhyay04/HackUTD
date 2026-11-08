@@ -6,7 +6,7 @@
 # prove      k-induction, N_FEAT = 31, abstract multiplier, SH = 0 (VER shadow of word 70, wb_raddr assumed 70).
 #            Stage contract (handshake, one in / one out in order, II <= 16 at full size, latency <= 128), HDR, CPY,
 #            WV, H2_* (swap protocol), H3_ver, RB (VER), RST / SRST_* (hard vs soft reset), H4_zero, H4_nm, H8_when,
-#            H8_data, H8_logit(_b) (H8_live is bmc-only, see the harness header).
+#            H8_data, H8_hold, H8_logit (H8_once, H8_logit_b, H8_live are bmc-only: H8_HIST).
 #            depth 24: must exceed a record's accept-to-output time at N_FEAT = 31 so the tracked record's accept
 #            falls inside the induction window (stub latency 10, induction closed at 12; RTL latency 12). Raise it
 #            if the RTL's latency is longer, or add internal invariants under ifdef FORMAL.
@@ -71,7 +71,7 @@ cover:     read_verilog -formal -sv -I . eog_mul.sv
 read_verilog -formal -sv -I . eog_fv_props.sv
 read_verilog -formal -sv -I . eog_head.sv
 read_verilog -formal -sv -I . fv_eog_head.sv
-prove:     chparam -set N_FEAT 31 -set SH 0 -set MUL_REAL 0 -set H8_LIVE 0 fv_eog_head
+prove:     chparam -set N_FEAT 31 -set SH 0 -set MUL_REAL 0 -set H8_HIST 0 fv_eog_head
 bmc_bank:  chparam -set N_FEAT 3  -set SH 1 -set WR 1 -set MUL_REAL 0 fv_eog_head
 bmc_rb:    chparam -set N_FEAT 31 -set SH 1 -set WR 1 -set MUL_REAL 0 fv_eog_head
 bmc_h7:    chparam -set N_FEAT 3  -set SH 3 -set WR 1 -set MUL_REAL 1 -set FSET 3 -set SOUT_SET 1 fv_eog_head
