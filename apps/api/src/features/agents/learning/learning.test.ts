@@ -7,6 +7,7 @@ import { champions, MemoryLearningStore } from "./store";
 import { runCycle, tuneStrategy } from "./cycle";
 import { cycleTrend, planOutcomes, versionTable } from "./rollup";
 import { decisionsFor } from "./outcomes";
+import { AgentLoopService } from "./service";
 
 const dataset = { info: { label: "synthetic", startUnix: 1791000000, nowUnix: 1791460000 } } as unknown as ImportedDataset;
 const goodTriage = () => ({ name: "submit_triage", args: { order: [A, C, LEAK], notes: [{ incidentId: A, note: "S4 A has 30m to the limit." }, { incidentId: C, note: "S4 C has 2h47m to the limit." }, { incidentId: LEAK, note: "S5 B pipeline leak needs a field inspection." }] } });
@@ -85,5 +86,25 @@ describe("plan outcomes", () => {
     expect(rows.find((r) => r.incidentId === A)!.approvedBy).toBeNull();
     const withOutcome = rows.map((r, k) => ({ ...r, outcome: { windowHours: 6, observedAtUnix: 1, maxLevelPct: 95, tankLimitReached: k === 0, incidentStillOngoing: false, forecastTankTrip: false, forecastMatched: k !== 0 } }));
     expect(planOutcomes(withOutcome)[0]).toMatchObject({ kind: "trucks", decisions: 2, measured: 2, forecastMatchRate: 0.5, agentAgreedRate: 0 });
+  });
+});
+
+describe("agent loop service", () => {
+  test("runs champions in the background, records the tree and maps operator approvals to plan options", async () => {
+    const service = new AgentLoopService({ memory: true });
+    const { model } = scripted({ triage: goodTriage, plan_explainer: () => ({ text: "unused" }), evidence_reviewer: () => ({ text: "unused" }),
+      handoff: () => ({ name: "submit_handoff", args: { handoff: "S4 A, S4 C and S5 B need review.", evidenceIds: [`${A}:evidence:0`], planIds: [] } }) });
+    const ack = { id: "a1", runId: "run", incidentId: C, planId: "sys-opt-C-1", revision: 1, kind: "acknowledge_advice" as const, createdAt: "" };
+    const run = await service.start(snapshot as never, [ack], { model });
+    expect(run.status).toBe("running");
+    for (let k = 0; k < 50 && run.status === "running"; k++) await Bun.sleep(10);
+    const done = await service.get(run.id);
+    expect(done.status).toBe("done");
+    expect(done.trace!.nodes.map((n) => [n.role, n.status])).toEqual([["orchestrator", "deterministic"], ["triage", "accepted"], ["handoff", "accepted"]]);
+    expect((await service.listForRun("run"))[0]!.id).toBe(run.id);
+    const decisions = await service.learning.listDecisions();
+    expect(decisions.find((d) => d.incidentId === C)).toMatchObject({ approvedPlanId: "opt-C-1", approvedBy: "operator" });
+    expect((await service.summary()).recentTraces[0]!.id).toBe(run.id);
+    await service.close();
   });
 });

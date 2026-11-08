@@ -10,8 +10,8 @@ import { champions, type EvalRecord, type LearningStore, type PromptVersion } fr
 
 export interface CycleOptions {
   store: LearningStore; model: Model; cycle: string;
-  train: { dataset: ImportedDataset; cases: Case[] }; heldout: { dataset: ImportedDataset; cases: Case[] };
-  board?: BoardFact[]; outcomeWindowHours?: number; promoteMargin?: number; criticRoles?: number; log?: (line: string) => void;
+  train: { dataset: ImportedDataset; cases: Case[]; board?: BoardFact[] }; heldout: { dataset: ImportedDataset; cases: Case[]; board?: BoardFact[] };
+  outcomeWindowHours?: number; promoteMargin?: number; criticRoles?: number; log?: (line: string) => void;
 }
 export interface CriticRun { role: Role; fromVersion: number; toVersion: number | null; result: SubAgentResult<CriticOutput> }
 export interface CycleReport {
@@ -57,7 +57,7 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
     const runs: [("champion" | "challenger"), Partial<Record<Role, PromptChoice>>, Strategy][] = [["champion", prompts, current.strategy]];
     if (hasChallenger) runs.push(["challenger", challengerPrompts, current.strategyChallenger ?? current.strategy]);
     for (const [config, p, strategy] of runs) {
-      const trace = await orchestrate({ model: o.model, snapshot: c.snapshot, board: o.board, prompts: p, strategy, cycle: o.cycle, caseId: c.id });
+      const trace = await orchestrate({ model: o.model, snapshot: c.snapshot, board: o.train.board, prompts: p, strategy, cycle: o.cycle, caseId: c.id });
       await o.store.saveTrace(trace);
       await o.store.addEvals(evalRows(trace, o.cycle, "train", c.id).map((e) => ({ ...e, parts: { ...(e.parts as object), config } })));
       (config === "champion" ? championTraces : challengerTraces).push(trace);
@@ -116,7 +116,7 @@ export async function runCycle(o: CycleOptions): Promise<CycleReport> {
   const champ = await champions(o.store);
   const heldPrompts = Object.fromEntries(RUN_ROLES.filter((r) => champ.prompts[r]).map((r) => [r, choice(champ.prompts[r]!)])) as Partial<Record<Role, PromptChoice>>;
   for (const c of o.heldout.cases) {
-    const trace = await orchestrate({ model: o.model, snapshot: c.snapshot, prompts: heldPrompts, strategy: champ.strategy, cycle: o.cycle, caseId: c.id });
+    const trace = await orchestrate({ model: o.model, snapshot: c.snapshot, board: o.heldout.board, prompts: heldPrompts, strategy: champ.strategy, cycle: o.cycle, caseId: c.id });
     await o.store.saveTrace(trace);
     await o.store.addEvals(evalRows(trace, o.cycle, "heldout", c.id));
     report.heldout.push({ caseId: c.id, traceId: trace.id, score: trace.score });

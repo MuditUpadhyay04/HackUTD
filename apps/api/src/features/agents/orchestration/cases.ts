@@ -34,7 +34,7 @@ export async function buildCases(dataset: ImportedDataset, window: { from: numbe
   const seen = new Set<string>();
   const candidates: Case[] = [];
   for (let t = Math.max(window.from, start + step * 12); t < Math.min(window.to, dataset.info.nowUnix); t += options.strideHours * 3600) {
-    const at = start + Math.floor((t - start) / step) * step;
+    const at = start + Math.ceil((t - start) / step) * step;
     const snapshot = await snapshotAt(dataset, at);
     const ongoing = snapshot.alerts.filter((i) => i.status === "ongoing");
     if (!ongoing.length) continue;

@@ -4,7 +4,7 @@
  * propose next week's prompts, then score the champion on a held-out dataset that is never used for critique.
  *
  * bun apps/api/scripts/agent-weeks.ts --train <full_week dir> --heldout <mock_test dir> [--weeks 3] [--cases 2]
- *   [--heldout-cases 2] [--board results.jsonl] [--store .data/agent-learning.json] [--fresh] [--out report.json]
+ *   [--heldout-cases 2] [--board full_week results.jsonl] [--heldout-board mock_test results.jsonl] [--store .data/agent-learning.json] [--fresh] [--out report.json]
  * Reads the provider from the root .env (never printed). Reads only network.json, ops.json and telemetry.csv.
  */
 import { existsSync, rmSync, writeFileSync } from "node:fs";
@@ -27,6 +27,7 @@ const weeks = Number(arg("weeks", "3")), perWeek = Number(arg("cases", "2"));
 const train = await loadDataset(arg("train", "../HackUTD-ZeroDay/history/full_week")!);
 const held = await loadDataset(arg("heldout", "../HackUTD-ZeroDay/history/mock_test_2026-10-10T1530")!);
 const board = readBoardJsonl(arg("board"));
+const heldBoard = readBoardJsonl(arg("heldout-board"));
 const heldCases = await buildCases(held, { from: held.info.startUnix, to: held.info.nowUnix + 1 }, { strideHours: 3, limit: Number(arg("heldout-cases", "2")) });
 console.log(`Held-out: ${held.info.label}: ${heldCases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
 const span = (train.info.nowUnix - train.info.startUnix) / weeks;
@@ -35,7 +36,7 @@ for (let w = 0; w < weeks; w++) {
   const from = train.info.startUnix + w * span, to = from + span;
   const cases = await buildCases(train, { from, to }, { strideHours: 4, limit: perWeek });
   console.log(`\nWeek ${w + 1} (${new Date(from * 1000).toISOString().slice(0, 16)}Z to ${new Date(to * 1000).toISOString().slice(0, 16)}Z): ${cases.map((c) => `${c.id} [${c.systems.join(",")}]`).join("; ")}`);
-  reports.push(await runCycle({ store, model, cycle: `week${w + 1}`, train: { dataset: train, cases }, heldout: { dataset: held, cases: heldCases }, board, log: console.log }));
+  reports.push(await runCycle({ store, model, cycle: `week${w + 1}`, train: { dataset: train, cases, board }, heldout: { dataset: held, cases: heldCases, board: heldBoard }, log: console.log }));
 }
 
 const [prompts, strategies, evals, decisions] = await Promise.all([store.listPrompts(), store.listStrategies(), store.listEvals(), store.listDecisions()]);

@@ -60,6 +60,8 @@ export class MemoryLearningStore implements LearningStore {
     this.flush();
   }
   async close() { this.flush(); }
+  /** Re-reads the file (written by the loop script) without writing; no-op without a file. */
+  refresh() { if (this.file && existsSync(this.file)) this.state = { ...this.state, ...JSON.parse(readFileSync(this.file, "utf8")) as Partial<MemoryState> }; }
   private flush() {
     if (!this.file) return;
     mkdirSync(dirname(this.file), { recursive: true });

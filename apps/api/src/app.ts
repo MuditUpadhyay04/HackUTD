@@ -65,6 +65,10 @@ export function createApp(service: Application) {
       .post("/runs/:id/analyses", async ({ params, request, set }) => { const a = await service.createAnalysis(params.id, keyOf(request)); set.status = 202; return a; })
       .get("/analyses/:id", ({ params }) => service.requireAnalysis(params.id))
       .post("/analyses/:id/cancel", ({ params }) => service.cancelAnalysis(params.id))
+      .post("/runs/:id/agents", async ({ params, set }) => { const r = await service.startAgentRun(params.id); set.status = 202; return r; })
+      .get("/runs/:id/agent-runs", async ({ params }) => { await service.requireRun(params.id); return service.agentLoop.listForRun(params.id); })
+      .get("/agent-runs/:id", ({ params }) => service.agentLoop.get(params.id))
+      .get("/agents/learning", () => service.agentLoop.summary())
       .get("/runs/:id/actions", async ({ params }) => { await service.requireRun(params.id); return service.store.listActions(params.id); })
       .post("/runs/:id/actions", ({ params, body, request }) => service.operatorAction(params.id, body, requiredKey(request)), {
         body: t.Object({ incidentId: id, planId: t.Optional(id), revision: t.Integer({ minimum: 1 }), kind: t.Union([t.Literal("acknowledge_advice"), t.Literal("inspection_ticket")]) }, { additionalProperties: false })
