@@ -27,51 +27,45 @@ dataset → replay.py → Eclypse Z7 (v4) → listen.py → board JSON → API r
 
 ## 0. Set-up (once)
 
-From the repo root, on the board PC (192.168.1.50 on the direct cable to the board at 192.168.1.10; Wi-Fi for the
-internet, which Nemotron needs):
+On Lucas's laptop (`FPGA/docs/BOARD_SESSION.md`), the Linux shell can't run Windows tools, so everything runs by
+**double-clicking a `.bat`** and reading its log. Wi-Fi gives the internet (Nemotron needs it); the direct cable gives
+the board (PC 192.168.1.50, board 192.168.1.10).
 
-```bash
-git fetch origin && git checkout main && git pull
-```
+1. **Get the whole repo at `main`**, not just `ml/`: the agents live in `apps/api/`. For example, download the ZIP of
+   `main` from GitHub and unpack it to `C:\Users\lqi20\hackutd\main_<commit>` (the same plain-snapshot habit as
+   `ml_main_846463e`). The FPGA checkout stays where it is; the scripts re-program the board with its
+   `FPGA\deploy\win_deploy_eog.bat`.
+2. **Create `.env`** in the snapshot's root (never commit it; Mudit or Jason gives the key directly):
 
-You need the **whole repo** at `main` `752c071` or later, not just the `ml/` folder: the agents live in `apps/api/`.
+   ```text
+   NVIDIA_BASE_URL=https://hackutd-26-llm.jasonaa.me/v1
+   NEMOTRON_MODEL=nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
+   NVIDIA_API_KEY=<from Mudit or Jason>
+   ```
 
-```bash
-python -c "import numpy, pandas; print(numpy.__version__, pandas.__version__)"
-```
+3. **Double-click `ml\win_agents_setup.bat`.** It installs Bun if needed, runs `bun install` and asks Nemotron for its
+   model list. Read `ml\agents_setup.log`: it ends `OK: setup done` and shows the model name. It never prints the key.
 
-```bash
-powershell -c "irm bun.sh/install.ps1 | iex"
-```
+If `bun install` fails on Windows (the native `libfx` package supports macOS / Linux only), use **3b** (store and
+forward) instead.
 
-```bash
-bun install
-```
+| Setting | Default in the `.bat` files | Override |
+| --- | --- | --- |
+| Python | `%USERPROFILE%\anaconda3\python.exe` | — |
+| Practice data | `%USERPROFILE%\hackutd\zeroday\history\full_week` | `HUTD_DATA` |
+| FPGA checkout (for the re-program script) | `%USERPROFILE%\OneDrive\Documents\GitHub\HackUTD\FPGA` | `HUTD_FPGA` |
 
-Create `.env` in the repo root (never commit it):
-
-```text
-NVIDIA_BASE_URL=https://hackutd-26-llm.jasonaa.me/v1
-NEMOTRON_MODEL=nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4
-NVIDIA_API_KEY=<from Mudit or Jason>
-```
-
-Check Nemotron (expect HTTP 200 and the model name; a non-browser User-Agent is required by Cloudflare):
-
-```bash
-curl -A hutd-check -H "Authorization: Bearer <key>" https://hackutd-26-llm.jasonaa.me/v1/models
-```
-
-If `bun install` fails on Windows (the native `libfx` package supports macOS / Linux only), skip to **3b**.
-
-`--reset-cmd` below: use the same re-program command as for the board suite. On `main` there is no `FPGA/deploy`, so point it at the FPGA checkout's `deploy\win_deploy_eog.bat`.
+With a Unix-like shell and a git checkout instead, the same steps are `git checkout main && git pull`, `bun install`,
+the `.env` above, and `curl -A hutd-check -H "Authorization: Bearer <key>" <NVIDIA_BASE_URL>/models` (Cloudflare needs a
+non-browser User-Agent).
 
 ## 1. The gate: v4 board suite (passed on hardware, Sun 08:05)
 
-From `ml/`:
+Already done (12/12 PASS, `FPGA/reports/board_suite_v4_20261108.md`). Rerun only if the bitstream or ARM app changed:
+double-click `FPGA\deploy\win_board_suite.bat` in the FPGA checkout, or from `ml/`:
 
 ```bash
-python -m hutd_ml.board_suite --data <full_week> --reset-cmd "..\FPGA\deploy\win_deploy_eog.bat"
+python -m hutd_ml.board_suite --data <full_week> --reset-cmd "<FPGA checkout>\deploy\win_deploy_eog.bat"
 ```
 
 PASS: B1, B2, B3, B5, B6, L1, L2, L3 (4 folders). Details and fault finding: `ml/BOARD_CHECKLIST.md`. Stop here if
@@ -79,13 +73,13 @@ anything fails, and send `board_suite_*/report.md`.
 
 ## 2. The combined suite (board + agents, one command)
 
-From `ml/`:
+**Double-click `ml\win_combined_suite.bat`** in the snapshot. It takes about 6–10 min and writes
+`ml\combined_suite_<time>\report.md` (copied to `ml\combined_suite_report.md`) and the console output to
+`ml\combined_suite.log`. The command it runs, from `ml/`:
 
 ```bash
-python -m hutd_ml.combined_suite --data <full_week> --reset-cmd "..\FPGA\deploy\win_deploy_eog.bat"
+python -m hutd_ml.combined_suite --data <full_week> --reset-cmd "<FPGA checkout>\deploy\win_deploy_eog.bat"
 ```
-
-It takes about 6–10 min and writes `combined_suite_<time>/report.md`.
 
 | Stage | What | PASS |
 | --- | --- | --- |
@@ -123,10 +117,11 @@ accepted. When the triage or handoff output never passes, the orchestrator write
 
 **3b. Store and forward** (if Bun can't run on the board PC). The board suite's own L1 / L3 files work as they are:
 `board_suite_*/L1_full_week.jsonl` and `board_suite_*/L3_mock_test_*.jsonl`. They lack the source label, but
-`--source fpga` labels them. Or run only the board stage of the combined suite, then send the two board files to Mudit:
+`--source fpga` labels them. Or run only the board stage of the combined suite (needs no Bun): **double-click
+`ml\win_combined_suite_board.bat`**, which runs
 
 ```bash
-python -m hutd_ml.combined_suite --data <full_week> --reset-cmd "..\FPGA\deploy\win_deploy_eog.bat" --skip N1,N2,D1
+python -m hutd_ml.combined_suite --data <full_week> --reset-cmd "<FPGA checkout>\deploy\win_deploy_eog.bat" --skip N1,N2,D1
 ```
 
 Zip `combined_suite_*/L1_full_week.jsonl` and `combined_suite_*/L3_mock_test_*.jsonl` and send them to Mudit. Mudit

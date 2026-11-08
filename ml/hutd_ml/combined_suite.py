@@ -328,7 +328,7 @@ def main(argv=None):
     if not jsonl:
         print("no verified board results: stopping before the agents", flush=True)
         return finish(out, rows, data, source)
-    if not bun:
+    if not bun and not {"N1", "N2", "D1"} <= skip:  # board-only runs (store and forward) don't need Bun
         record("N1", False, ["bun not found: install Bun and run `bun install` at the repo root"], time.monotonic())
         return finish(out, rows, data, source)
 
