@@ -1,0 +1,220 @@
+/* UI v4 "Pipe View". Everything is scoped under .v4 so the v3 console (globals.css) is untouched.
+   Source of truth: frontend/docs/ui-v4-brief.md sections 3 and 4. */
+
+@font-face { font-family: "Martian Grotesk"; src: url("/fonts/martian-grotesk/MartianGrotesk%5Bwdth%2Cwght%5D.woff2") format("woff2"); font-weight: 100 800; font-stretch: 75% 112.5%; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Static"; src: url("/fonts/martian-grotesk/MartianGrotesk-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Static"; src: url("/fonts/martian-grotesk/MartianGrotesk-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Narrow"; src: url("/fonts/martian-grotesk/MartianGroteskCondensed-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Narrow"; src: url("/fonts/martian-grotesk/MartianGroteskCondensed-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono/MartianMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono/MartianMono-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("/fonts/martian-mono/MartianMono-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Martian Mono Narrow"; src: url("/fonts/martian-mono/MartianMonoCondensed-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+
+.v4 {
+  /* Softened palette (docs/ui-v4-soften.md sections 1 and 1b). Token names are stable; other workers rely on them. */
+  --bg: #1A1816;
+  --panel: #23201D;
+  --panel-2: #2B2824;
+  --panel-3: #33302B;
+  --surface: var(--panel);
+  --raised: var(--panel-2);
+  --line: rgba(255, 240, 225, 0.07);
+  --line-2: rgba(255, 240, 225, 0.12);
+  --hi: inset 0 1px 0 rgba(255, 240, 220, 0.035);
+  --text: #E6E0D8;
+  --muted: #A39A8F;
+  --faint: #6F675F;
+
+  --amber: #FFB400;
+  --red: #F0625A;
+  --magenta: #E56A9E;
+  --nv: #76B900;
+  --tint-amber: rgba(255, 180, 0, 0.12);
+  --tint-red: rgba(240, 98, 90, 0.16);
+  --tint-magenta: rgba(229, 106, 158, 0.15);
+  --tint-neutral: rgba(255, 240, 225, 0.06);
+
+  --n1: #7FD3E6; --n2: #B5DC72; --n3: #A79DEE; --n4: #82A8F2;
+  --n5: #72D9B3; --n6: #9FD0C8; --n7: #C9A3E2; --n8: #D9D38A;
+
+  --r-xs: 4px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+  --r-1: var(--r-xs); --r-2: var(--r-sm); --r-3: var(--r-md);
+  --gap: 10px;
+  --shadow-pop: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  /* Dot grid ink for the Pipe View canvas, about 30% lower contrast than before. */
+  --grid-dot: rgba(255, 240, 225, 0.07);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --font-ui: "Martian Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-narrow: "Martian Grotesk Narrow", "Martian Grotesk", system-ui, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-num: var(--font-mono);
+
+  --fs-1: 11px; --fs-2: 12px; --fs-3: 14px; --fs-4: 15px; --fs-5: 20px; --fs-6: 28px;
+
+  /* Ordered dither tiles (4x4 Bayer, 2px cells => 8px tile). ink: warm white at 35% alpha (softened); mask: for any ink colour. */
+  --dither-25: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3C%2Fsvg%3E");
+  --dither-50: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3C%2Fsvg%3E");
+  --dither-75: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22rgba(243%2C238%2C231%2C0.35)%22%2F%3E%3C%2Fsvg%3E");
+  --dither-mask-25: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
+  --dither-mask-50: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
+  --dither-mask-75: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%228%22%20height%3D%228%22%20shape-rendering%3D%22crispEdges%22%3E%3Crect%20x%3D%220%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%220%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%222%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%220%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%224%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%222%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%226%22%20y%3D%226%22%20width%3D%222%22%20height%3D%222%22%20fill%3D%22%23000%22%2F%3E%3C%2Fsvg%3E");
+
+  --dissolve-ms: 280ms;
+  --hdr-h: 0px; --rail-w: 60px; --transport-h: 48px; --overview-w: 380px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-3);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.v4 *, .v4 *::before, .v4 *::after { box-sizing: border-box; }
+.v4 button, .v4 select, .v4 input { font: inherit; color: inherit; }
+.v4 button { background: none; border: 0; padding: 0; cursor: pointer; }
+.v4 a { color: inherit; text-decoration: none; }
+
+/* Type helpers */
+.v4 .mono { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.v4 .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.v4 .label { font-family: var(--font-ui); font-size: var(--fs-2); color: var(--muted); }
+.v4 .narrow { font-family: var(--font-narrow); }
+.v4 .muted { color: var(--muted); }
+.v4 .faint { color: var(--faint); }
+
+/* Focus: amber ring, instant (keyboard focus never animates) */
+.v4 :focus-visible { outline: 2px solid var(--amber); outline-offset: 1px; }
+
+/* Ordered dither utilities: uncertainty only (no data, HELD, p10-p90 bands, empty states) */
+.v4 .dither-25 { background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .dither-50 { background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .dither-75 { background-image: var(--dither-75); background-size: 8px 8px; image-rendering: pixelated; }
+/* Masked variants paint the element's own background-color as the ink: <div class="dither-mask-50" style="background:var(--n1)"> */
+.v4 .dither-mask-25 { -webkit-mask-image: var(--dither-mask-25); mask-image: var(--dither-mask-25); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+.v4 .dither-mask-50 { -webkit-mask-image: var(--dither-mask-50); mask-image: var(--dither-mask-50); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+.v4 .dither-mask-75 { -webkit-mask-image: var(--dither-mask-75); mask-image: var(--dither-mask-75); -webkit-mask-size: 8px 8px; mask-size: 8px 8px; }
+/* Magenta 45 degree hatch: inspect states (leak, worn pump). Always paired with text. */
+.v4 .hatch { background-image: repeating-linear-gradient(135deg, var(--magenta) 0 1.5px, transparent 1.5px 6px); }
+.v4 .hatch-dim { background-image: repeating-linear-gradient(135deg, color-mix(in srgb, var(--magenta) 55%, transparent) 0 1.5px, transparent 1.5px 6px); }
+
+/* Pressables: 120ms ease-out, scale .97 (transform only) */
+.v4 .press { transition: transform 120ms var(--ease-out), background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease; }
+.v4 .press:active { transform: scale(.97); }
+@media (hover: hover) and (pointer: fine) {
+  .v4 .press:hover { background-color: var(--panel-2); }
+  .v4 .rail-item:hover { color: var(--text); background-color: var(--panel-2); }
+}
+
+/* Dither-dissolve: swap a state with a 4-step mask (apply .dissolve-in on the element whose state just changed) */
+@keyframes v4-dissolve { from { -webkit-mask-image: var(--dither-mask-25); mask-image: var(--dither-mask-25); opacity: .4; } 50% { -webkit-mask-image: var(--dither-mask-75); mask-image: var(--dither-mask-75); opacity: .8; } to { -webkit-mask-image: none; mask-image: none; opacity: 1; } }
+.v4 .dissolve-in { animation: v4-dissolve var(--dissolve-ms) steps(4, end) both; }
+
+/* Tooltip enter: 160ms ease-out from scale(.97); origin-aware via transform-origin set by the component */
+.v4 .tip { transition: transform 160ms var(--ease-out), opacity 160ms var(--ease-out); }
+.v4 .tip[data-state="closed"] { transform: scale(.97); opacity: 0; }
+
+/* Shell layout (docs/ui-v4-balance.md): rail | main column (Pipe View hero, compact timeline, truck road, transport) |
+   overview column. Inset region cards on --bg with --gap gutters. No butted dividers. */
+.v4-shell { position: absolute; inset: 0; display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--overview-w); gap: var(--gap); padding: var(--gap); }
+.v4-shell[data-ov="closed"] { grid-template-columns: var(--rail-w) minmax(0, 1fr) auto; }
+.v4 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); }
+.v4-rail-slot { grid-column: 1; grid-row: 1; min-height: 0; display: flex; }
+.v4-rail { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); display: flex; flex-direction: column; align-items: stretch; padding: 6px 0; gap: 2px; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.v4-main { grid-column: 2; grid-row: 1; display: flex; flex-direction: column; gap: var(--gap); min-width: 0; min-height: 0; }
+.v4-split { flex: 1 1 0; min-height: 0; display: grid; grid-template-rows: minmax(120px, var(--pv, 62fr)) var(--gap) minmax(120px, var(--ar, 38fr)); }
+.v4-pane { min-height: 0; min-width: 0; overflow: hidden; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); }
+/* The resize handle lives in the gutter between the two cards. */
+.v4-handle { position: relative; cursor: row-resize; background: transparent; touch-action: none; }
+.v4-handle::before { content: ""; position: absolute; inset: -4px 0; }
+.v4-handle::after { content: ""; position: absolute; left: 50%; top: 50%; width: 32px; height: 3px; margin: -1.5px 0 0 -16px; border-radius: var(--r-pill); background: var(--line-2); transition: background-color 150ms ease; }
+.v4-handle:hover::after, .v4-handle[data-drag="true"]::after { background: var(--amber); }
+.v4-trucks-slot { flex: none; }
+.v4-trucks-slot:empty { display: none; }
+.v4-transport-slot { flex: none; height: var(--transport-h); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--hi); min-width: 0; position: relative; z-index: 4; }
+
+/* Overview column. OverviewPanel is its own card and scrolls itself; the aside only sizes and positions it. */
+.v4-overview { grid-column: 3; grid-row: 1; position: relative; min-width: 0; min-height: 0; }
+.v4-shell[data-ov="closed"] .v4-overview { display: none; }
+.v4 .v4-ov-tab { position: absolute; z-index: 3; left: -15px; top: 50%; width: 20px; height: 44px; margin-top: -22px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--panel-2); color: var(--muted); box-shadow: var(--shadow-pop); }
+.v4 .v4-ov-open { grid-column: 3; grid-row: 1; align-self: center; width: 26px; padding: 14px 0; display: flex; flex-direction: column; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: var(--r-pill); background: var(--panel); color: var(--muted); font-size: var(--fs-1); }
+.v4 .v4-ov-open span { writing-mode: vertical-rl; }
+.v4-scrim { display: none; }
+@media (hover: hover) and (pointer: fine) {
+  .v4 .v4-ov-tab:hover, .v4 .v4-ov-open:hover { color: var(--text); background-color: var(--panel-2); }
+}
+/* Below 1280px the overview is an overlay sheet from the right: transform and opacity only, 200ms ease-out. */
+@media (max-width: 1279px) {
+  .v4-shell, .v4-shell[data-ov="closed"] { grid-template-columns: var(--rail-w) minmax(0, 1fr); }
+  .v4-shell[data-ov="closed"] .v4-overview { display: block; }
+  .v4-overview { position: absolute; z-index: 20; top: var(--gap); right: var(--gap); bottom: var(--gap); width: min(var(--overview-w), calc(100vw - 2 * var(--gap) - 40px)); box-shadow: var(--shadow-pop); border-radius: var(--r-lg); transform: translateX(calc(100% + var(--gap))); visibility: hidden; transition: transform 200ms var(--ease-out), visibility 0s linear 200ms; }
+  .v4-overview[data-open="true"] { transform: none; visibility: visible; transition: transform 200ms var(--ease-out), visibility 0s; }
+  .v4-overview[data-instant="true"] { transition: none; }
+  .v4 .v4-ov-tab { left: -12px; }
+  .v4-scrim { display: block; position: absolute; inset: 0; z-index: 19; background: rgba(14, 12, 10, 0.5); opacity: 0; pointer-events: none; transition: opacity 200ms var(--ease-out); }
+  .v4-scrim[data-open="true"] { opacity: 1; pointer-events: auto; }
+  .v4-scrim[data-instant="true"] { transition: none; }
+  .v4 .v4-ov-open { position: absolute; z-index: 5; right: var(--gap); top: 50%; margin-top: -42px; }
+}
+
+/* Rail: slim card */
+.v4 .rail-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 44px; margin-inline: 6px; border-radius: var(--r-md); color: var(--muted); font-family: var(--font-ui); font-size: var(--fs-1); }
+.v4 .rail-item[aria-current="page"], .v4 .rail-item[data-active="true"] { color: var(--amber); background: var(--tint-amber); }
+.v4 .rail-sep { height: 1px; margin: 6px 14px; background: var(--line); flex: none; }
+.v4 .rail-sys { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0; margin-inline: 6px; border-radius: var(--r-md); font-family: var(--font-ui); font-size: var(--fs-1); }
+.v4 .rail-sys[data-active="true"] { background: var(--tint-amber); }
+.v4 .rail-pill { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 1px 6px; border-radius: var(--r-pill); font-size: 10px; line-height: 14px; background: var(--tint-neutral); color: var(--muted); }
+.v4 .rail-pill[data-tone="red"] { background: var(--tint-red); color: var(--red); }
+.v4 .rail-pill[data-tone="magenta"] { background: var(--tint-magenta); color: var(--magenta); }
+.v4 .rail-pill[data-tone="nodata"] { background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }
+
+/* Soft pill badges (shared): tinted background + dot/shape + sentence-case text */
+.v4 .pill { display: inline-flex; align-items: center; gap: 5px; height: 20px; padding: 0 8px; border-radius: var(--r-pill); background: var(--tint-neutral); color: var(--muted); font-size: var(--fs-1); line-height: 1; white-space: nowrap; }
+.v4 .pill[data-tone="amber"] { background: var(--tint-amber); color: var(--amber); }
+.v4 .pill[data-tone="red"] { background: var(--tint-red); color: var(--red); }
+.v4 .pill[data-tone="magenta"] { background: var(--tint-magenta); color: var(--magenta); }
+.v4 .pill[data-tone="dither"] { background-color: var(--tint-neutral); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; color: var(--text); }
+
+/* Placeholder region used by stubs */
+.v4 .stub { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--line-2); margin: 6px; border-radius: var(--r-md); }
+
+/* Scrollbars */
+.v4 * { scrollbar-width: thin; scrollbar-color: var(--line-2) transparent; }
+
+/* Loading / empty state */
+.v4-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 24px; }
+.v4-loadbar { width: 160px; height: 8px; background: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; }
+.v4-loadbar::after { content: ""; display: block; height: 100%; width: 40%; background: var(--amber); transform-origin: left; animation: v4-load 1.2s linear infinite; }
+@keyframes v4-load { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.v4-toast { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 5; max-width: min(640px, 90vw); padding: 8px 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-2); box-shadow: var(--shadow-pop); font-size: var(--fs-2); color: var(--red); }
+
+/* Transport controls (shared basics, rounded) */
+.v4 .tp-btn { display: inline-flex; align-items: center; justify-content: center; height: 28px; min-width: 28px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-3); font-family: var(--font-ui); font-size: var(--fs-2); }
+.v4 .tp-btn[aria-pressed="true"], .v4 .tp-btn[data-on="true"] { border-color: var(--amber); color: var(--amber); }
+.v4 .tp-select { height: 28px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel-3); font-family: var(--font-ui); font-size: var(--fs-2); max-width: 220px; }
+
+/* Reduced transparency: no translucent lines */
+@media (prefers-reduced-transparency: reduce) {
+  .v4 { --line: #302B26; --line-2: #413A33; }
+}
+/* Reduced motion: dissolves become 150ms opacity fades; press/tooltip scale removed; infinite motion stops */
+@media (prefers-reduced-motion: reduce) {
+  .v4 { --dissolve-ms: 150ms; }
+  .v4 .dissolve-in { animation-name: v4-fade; animation-timing-function: linear; }
+  @keyframes v4-fade { from { opacity: 0; } to { opacity: 1; } }
+  .v4 .press:active { transform: none; }
+  .v4 .tip, .v4 .tip[data-state="closed"] { transform: none; }
+  .v4-loadbar::after { animation: none; transform: none; width: 100%; }
+  .v4-overview, .v4-overview[data-open="true"], .v4-scrim { transition: none; }
+}
+.v4 .rail-st { font-size: 10px; line-height: 1.1; color: var(--muted); text-align: center; max-width: 100%; padding-inline: 2px; }

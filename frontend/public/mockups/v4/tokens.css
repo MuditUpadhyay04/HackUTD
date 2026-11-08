@@ -1,0 +1,39 @@
+/* UI v4 tokens. Source of truth: frontend/docs/ui-v4-brief.md section 3 and 4. */
+@font-face { font-family: "Martian Grotesk"; src: url("../../fonts/martian-grotesk/MartianGrotesk-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Grotesk"; src: url("../../fonts/martian-grotesk/MartianGrotesk-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Narrow"; src: url("../../fonts/martian-grotesk/MartianGroteskCondensed-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Grotesk Narrow"; src: url("../../fonts/martian-grotesk/MartianGroteskCondensed-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("../../fonts/martian-mono/MartianMono-Regular.woff2") format("woff2"); font-weight: 400; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("../../fonts/martian-mono/MartianMono-Medium.woff2") format("woff2"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "Martian Mono"; src: url("../../fonts/martian-mono/MartianMono-SemiBold.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+
+:root {
+  --bg: #0D0B09;
+  --surface: #15120F;
+  --raised: #1D1915;
+  --line: rgba(255, 238, 214, 0.08);
+  --line-2: rgba(255, 238, 214, 0.16);
+  --text: #F3EEE7;
+  --muted: #A69C90;
+  --faint: #6F675E;
+
+  --amber: #FFB400;
+  --red: #FF3B30;
+  --magenta: #FF2E88;
+  --nv: #76B900;
+
+  --n1: #2CE5FF; --n2: #B4FF39; --n3: #A880FF; --n4: #4D8DFF;
+  --n5: #3CFFB4; --n6: #7AF0FF; --n7: #C6A8FF; --n8: #E4FF6B;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  --font-ui: "Martian Grotesk", system-ui, sans-serif;
+  --font-narrow: "Martian Grotesk Narrow", "Martian Grotesk", system-ui, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 15px; --fs-5: 20px; --fs-6: 28px;
+  --r-1: 3px; --r-2: 5px;
+  --hdr-w: 184px;
+  color-scheme: dark;
+}
