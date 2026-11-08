@@ -22,10 +22,20 @@ function trucksFree(system: SystemState, fleet: FleetState | undefined, nowUnix:
   return Math.max(0, system.fleetSize - busy);
 }
 
-export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: DatasetInfo[] }) {
+export function Console({
+  snapshot,
+  datasets,
+  followsBoard = false,
+}: {
+  snapshot: Snapshot;
+  datasets: DatasetInfo[];
+  /** "Now" is the newest board timestamp (live board feed), so this is live, not a replay of the past. */
+  followsBoard?: boolean;
+}) {
   const s = snapshot;
-  const live = s.nowUnix >= s.dataset.nowUnix;
-  const at = live ? undefined : s.nowUnix;
+  const live = followsBoard || s.nowUnix >= s.dataset.nowUnix;
+  // Brief and export must describe the same moment the screen shows, including a board-driven "now".
+  const at = s.nowUnix < s.dataset.nowUnix ? s.nowUnix : undefined;
   const router = useRouter();
   const [view, setView] = useState<View>(live ? "overview" : "replay");
   // Browser Back/Forward can move between live and past URLs without remounting: a past

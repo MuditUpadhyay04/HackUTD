@@ -8,10 +8,18 @@
 // The local engine snapshot is always computed first, so the console keeps working if the board or server is down.
 
 import type { BoardFacility, BoardStatus, Category, Series, Snapshot } from "@/lib/engine/types";
+import { boardFromStore } from "./ingest-store";
 
 const TIMEOUT_MS = 2500;
 
 export async function getBoard(s: Snapshot): Promise<BoardStatus | null | undefined> {
+  // BOARD_INGEST=1: board JSON is POSTed to /api/ingest by Mudit's listen.py (ml/INTEGRATION.md).
+  // BOARD_PROVENANCE=software when the sender is his fakeboard rather than the Eclypse Z7 (the JSON is identical).
+  if (process.env.BOARD_INGEST === "1") {
+    const prov = process.env.BOARD_PROVENANCE === "software" ? "software" : "fpga";
+    const b = boardFromStore(prov);
+    return b ? { ...b, source: "live" } : null;
+  }
   const url = process.env.LIVE_API_URL;
   if (url) return fetchLive(url, s);
   const sim = process.env.SIMULATE_BOARD;
