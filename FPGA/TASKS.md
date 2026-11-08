@@ -46,8 +46,8 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3, T0.4 | fpga-verify agent | DONE | 0cf99c7, merged via `eog/integrate-alarm`; `reports/formal_alarm.txt` (prove, bmc_seq, bmc_ack, bmc_mod, bmc_a8, cover PASS) |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | fpga-rtl agent | DONE | 9e684bc, merged via `eog/integrate-pack`; `reports/formal_pack.txt`; sim PASS 268,536 records / 1,074,144 beats (23 cases x 4 runs incl. a batch-only m_last run: 1,004 BATCH-count m_last) |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | fpga-verify agent | DONE | 467327b, merged via `eog/integrate-pack`; `reports/formal_pack.txt` (prove = abc pdr, bmc, cover PASS) |
-| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | REVIEW | `eog/T1.regs.rtl` bfd6b44 (adds `rec_in`, ruling #59; previous ac0d183). v4 full regmap; smoke PASS 447 regs_basic ops + directed (incl. rec_in → STATS 0); xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36 **On FPGA early via the T2.top merge (board bring-up); formal sign-off still pending.** |
-| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | REVIEW | `eog/T1.regs.fv` 6f5e8b7 (G1–G7 + register-map checks; 13 PDR prove tasks + bmc + cover; tb 22,064 checks); integration `eog/integrate-regs` running |
+| T1.regs.rtl | `eog_regs` | RTL | T0.1, T0.4 | fpga-rtl agent | DONE | bfd6b44 (v4 + #59 rec_in), on FPGA via T2.top and `eog/integrate-regs`; `reports/formal_regs.txt`; sim PASS 22,102 checks (regs_basic + directed G5/G6/G7). xc7 estimate ~2.3k LUT, ~1.7k LUTRAM, 2,466 FF, 1 RAMB36 |
+| T1.regs.fv | `eog_regs` (reuse the `axi_mul` AXI-Lite properties) | Verify | T0.1, T0.3, T0.4 | fpga-verify agent | DONE | 8885309, merged via `eog/integrate-regs`; `reports/formal_regs.txt` (12 PDR prove tasks + bmc 14 + cover PASS). Not closed: STATS saturation (proven to 15), the #99 environment limits |
 
 Priority when capacity is limited: mul, div → validate, features, head → memory, countdown, alarm → unpack, pack, regs.
 
@@ -192,4 +192,4 @@ Rules: no property is weakened to pass; UNKNOWN is not PASS; deep opt-in tasks t
 | 98 | regs | CONFIG slots ≥ N_FAC when N_FAC < 32 | Unmapped: read 0, writes ignored | T1.regs.fv | Accepted |
 | 99 | regs | Harness environment limits (d_ready = 0 inside a push window; no rec_in during stats_clear/soft reset; a pop on an empty FIFO with an arrival before RVALID) | Documented proof restrictions; covered by the testbench where observable | T1.regs.fv | Noted (list under "not closed" in RTL_DONE_HANDOFF) |
 | 100 | regs | Pulse counting assumes no new AW/W in the same cycle as the previous B handshake | Holds for this RTL (one transaction at a time) | T1.regs.fv | Noted |
-| 101 | regs | Weight-window write with WSTRB = 0 | A no-op: no `wb_we`, nothing changes (the RTL already does this) | integration (regs formal R_wbw) | Accepted (clarification; harness fix by T1.regs.fv) |
+| 101 | regs | Weight-window write with WSTRB = 0 | A no-op: no `wb_we`, nothing changes (the RTL already does this) | integration (regs formal R_wbw) | Accepted (clarification; harness fixed, 8885309). Note: a zero-strobe CONFIG write to a disabled slot still pulses `fac_touch[f]` (regmap: every accepted write; model, vectors and RTL agree) |
