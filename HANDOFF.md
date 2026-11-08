@@ -31,9 +31,12 @@ far used v1 numerics, so:
   `origin/ml`; until then trust the spec text.
 - **Spec questions 1–19:** answered against v1. Re-check each against v4 and `features_int.py` (notably #10, #12,
   #16 word numbers); where Mudit's code decides it, his code wins.
+- **Spec questions 20–25 (Lucas, Sun 01:17) override the `numerics.md` v4 text** to match Mudit's `ml` @ 8e67750
+  (countdown clamp, NOT_FILLING at shutdown, ALERT SOURCE bits, reason bits 11/13/14 restored, first-record
+  HIST_RESET, DROPPED `SINCE_RESET`/`WVER` = 0). No version bump. T0.2b and every v4 rework must apply them.
 - Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
 
-- **Last updated:** 2026-11-07 ~23:55 CST, session `04653333` (takes over from session `bd64467f`).
+- **Last updated:** 2026-11-08 ~01:45 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
 - **Repo:** `C:\Users\gurne\Documents\Lucas HackUTD\HackUTD\HackUTD` (the inner folder; the outer `HackUTD\` is
@@ -68,11 +71,15 @@ Run at most 8 agents at once.
 | T0.2 model + vectors | b873096, merged f9c083b; `python FPGA/model/test_model.py`: 13 passed / 0 failed (re-run this session) |
 | eog_div (T1.div.rtl + .fv) | merged 1565f11; `reports/formal_div.txt`; sim PASS 19,123 divisions |
 | eog_mul (T1.mul.rtl + .fv) | merged caf9580; `reports/formal_mul.txt` (prove, prove_w, bmc_feat, bmc_head, cover); sim PASS 736,704 products |
+| eog_unpack (T1.unpack.rtl + .fv) | merged 39fd4ed; `reports/formal_unpack.txt` (prove = abc pdr, bmc, cover); sim PASS 108,846 records / 653,031 beats |
 
-**Spec is v3** (a350f71, Nov 8 ~00:45): `eog_head` got a hard-reset input `wb_rst_n` so soft reset keeps the weight
-banks (question 16, lead call, Lucas may reverse). Spec questions 1–19 are answered in `FPGA/TASKS.md`. **#12** (validate `PUMP_INCONS`/`WELL_INCONS` set only when
-their inputs are OK) is a lead call that Lucas may reverse. **#8** (BTN0 active high at `eog_alarm`) needs
-confirming against the board pinout in T2.bd1.
+**Spec is v4** (f32f60b, Lucas): see the ⚠ section at the top. v3 (`eog_head.wb_rst_n`, a350f71) is kept.
+Spec questions 1–19 were answered against v1 and must be re-checked against v4 (agents were told to). **#8** (BTN0
+active high at `eog_alarm`) still needs confirming against the board pinout in T2.bd1.
+
+**Integrated against v1 only (not merged; evidence kept):** features. `eog/integrate-features` (RTL 9441fc4 + proofs
+b0f7bd1): lint ok, sim PASS 72,564 records, formal cover/prove/prove_f4 PASS (`reports/formal_features.txt` on that
+branch). Spec v4 sends it back for a small rework.
 
 ## How the last session ended (bd64467f, 22:27–22:59 CST)
 
@@ -91,56 +98,51 @@ What was left on disk, and what this session did with it:
 
 ## In flight / next steps
 
-**In flight (launched ~00:05 CST Nov 8 by session `04653333`, 8 background agents):**
-- Verifiers, each in its old worktree and told to `git merge --ff-only FPGA` first: T1.validate.fv, T1.memory.fv
-  (resuming its partial harness), T1.alarm.fv, T1.features.fv (resuming its partial harness), T1.head.fv.
-- RTL, in new worktrees the lead created: T1.features.rtl, T1.head.rtl, T1.countdown.rtl.
-- All were launched as `general-purpose` agents told to read `.claude/agents/fpga-{verify,rtl}.md` as their role
-  (see the start-folder gotcha below). All were told to commit WIP often. If a session dies, check each worktree's
-  `git log` and `git status`, then relaunch on top of whatever is there.
+**Spec v4 replan (Nov 8 ~01:10, after a third usage cutoff and an account switch).** Lucas's order: T0.2b first,
+then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
+their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
 
-**Second cutoff (~00:30 CST Nov 8):** the old account hit its 5-hour limit again and 7 of the 8 agents stopped. On a
-new account they were resumed in place with their context (SendMessage). Progress committed at that point:
-validate.fv 2aa31de (WIP harness + sby, prove passes on a stub; it never stopped), memory.fv 76e0072 → a51db02
-(harness + INDEX-driven tb), features.fv 055a9ee (harness; sby + tb uncommitted), features.rtl 9441fc4 (smoke PASS
-on all features vector cases), head.rtl c700642 (16 multipliers, II 13), countdown.rtl 29922fe (bit-exact on all
-12 countdown cases). alarm.fv and head.fv had nothing committed yet; their files were untracked in their
-worktrees. The features verifier's throwaway stub was sitting at `FPGA/rtl/eog_features.sv` inside its worktree,
-and it was told to move it out. Never merge that file.
+**Fourth cutoff (~01:30, account switch):** 6 agents stopped and were resumed in place. **In flight (8), as of ~01:45:**
+- **T0.2b** model (resumed; v4 rewrite was uncommitted on disk, told to commit first). Vectors still pending.
+- **validate:** RTL rework (0542991+) and verifier (b3dea18+).
+- **countdown:** verifier (d391176+, given the v4 RTL's port facts). RTL **v4 rework done 9dc2ca5**, idle until vectors.
+- **alarm:** verifier (b2c9db5+, given the v4 RTL's port facts). RTL **v4 rework done a130317**, idle until vectors.
+- **head:** RTL (364fe4c, v3+v4) and verifier (resumed, told about v4).
+- **features:** RTL small v4 rework (resumed from 9441fc4).
+- Idle and waiting for vectors: countdown RTL, alarm RTL (resume both with "v4 vectors on FPGA, merge and smoke-test").
+- **When T0.2b reports:** merge `eog/T0.2b` into FPGA, run `python FPGA/model/gen_vectors.py` in the main checkout
+  (gitignored `*_week` files), then message every v4 agent to `git merge FPGA` and run its sims.
 
-**Next:**
-1. As each agent reports: set its TASKS.md row to REVIEW (with its commit). When both halves of a module are
-   REVIEW, integrate: `git switch -c eog/integrate-<m> FPGA`, merge both branches, run `lint.sh`, `sim.sh` and
-   `formal.sh <m>` (generate the gitignored `*_week` vectors in the main checkout first:
-   `python FPGA/model/gen_vectors.py`), then merge to `FPGA`, set DONE, run `check_all.sh`, and push.
-   validate, memory and alarm have their RTL in REVIEW, so they integrate as soon as their verifier lands.
-2. Queue, launch as slots free up (unpack.fv and countdown.fv are running): T1.pack.rtl/.fv,
-   T1.regs.rtl/.fv, T2.ps1.
-3. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
+**Queue (launch as slots free):** features verifier (resume; small v4 rework from b0f7bd1), memory RTL (fresh agent on 560ee3b)
++ verifier (resume; small v4 rework), pack RTL + verifier (new, v4), regs RTL + verifier (new, v4; DBGSEL/DBG and
+the 71-word window), then T2.ps1.
+
+**Then:** integrate each module when both halves are REVIEW (`git switch -c eog/integrate-<m> FPGA`, merge both,
+`lint.sh`/`sim.sh`/`formal.sh <m>`, merge to FPGA, DONE, `check_all.sh`, push). T2.top when all T1 rows are DONE,
+then `FPGA/reports/RTL_DONE_HANDOFF.md`.
 
 ## Worktrees (`HackUTD/.claude/worktrees/…`)
 
 | Worktree | Branch | State |
 | --- | --- | --- |
-| agent-af0da0adf8ae2eacc | eog/T1.div.rtl | merged; removable |
-| agent-a6c7847cc814d8679 | eog/T1.div.fv | merged; removable |
-| agent-ab6d24063ec9bbe52 | eog/T1.mul.rtl | merged; removable |
-| agent-a28845771a06344fc | eog/T1.mul.fv | merged; removable |
-| agent-a11baa6d27ec3bc76 | eog/T0.2 | merged; removable (holds the gitignored `*_week` vectors) |
-| agent-a6562db654e6251c2 | eog/T1.validate.rtl | REVIEW 2dd4565 |
-| agent-a19dfaf203f8e17cc | eog/T1.memory.rtl | REVIEW 560ee3b |
-| agent-a00b1b054767aadb0 | eog/T1.alarm.rtl | REVIEW 3da09f1 |
-| agent-ac27b540402503b46 | eog/T1.unpack.rtl | REVIEW bc4a760 |
-| agent-a36e87a8076c7f193 | eog/T1.validate.fv | verifier (relaunch) |
-| agent-adadf9ed52b6a452c | eog/T1.memory.fv | verifier (relaunch; partial harness on disk) |
-| agent-a1ef26a5b3ad9ded0 | eog/T1.alarm.fv | verifier (relaunch) |
-| agent-a065500e10062e0d1 | eog/T1.features.fv | verifier (relaunch; partial harness on disk) |
-| agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier (relaunch) |
-| T1.features.rtl | eog/T1.features.rtl | REVIEW 9441fc4 |
-| T1.head.rtl | eog/T1.head.rtl | c700642 passes v2 checks; reworking for spec v3 (wb_rst_n) |
-| T1.countdown.rtl | eog/T1.countdown.rtl | REVIEW 2723d23 |
-| T1.countdown.fv | eog/T1.countdown.fv | verifier (launched after countdown RTL reported) |
-| T1.unpack.fv | eog/T1.unpack.fv | verifier (launched after features RTL reported) |
+| agent-af0da0adf8ae2eacc, agent-a6c7847cc814d8679 | eog/T1.div.rtl, .fv | merged; removable |
+| agent-ab6d24063ec9bbe52, agent-a28845771a06344fc | eog/T1.mul.rtl, .fv | merged; removable |
+| agent-a11baa6d27ec3bc76 | eog/T0.2 | merged; removable |
+| T0.2b | eog/T0.2b | model v4 (in flight) |
+| agent-ac27b540402503b46, T1.unpack.fv | eog/T1.unpack.rtl, .fv | merged (unpack DONE, 39fd4ed); removable |
+| agent-a6562db654e6251c2 | eog/T1.validate.rtl | REWORK v4 (in flight) |
+| agent-a36e87a8076c7f193 | eog/T1.validate.fv | verifier, v4 (in flight) |
+| T1.countdown.rtl | eog/T1.countdown.rtl | v4 rework done 9dc2ca5; waiting for v4 vectors |
+| T1.countdown.fv | eog/T1.countdown.fv | verifier, v4 (in flight) |
+| agent-a00b1b054767aadb0 | eog/T1.alarm.rtl | v4 rework done a130317; waiting for v4 vectors |
+| agent-a1ef26a5b3ad9ded0 | eog/T1.alarm.fv | verifier, v4 (in flight) |
+| T1.head.rtl | eog/T1.head.rtl | REWORK v3+v4 (in flight; 364fe4c) |
+| agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier, v4 (in flight) |
+| T1.features.rtl | eog/T1.features.rtl | REWORK v4 (in flight; v1 version 9441fc4) |
+| agent-a065500e10062e0d1 | eog/T1.features.fv | REWORK v4 (queued; v1 version b0f7bd1) |
+| agent-a19dfaf203f8e17cc | eog/T1.memory.rtl | REWORK v4 (queued; v1 version 560ee3b) |
+| agent-adadf9ed52b6a452c | eog/T1.memory.fv | verifier (queued) |
+| `..\ml` (outside the repo) | detached origin/ml 296dd48 | read-only checkout of Mudit's code for agents |
 
 ## Machine notes and gotchas
 
@@ -165,8 +167,11 @@ and it was told to move it out. Never merge that file.
   worktree, so relaunch a fresh agent pointed at that worktree path and tell it what is already there.
 - **Yosys 0.70:** avoid packed 2-D arrays declared in one generate block and indexed from a nested one. Labeled
   asserts inside `for` loops can duplicate cell names, so fold them into vectors.
-- **Usage:** the last session burned its limit fast with about 8 parallel agents. Agents are now told to commit
-  WIP often, so a cutoff loses little.
+- **Usage:** each account lasts roughly an hour with 8 parallel agents. On a cutoff, Lucas switches accounts; resume
+  every stopped agent with SendMessage (same session) and give it its last commit and any uncommitted files.
+- **Shared WSL and scratchpad:** never kill processes you didn't start (no `pkill`/`killall` or cwd-based kills; one
+  agent's cleanup script killed others' proofs on Nov 8 ~00:26). Each agent keeps scratch files in its own
+  scratchpad subfolder.
 - **Previous transcript:**
   `~/.claude/projects/C--Users-gurne-Documents-Lucas-HackUTD-HackUTD-HackUTD/bd64467f-e6e3-4690-9a85-a24ecb88f3db.jsonl`
   (subagent transcripts are in the folder of the same name).
