@@ -107,6 +107,10 @@ What was left on disk, and what this session did with it:
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
 
+**SD boot + default weights (Lucas, ~05:30):** the board always boots from microSD and loads `weights.eog` at boot
+(read-only card; UDP 7004 still overrides at run time; CONFIG still comes from the PC). Branch `eog/T2.sd`; overview for
+integration agents: `FPGA/docs/SD_BOOT_WEIGHTS.md` (on that branch). No RTL, spec or wire change.
+
 **Out-of-order fast path (Lucas, ~04:20):** T2.top started before the last T1 sign-offs (branch `eog/T2.top`, includes the
 countdown/head/regs RTL branches). Lucas can start now on his PC: Vivado block design with `eog_top` as a black box
 (eog_top.md ports, 0x43C1_0000, XDC, BTN0 polarity #8) and out-of-context synth of the merged modules for 100 MHz timing.
