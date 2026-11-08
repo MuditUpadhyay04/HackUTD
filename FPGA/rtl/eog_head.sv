@@ -15,8 +15,9 @@
 //
 // Numerics (numerics.md section 8): acc is 48-bit signed and exact (|acc| < 2^36). S_OUT is the whole byte 4
 // (0..255): the shift is exact for every value (S_OUT >= 48 gives 0, since |acc| < 2^47). VALID/HELD with
-// VER != 0 get logits; every other record gets 0. WVER = VER of the bank active at accept, 0 for DROPPED
-// (conventions section 3). CH3 = FEAT[3] (spec question 19), RULES, CD and the header (REASON included) are copied.
+// VER != 0 get logits; every other record gets 0. VALID/HELD with VER == 0 get REASON |= NO_MODEL (bit 13,
+// TASKS.md spec question 23: Mudit's features_int.py). WVER = VER of the bank active at accept, 0 for DROPPED
+// (spec question 25). CH3 = FEAT[3] (spec question 19), RULES, CD and the rest of the header are copied.
 //
 // Weight window (D11; per bank, EOG_WIN_WORDS = 71 words of 32 bits): words 0..69 = Mudit's weight blob bytes
 // 0..279 (little-endian), word 70 [7:0] = VER. The blob layout is fixed (31 features, 4 heads) whatever N_FEAT /
@@ -106,6 +107,9 @@ module eog_head #(
     localparam integer A_W_LO = 2, A_W_HI = 63;             // words holding W
     localparam integer A_VER = EOG_WIN_WORDS - 1;           // 70
     localparam integer NBLOB = EOG_WIN_WORDS - 1;           // 70 blob words (0..69)
+
+    // reason bit 13 NO_MODEL, restored by TASKS.md spec question 23 (not yet in the generated eog_defs.svh)
+    localparam integer R_NO_MODEL = 13;
 
     localparam logic [1:0] S_IDLE = 2'd0, S_MAC = 2'd1, S_FIN = 2'd2, S_OUT = 2'd3;
 
@@ -199,12 +203,18 @@ module eog_head #(
     // ---------------------------------------------------------------------------------------------------
     // fields of the held record
     logic [EOG_BC_STATUS_W-1:0] r_status;
-    logic                       r_vh, r_mac;
+    logic                       r_vh, r_mac, r_nomodel;
     logic [7:0]                 r_wver;
-    assign r_status = in_r[EOG_BC_STATUS +: EOG_BC_STATUS_W];
-    assign r_vh     = (r_status == EOG_ST_VALID) || (r_status == EOG_ST_HELD);
-    assign r_mac    = r_vh && (ver_r != 8'd0);
-    assign r_wver   = (r_status == EOG_ST_DROPPED) ? 8'd0 : ver_r;
+    logic [EOG_BL_REASON_W-1:0] r_reason;
+    assign r_status  = in_r[EOG_BC_STATUS +: EOG_BC_STATUS_W];
+    assign r_vh      = (r_status == EOG_ST_VALID) || (r_status == EOG_ST_HELD);
+    assign r_mac     = r_vh && (ver_r != 8'd0);
+    assign r_nomodel = r_vh && (ver_r == 8'd0);
+    assign r_wver    = (r_status == EOG_ST_DROPPED) ? 8'd0 : ver_r;
+    always_comb begin
+        r_reason = in_r[EOG_BC_REASON +: EOG_BC_REASON_W];
+        if (r_nomodel) r_reason[R_NO_MODEL] = 1'b1;
+    end
 
     // features of issue cycle c: FEAT[4c..4c+3], zero beyond N_FEAT
     logic [CW-1:0]      cc;
@@ -239,26 +249,29 @@ module eog_head #(
 
     // halfword s of the written word: global weight index g = 2*addr + s - 4 = BS*k + i; lane m = i % 4,
     // entry c = i / 4, multiplier q = 4k + m
-    logic [1:0]     hw_k   [2];
-    logic [4:0]     hw_i   [2];
-    logic           hw_we  [2];
-    logic [CW-1:0]  hw_c   [2];
-    logic [1:0]     hw_m   [2];
-    always_comb begin
-        for (int s = 0; s < 2; s++) begin
-            logic [7:0] g;
-            logic [7:0] i8;
-            g = {wb_addr, s[0]} - 8'(H_W0);
-            if      (g >= 8'(3 * BS)) begin hw_k[s] = 2'd3; i8 = g - 8'(3 * BS); end
-            else if (g >= 8'(2 * BS)) begin hw_k[s] = 2'd2; i8 = g - 8'(2 * BS); end
-            else if (g >= 8'(BS))     begin hw_k[s] = 2'd1; i8 = g - 8'(BS);     end
-            else                      begin hw_k[s] = 2'd0; i8 = g;              end
-            hw_i[s]  = i8[4:0];                                   // < 31 for every W word
-            hw_we[s] = wr_ok && w_isw && ({1'b0, hw_k[s]} < 3'(N_CLS)) && (i8 < 8'(N_FEAT));
-            hw_m[s]  = hw_i[s][1:0];
-            hw_c[s]  = hw_i[s][CW+1:2];
+    // (flat vectors, slot s at [2s +: 2] / [s] / [CW*s +: CW])
+    wire [3:0]      hw_k;
+    wire [1:0]      hw_we;
+    wire [3:0]      hw_m;
+    wire [2*CW-1:0] hw_c;
+    genvar hs;
+    generate
+        for (hs = 0; hs < 2; hs = hs + 1) begin : g_hw
+            logic [7:0] g, i8;
+            logic [1:0] kk;
+            assign g = {wb_addr, 1'b0} + 8'(hs) - 8'(H_W0);
+            always_comb begin
+                if      (g >= 8'(3 * BS)) begin kk = 2'd3; i8 = g - 8'(3 * BS); end
+                else if (g >= 8'(2 * BS)) begin kk = 2'd2; i8 = g - 8'(2 * BS); end
+                else if (g >= 8'(BS))     begin kk = 2'd1; i8 = g - 8'(BS);     end
+                else                      begin kk = 2'd0; i8 = g;              end
+            end
+            assign hw_k[2*hs +: 2]   = kk;
+            assign hw_we[hs]         = wr_ok && w_isw && ({1'b0, kk} < 3'(N_CLS)) && (i8 < 8'(N_FEAT));
+            assign hw_m[2*hs +: 2]   = i8[1:0];
+            assign hw_c[CW*hs +: CW] = i8[CW+1:2];
         end
-    end
+    endgenerate
 
     // readback of the inactive bank (registered)
     logic [31:0] rb_word;
@@ -283,8 +296,10 @@ module eog_head #(
 
             logic [15:0] lane [2*NCP];                      // W[QK][4c+QM] at {bank, c}
             always_ff @(posedge clk) begin
-                if (hw_we[0] && hw_k[0] == QK && hw_m[0] == QM)      lane[{wbank, hw_c[0]}] <= wb_wdata[15:0];
-                else if (hw_we[1] && hw_k[1] == QK && hw_m[1] == QM) lane[{wbank, hw_c[1]}] <= wb_wdata[31:16];
+                if (hw_we[0] && hw_k[1:0] == QK && hw_m[1:0] == QM)
+                    lane[{wbank, hw_c[0 +: CW]}] <= wb_wdata[15:0];
+                else if (hw_we[1] && hw_k[3:2] == QK && hw_m[3:2] == QM)
+                    lane[{wbank, hw_c[CW +: CW]}] <= wb_wdata[31:16];
             end
 
             // MAC operand: the record's bank; 0 for features beyond N_FEAT (no weight is stored there)
@@ -370,7 +385,7 @@ module eog_head #(
         out_data[EOG_BL_FAC         +: EOG_BL_FAC_W]         = in_r[EOG_BC_FAC         +: EOG_BC_FAC_W];
         out_data[EOG_BL_TS          +: EOG_BL_TS_W]          = in_r[EOG_BC_TS          +: EOG_BC_TS_W];
         out_data[EOG_BL_STATUS      +: EOG_BL_STATUS_W]      = r_status;
-        out_data[EOG_BL_REASON      +: EOG_BL_REASON_W]      = in_r[EOG_BC_REASON      +: EOG_BC_REASON_W];
+        out_data[EOG_BL_REASON      +: EOG_BL_REASON_W]      = r_reason;
         out_data[EOG_BL_SINCE_RESET +: EOG_BL_SINCE_RESET_W] = in_r[EOG_BC_SINCE_RESET +: EOG_BC_SINCE_RESET_W];
         out_data[EOG_BL_HIST_RESET  +: EOG_BL_HIST_RESET_W]  = in_r[EOG_BC_HIST_RESET  +: EOG_BC_HIST_RESET_W];
         out_data[EOG_BL_CH3         +: EOG_BL_CH3_W]         = in_r[EOG_BC_FEAT + 16 * 3 +: EOG_BL_CH3_W];
