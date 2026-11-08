@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 07:25 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 07:55 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -227,10 +227,10 @@ flowchart LR
    write the shift handoff over incidents from step 2. Built and run on the software board, reading board results
    from a JSONL file. Missing: board results inside API runs (I-1, plan P2). Watch it:
    `docs/plan/jason/agent-loop-plan.md` §10.
-   **Next: the combined Nemotron + v4 + FPGA test**, right after the v4 board suite passes:
-   [`docs/plan/mudit/nemotron_v4_fpga_test.md`](docs/plan/mudit/nemotron_v4_fpga_test.md). Its core finding: v4's
-   leak and degradation detections don't become API incidents yet (the runtime has no model), so step 2 there makes
-   the board's `active` heads open incidents.
+   **The combined Nemotron + v4 + FPGA test** comes right after the v4 board suite: one command,
+   `python -m hutd_ml.combined_suite` ([`ml/COMBINED_TEST.md`](ml/COMBINED_TEST.md), the brief for Lucas's Claude;
+   plan and results in [`docs/plan/mudit/nemotron_v4_fpga_test.md`](docs/plan/mudit/nemotron_v4_fpga_test.md)).
+   v4's board detections now open the API's incidents. It passes 6/6 on the software board with live Nemotron.
 4. **Judging dry run:**
    - `mock_test_*` end to end;
    - then a fresh folder;
@@ -263,14 +263,14 @@ Mudit's integration branch; `main` receives merges from them.
 
 | # | Task | Owner | Notes |
 | --- | --- | --- | --- |
-| I-1 | **One board ingest path into the operator API.** `listen.py` JSON (C11) is persisted against a run, so board RESULTs feed incidents, plans and agents. Today `listen.py` posts to the frontend's in-memory `/api/ingest`, and the agent loop reads a JSONL file (`BOARD_JSONL`). Proposed: `POST /api/runs/:id/board` with a provenance label (agent plan P2). | Jason (+ Gurneal, Mudit) | Retire or align `apps/api/src/bridge.ts` (same decoding as `listen.py`) so there is one bridge |
+| I-1 | **Board results into API runs.** **Mostly done** (Sun 07:40): the API reads `listen.py`'s live JSONL (`BOARD_JSONL`, `BOARD_SOURCE`). When the results cover a run, the board's `active` heads open its leak / degradation / failure incidents, with provenance `fpga` for the real board and `weights vN`. **Left:** `POST /api/runs/:id/board` with an auth token in `listen.py` (I-19), so a board on another machine can feed the API; retire or align `apps/api/src/bridge.ts`. | Mudit + Jason (+ Gurneal) | `docs/plan/mudit/nemotron_v4_fpga_test.md` step 2 |
 | I-2 | **One board-data authority in the console.** Render board data from the operator API `Snapshot.board`, not a second client-side feed. | Gurneal | PR #4 review finding 2 (round 2) |
 | I-3 | **One encoder.** `apps/encoder` (TS) must produce `ml/artifacts/*/golden/g1/data.bin` byte for byte, or be retired in favor of `encode.py` / `replay.py`. | Jason + Mudit | C3 / C6 |
-| I-4 | **Software runtime parity.** The API's "software" runtime uses `fakeboard.py` + `listen.py` (bit-exact, v4 weights), or keeps `packages/fpga-sim` labeled "not FPGA bit-exact". | Jason | Hard rule 11 |
+| I-4 | **Software runtime parity.** With board results (the board or `fakeboard.py`, bit-exact), detections come from them (I-1). Without them, `packages/fpga-sim` is labeled "not FPGA bit-exact" and needs a registered model for scores. | Mudit + Jason | Hard rule 11 |
 | I-5 | Fill-rate display uses inflow − pump flow; use inflow only, as the countdown does (O7 fix). | Jason | PR #4 review finding 4 |
 | I-6 | `packages/fpga-sim` alarm latches map E-STOP to pump fault and Night Shift to shut-in; C8 says otherwise. Fix, or drop if I-4 makes it unused. | Jason | PR #4 review finding 6 |
 | I-7 | `SIMULATE_BOARD` feed: dev builds only, no invented `weightsVersion`; `BoardFacility` must carry RESULT status / reasons (hard rule 9). | Gurneal | PR #4 review round 2, findings 3–4 |
-| I-8 | ~~AI SDK fallback~~ **Mostly done** (agent loop POC): v7 tool wiring (`inputSchema`, `instructions`, `stopWhen`), facts only through tools, no fake session link, model-written analyses labeled in the console. **Left:** `tools.ts` still defaults `nowUnix` to 0 (hard rule 3). | Mudit + Jason | PR #4 review round 3 |
+| I-8 | ~~AI SDK fallback~~ **Done**: v7 tool wiring, facts only through tools, no fake session link, labels; a snapshot without a telemetry time is refused instead of defaulting "now" to 0 (`de36e16`). | Mudit + Jason | — |
 | I-9 | **Alarm acknowledge message.** No wire message exists for a server-side latch acknowledge, so `CTRL.server_ack` is never pulsed. The server team defines it; the ARM forwards it (T2.ps1 follow-up); RTL unchanged. A new wire message is C2, so Lucas approves the layout. Until then, acknowledge is BTN0 on the board only, and the console shows latches read-only (hard rules 8, 12). | Jason (+ Lucas) | FPGA spec question 77 |
 | I-10 | ~~Two analysis-coordinator tests fail~~ **Done** (agent loop POC): honest timeouts and session failures. `bun run test` 124 pass, 1 skip (opt-in live provider), 0 fail. | Mudit + Jason | — |
 | I-11 | ~~**Hard rule 9 in the console**~~ **Done in PR #6** (minimal fixes, no redesign): `unknown` health is drawn grey like `no_data` (water, pipe, tank, system status) and counts in the "no data" headline; a missing tank level is a grey ring and "tank level unknown", not an empty tank or 0 %; missing confidence, flows, pump status, receive flow and wear scores read "Unknown" / "No data" instead of 0, "Stopped" or a zero gap; plan totals with a missing cost read "Unknown", not `$0`; a pump-failure card says "Repair first" / "Not filling" instead of "Safe". `tsc`, `eslint` and `next build` pass. | Gurneal to review | PR #6 compliance review finding 1 |
@@ -279,7 +279,7 @@ Mudit's integration branch; `main` receives merges from them.
 | I-14 | `frontend/src/lib/engine/types.ts` forks `@hackutd/contracts`; use the shared contracts. | Gurneal + Jason | PR #6 review finding 5; C10 |
 | I-15 | ~~Nemotron live check~~ **Done** (agent loop POC): the endpoint reports `max_model_len` 1,048,576 (the runbook's 4,096 is out of date). Context window, output budget and thinking mode come from env (`NEMOTRON_CONTEXT_WINDOW`, `NEMOTRON_MAX_OUTPUT_TOKENS`, `NEMOTRON_THINKING`, off by default). The `qwen3_coder` tool-call parser works with thinking on or off. | Mudit + Jason | — |
 | I-16 | The Postgres learning store and migration `002_agent_learning.sql` are untested against a live database (memory mode + a JSON file so far). | Mudit + Jason | Agent plan §9.5 |
-| I-17 | Handoff acceptance is 74 %, the main failure (length and line breaks with 3 incidents). Fluent but empty claims still pass the grounded check. | Mudit | Agent plan §9.5 |
+| I-17 | **Agent output quality** (measured by `combined_suite`, Sun 07:35–07:50). Acceptance varies by run; the orchestrator now writes deterministic fallbacks for triage / handoff, so the operator never gets a blank. **Left:** (a) handoffs exceed the 900-character cap with several incidents (950, 1,119, 2,635 seen); (b) on the API path, explainers mangle 64-hex plan IDs, so give the model short aliases (P1, P2) mapped server-side; (c) fluent but empty claims still pass the grounded check. | Mudit + Jason | `docs/plan/mudit/nemotron_v4_fpga_test.md` §5 |
 | I-18 | Prompt promotion statistics: 2–4 samples per version is below the noise (an identical template once "won"). Repeat each case 2–3 times and promote on a confidence bound before claiming a gain (hard rule 10). | Mudit | Agent plan §9.3 |
 | I-19 | `listen.py`: an auth-token option and a source field on POST (C11 emit side, for I-1). Note: a Python client calling the Nemotron endpoint needs a User-Agent, because Cloudflare refuses urllib's default (error 1010). | Mudit | Agent plan §5 |
 
@@ -329,6 +329,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 07:55 | **Combined Nemotron + v4 + FPGA test ready** (`ml/COMBINED_TEST.md`): board results carry their source (`listen.py --source`), model version and staleness; v4's board detections become API incidents (I-1 mostly done; I-8 done); the orchestrator names where detections came from, writes a deterministic handoff for an empty shift, and never-blank fallbacks for triage / handoff. `python -m hutd_ml.combined_suite`: board stages bit-exact → agents at 4 cutoffs → API path → stale drill. 6/6 PASS on the software board with live Nemotron (key stored for this session's environment, never in the repo); the quality gaps it measured are in I-17. API 130 pass / 1 skip / 0 fail. |
 | Sun Nov 8 07:25 | **Agents and Nemotron: Mudit + Jason jointly** (O18 resolved). **Combined-test plan** (`docs/plan/mudit/nemotron_v4_fpga_test.md`). The deep dive found that v4's leak and degradation detections never become API incidents: without a registered model the runtime opens only pump failures. At step 1080 the API shows nothing while the board flags 3 problems. Board facts are always labeled `fakeboard` and carry no staleness or model version. Steps 0–8 with owners, sizes and pass criteria. |
 | Sun Nov 8 07:15 | **Closed-loop Nemotron agents (Mudit, with Grok) integrated** from `feat/agent-loop-poc`: a deterministic orchestrator with scoped sub-agents and bounded recursive delegation; a prompt registry, outcome records and a weekly champion / challenger loop; a console Agents view. Promoted as **PROPOSED**: C12 updated (grounded check), new C13; the architecture shows the loop. Live, single runs: 8 / 8 analyses accepted from Nemotron. I-10 and I-15 done; I-8 done except the `nowUnix` default; new I-16 … I-19; O18 (who owns agents). Merged tree: API 124 pass / 1 skip / 0 fail, typecheck clean, console build OK, ML 14 / 14. |
 | Sun Nov 8 06:50 | **The engine runs on the board.** Lucas's first hardware run (50 MHz build, Sun ~04:40): golden B1–B3 bit-exact (bad blobs refused, 41 edge cases, the full week with 71 ALERTs). B4 = O16 (buffered replay after a heartbeat gap; not the RTL, per the lead). Every FPGA module signed off (`3560bda`); `fpga_sync` PASS there. 100 MHz misses timing: O17. SD boot with a default model: `ml/artifacts/v4/weights.eog` (and v3) made with Lucas's `make_weights_sd.py`. **One-command board suite** `python -m hutd_ml.board_suite`: golden sets plus the live demo path (`replay.py` → board → `listen.py`) checked field by field against the reference, the v3 → v4 swap, and every other dataset folder; all PASS on the software board. `listen.py` no longer lags the board (select-based receive). |

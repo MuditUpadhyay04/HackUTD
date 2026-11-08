@@ -15,6 +15,7 @@ Implements [`docs/plan/mudit/ml_plan.md`](../docs/plan/mudit/ml_plan.md) against
 | `hutd_ml/train.py` | Trains the 4 heads with held-out-system validation; picks thresholds / K / `gap_thr`; exports blob + config + report |
 | `hutd_ml/golden.py` | Golden vector sets for the RTL testbench and the board |
 | `hutd_ml/compare.py` | Diffs RESULT dumps against a golden set; names the first mismatching record and field |
+| `hutd_ml/combined_suite.py` | **The combined test**: v4 board results → API incidents → Nemotron agents, one command: see [`COMBINED_TEST.md`](COMBINED_TEST.md) |
 | `hutd_ml/board_suite.py` | **One command for the whole board test suite** (golden sets + the live demo path checked against the reference): see [`BOARD_CHECKLIST.md`](BOARD_CHECKLIST.md) |
 | `hutd_ml/board.py` | Laptop UDP harness: CONFIG → WEIGHTS → DATA (+ HEARTBEAT) to the board, collects RESULT/ALERT/STATS, diffs |
 | `hutd_ml/fakeboard.py` | Software stand-in for the board (same UDP protocol, computes with `features_int.py`), for testing the harness, ingest and server without hardware |
