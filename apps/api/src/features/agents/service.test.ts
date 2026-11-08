@@ -77,6 +77,22 @@ describe("analysis coordinator", () => {
     await expect(service.generate(analysis, snapshot, undefined, { onSession: async () => { throw new Error("fenced"); } })).rejects.toThrow("persist fenced");
     await service.close();
   });
+  test("reports the runtime trace as a step and never passes it to the validator", async () => {
+    const service = createAnalysisService({ ...options, runtime: { run: async () => ({ handoff: "Review the evidence at facility.", evidenceIds: ["incident:evidence:0"], planIds: [],
+      trace: { runtime: "libfx", modelCalls: 3, toolCalls: 2, rejectedFinalizations: 1, inputTokens: 900, outputTokens: 80 } }), close: async () => {} } });
+    const result = await service.generate(analysis, snapshot);
+    expect(result.source).toBe("nemotron");
+    expect(result.steps[0]!.agent).toBe("coordinator");
+    expect(result.steps[0]!.text).toContain("libfx, 3 model calls, 2 tool calls, 1 rejected finalizations, 900 input / 80 output tokens");
+    await service.close();
+  });
+  test("a failing injected runtime yields a draft with the reason, without a fallback run", async () => {
+    const service = createAnalysisService({ ...options, runtime: { run: async () => { throw new Error("model unavailable"); }, close: async () => {} } });
+    const result = await service.generate(analysis, snapshot);
+    expect(result.source).toBe("draft");
+    expect(result.error).toContain("model unavailable");
+    await service.close();
+  });
   test("explicit cancellation ends an in-flight analysis", async () => {
     const service = createAnalysisService({ ...options, runtime: { run: () => new Promise(() => {}), close: async () => {} } });
     const pending = service.generate(analysis, snapshot);

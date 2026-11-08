@@ -2,7 +2,10 @@ import { SQL } from "bun";
 
 /** Serialize migration runners and reject changes to already applied migration files. */
 export async function migrate(sql: SQL): Promise<void> {
-  const migrations = [{version: "001_initial", url: new URL("../../../../../db/migrations/001_initial.sql", import.meta.url)}];
+  const migrations = [
+    {version: "001_initial", url: new URL("../../../../../db/migrations/001_initial.sql", import.meta.url)},
+    {version: "002_agent_learning", url: new URL("../../../../../db/migrations/002_agent_learning.sql", import.meta.url)},
+  ];
   await sql.begin(async tx => {
     await tx`SELECT pg_advisory_xact_lock(774327651094)`;
     await tx`CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())`;
