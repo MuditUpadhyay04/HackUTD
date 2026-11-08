@@ -11,7 +11,7 @@ const MAX_POINTS = 2016;
  * and detections are the ones the console shows elsewhere: one snapshot at "now" for every incident, and one at each
  * pump failure's onset for the plan made then. Nothing here talks to the board or writes anything.
  */
-export async function buildTimeline(dataset: ImportedDataset, options: { board?: BoardIndex; model?: RegisteredModel; signal?: AbortSignal } = {}): Promise<SimulationTimeline> {
+export async function buildTimeline(dataset: ImportedDataset, options: { board?: BoardIndex; model?: RegisteredModel; signal?: AbortSignal; prev?: SimulationTimeline } = {}): Promise<SimulationTimeline> {
   const t0 = performance.now();
   // While the board is part-way through this dataset, its flags past the last result are frozen (a missing board
   // record freezes every streak), so the story ends where the board's results end: "so far", never a guess.
@@ -26,11 +26,22 @@ export async function buildTimeline(dataset: ImportedDataset, options: { board?:
 
   // A plan per pump failure, made at its onset. Failures that start together share one snapshot (and one fleet plan).
   const failures = incidents.filter((i) => i.category === "pump_failure");
+  // Incremental while the board streams: a failure the previous build had already planned (its onset was inside
+  // that build's coverage) keeps that plan and its trucks; the plan at an onset doesn't change once the board is past
+  // it. Only new failures get an onset snapshot, so a rebuild costs about one snapshot instead of one per failure.
+  const prev = options.prev && options.prev.datasetId === dataset.info.id ? options.prev : undefined;
+  const reuse = new Map((prev?.plans ?? []).filter((p) => p.plannedUnix <= prev!.nowUnix).map((p) => [p.incidentId, p]));
   const atOnset = new Map<number, Snapshot>();
-  for (const at of [...new Set(failures.map((i) => i.onsetUnix))]) atOnset.set(at, await snap(at));
+  for (const at of [...new Set(failures.filter((f) => !reuse.has(f.id)).map((i) => i.onsetUnix))]) atOnset.set(at, await snap(at));
   const plans: SimulationTimeline["plans"] = [];
   const trucks = new Map<string, SimulationTimeline["trucks"][number]>();
   for (const f of failures) {
+    const old = reuse.get(f.id);
+    if (old) {
+      plans.push(old);
+      for (const t of prev!.trucks.filter((x) => x.incidentId === f.id)) trucks.set(`${f.id}#${t.truck}`, t);
+      continue;
+    }
     const s = atOnset.get(f.onsetUnix)!;
     const live = s.alerts.find((a) => a.category === "pump_failure" && a.facilityId === f.facilityId);
     const p = live?.plan, dn = live?.options?.find((o) => o.kind === "do_nothing");
@@ -38,7 +49,10 @@ export async function buildTimeline(dataset: ImportedDataset, options: { board?:
     plans.push({ incidentId: f.id, facilityId: f.facilityId, systemId: f.systemId, plannedUnix: f.onsetUnix, kind: p?.kind ?? "unavailable",
       label: p?.label ?? (live?.planningStatus === "insufficient_data" ? "Not enough data to plan" : "No plan"),
       cost, doNothingCost, kept: cost != null && doNothingCost != null ? Math.max(0, doNothingCost - cost) : null, trucks: p?.trucks ?? 0,
-      shutIns: (p?.shutIns ?? []).map((w) => ({ wellId: w.wellId, atUnix: f.onsetUnix + w.startAfterMin * 60 })) });
+      shutIns: (p?.shutIns ?? []).map((w) => ({ wellId: w.wellId, atUnix: f.onsetUnix + w.startAfterMin * 60 })),
+      // tripAtMin is minutes from the plan's start (this snapshot's "now", the onset)
+      shutdownUnix: dn?.tripAtMin != null ? Math.round(s.nowUnix + dn.tripAtMin * 60) : null,
+      planShutdownUnix: p?.tripAtMin != null ? Math.round(s.nowUnix + p.tripAtMin * 60) : null });
     // The operator follows each plan when it is made: a failure keeps the trucks the plan at its own onset gave it.
     // (Later re-plans propose departures from their own "now"; they decide only the failures that start then.)
     // The planner at each onset assumes every truck is in the yard (nothing records earlier dispatches), so book in
@@ -97,12 +111,13 @@ export function boardStamp(path: string | undefined): string {
  */
 export class TimelineCache {
   private entries = new Map<string, { stamp: string; builtAt: number; value?: SimulationTimeline; pending?: Promise<SimulationTimeline> }>();
-  constructor(private readonly max = 6, private readonly minAgeMs = 20_000) {}
-  async get(datasetId: string, stamp: string, build: () => Promise<SimulationTimeline>): Promise<SimulationTimeline> {
+  constructor(private readonly max = 6, private readonly minAgeMs = 4_000) {}
+  /** `build` gets the previous timeline for this dataset (if any), so it can rebuild incrementally. */
+  async get(datasetId: string, stamp: string, build: (prev?: SimulationTimeline) => Promise<SimulationTimeline>): Promise<SimulationTimeline> {
     const e = this.entries.get(datasetId);
     if (e?.value && (e.stamp === stamp || Date.now() - e.builtAt < this.minAgeMs)) return e.value;
     if (e?.pending) return e.value ?? e.pending;
-    const pending = build().then((value) => {
+    const pending = build(e?.value).then((value) => {
       this.entries.set(datasetId, { stamp, builtAt: Date.now(), value });
       return value;
     }).catch((err) => {

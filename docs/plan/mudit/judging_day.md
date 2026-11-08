@@ -62,7 +62,12 @@ itself, leave-one-system-out validation (`ml/hutd_ml/train.py`) is the evidence 
    Then it opens http://127.0.0.1:3000. `REPLAY_STEP` (default 0.5 s per 5-minute step: a week in about 17 min) sets the pace. The script is
    not yet run on Windows: try it once on a practice folder first. The same by hand:
    `docs/plan/mudit/nemotron_v4_fpga_test.md` step 6.
-4. In the console:
+4. **Present on http://127.0.0.1:3000/live** (the night-shift wall):
+   - **Operator:** one sentence on how things stand, what to do with countdowns, the field (tanks filling, pipes
+     flowing, trucks driving), money kept, and Nemotron's handoff on one button;
+   - **Under the hood:** the chip's live feed and counters, what it just decided, readings boiled down to a handful
+     of things to do, every plan against doing nothing, and how fast the chip is. Flip it to show how much we hide.
+5. In the full console (`/`):
    - the dataset menu → `test`;
    - **Simulation** → while the board streams, it follows the board live ("Following the board"). Afterwards, press Play
      (1, 4 or 12 hours a second). You'll see pumps failing, trucks driving each plan, the money kept against doing

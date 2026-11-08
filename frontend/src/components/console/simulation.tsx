@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { SimulationTimeline } from "@hackutd/contracts";
 import { api, unwrap } from "@/lib/api";
-import { categoryLabel, dayClock, facilityTitle, money } from "@/lib/format";
+import { categoryLabel, clock, dayClock, facilityTitle, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
@@ -58,12 +58,15 @@ export function useSimulation(datasetId: string | undefined, feed: BoardFeed | n
   const [follow, setFollow] = useState(true);
 
   // ---- data: the timeline (built once per dataset on the server, ~5 s) and the board feed (every 2 s)
+  // A different dataset: start over (state reset during render, React's pattern for "reset on prop change").
+  const [loadedFor, setLoadedFor] = useState(datasetId);
+  if (loadedFor !== datasetId) { setLoadedFor(datasetId); setTl(null); setLoading(true); }
   const load = useCallback(async (signal?: AbortSignal) => {
     if (!datasetId) return;
-    setError("");
     try {
       const data = unwrap(await api.api.datasets({ id: datasetId }).timeline.get({ fetch: { signal } })) as unknown as Timeline;
       if (signal?.aborted) return;
+      setError("");
       setTl(data);
       setT((cur) => (cur >= data.startUnix && cur <= data.nowUnix ? cur : data.startUnix));
     } catch (e) {
@@ -74,25 +77,21 @@ export function useSimulation(datasetId: string | undefined, feed: BoardFeed | n
   }, [datasetId]);
   useEffect(() => {
     const c = new AbortController();
-    setLoading(true); setTl(null);
+    // load() sets state only after its fetch resolves (and not at all once aborted): not a synchronous cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load(c.signal);
     return () => c.abort();
   }, [load]);
-  // While the board streams into this dataset, refresh the story now and then (the server reuses it for 20 s).
-  const lastRefresh = useRef(0);
-  // Compare with the dataset's end, not the timeline's: while the board is part-way through, the timeline ends where
-  // the board was when it was built, and the board moves on from there.
+  // While the board streams into this dataset, refresh the story every 5 s (the server rebuilds incrementally and
+  // serves the previous story while the next one builds).
   const liveHere = !!(tl && feed?.online && feed.lastTsUnix != null && feed.lastTsUnix >= tl.startUnix && feed.lastTsUnix <= tl.datasetNowUnix);
   useEffect(() => {
-    if (!liveHere || Date.now() - lastRefresh.current < 20_000) return;
-    lastRefresh.current = Date.now();
-    void load();
-  }, [liveHere, feed?.results, load]);
+    if (!liveHere) return;
+    const id = setInterval(() => void load(), 5000);
+    return () => clearInterval(id);
+  }, [liveHere, load]);
 
-  // ---- playhead: follows the board when it is live here, else plays at the chosen speed
-  useEffect(() => {
-    if (liveHere && follow && feed?.lastTsUnix != null) setT(feed.lastTsUnix);
-  }, [liveHere, follow, feed?.lastTsUnix]);
+  // ---- playhead: follows the board when it is live here (derived, no state), else plays at the chosen speed
   useEffect(() => {
     if (!playing || !tl || (liveHere && follow)) return;
     let raf = 0, prev = performance.now();
@@ -109,7 +108,8 @@ export function useSimulation(datasetId: string | undefined, feed: BoardFeed | n
     return () => cancelAnimationFrame(raf);
   }, [playing, speed, tl, liveHere, follow]);
   const scrub = useCallback((v: number) => { setFollow(false); setT(v); }, []);
-  return { tl, error, loading, setLoading, load, t, setT: scrub, playing, setPlaying, speed, setSpeed, liveHere, follow, setFollow };
+  const shown = liveHere && follow && feed?.lastTsUnix != null ? feed.lastTsUnix : t;
+  return { tl, error, loading, setLoading, load, t: shown, setT: scrub, playing, setPlaying, speed, setSpeed, liveHere, follow, setFollow };
 }
 
 export function SimulationPanel({ datasetId }: { datasetId: string }) {
@@ -118,7 +118,7 @@ export function SimulationPanel({ datasetId }: { datasetId: string }) {
   if (loading && !tl) return <p className="glass mt-6 px-5 py-4 text-[14px] text-muted-foreground">Building the week: incidents, a plan at each pump failure, trucks… (a few seconds the first time)</p>;
   if (error && !tl) return (
     <div role="alert" className="glass mt-6 flex items-center justify-between gap-3 px-5 py-4 text-[14px] text-crit">
-      <span>Couldn't build the simulation: {error}</span>
+      <span>Couldn’t build the simulation: {error}</span>
       <button type="button" className="font-medium text-water hover:underline" onClick={() => { setLoading(true); void load(); }}>Retry</button>
     </div>
   );
@@ -213,82 +213,95 @@ function truckPos(j: Timeline["trucks"][number], at: number, yard: Pt, fac: Pt, 
 }
 
 export function FieldMap({ tl, at, ongoing, bare }: { tl: Timeline; at: number; ongoing: Timeline["incidents"]; bare?: boolean }) {
-  // Schematic, one tile per system (any number of systems): the disposal site in the middle, each facility around it
-  // in its real compass direction from the site, the truck yard in the tile's corner. Trucks drive yard -> facility.
-  const n = tl.systems.length, cols = n <= 2 ? n : n <= 4 ? 2 : 3, rows = Math.ceil(n / cols);
-  const CW = 250, CH = 200, W = cols * CW, H = rows * CH;
-  const layout = useMemo(() => tl.systems.map((s, k) => {
-    const ox = (k % cols) * CW, oy = Math.floor(k / cols) * CH;
-    const disp = { x: ox + CW * 0.56, y: oy + CH * 0.54 };
-    const yard = { x: ox + 30, y: oy + CH - 34 };
-    const k0 = Math.cos((s.disposal.lat * Math.PI) / 180);
-    const fac = new Map(s.facilities.map((f, i) => {
-      let a = Math.atan2(-(f.lat - s.disposal.lat), (f.lon - s.disposal.lon) * k0);
-      if (!Number.isFinite(a) || (f.lat === s.disposal.lat && f.lon === s.disposal.lon)) a = (i / s.facilities.length) * 2 * Math.PI;
-      return [f.id, { x: disp.x + Math.cos(a) * 62, y: disp.y + Math.sin(a) * 52 } as Pt];
-    }));
-    // spread facilities that land on top of each other
-    const pts = [...fac.values()];
-    for (let i = 0; i < pts.length; i++) for (let j = 0; j < i; j++) {
-      const a = pts[i]!, b = pts[j]!;
-      if (Math.hypot(a.x - b.x, a.y - b.y) < 26) { a.x += 18; a.y += 14; }
-    }
-    return { s, ox, oy, disp, yard, fac };
-  }), [tl, cols]);
-  const stateOf = (fid: string) => {
+  // One tile per system, drawn as the operator thinks of it: tanks filling and draining at the recorded level, pipes
+  // carrying water down to the disposal site while the pump runs, trucks driving the road from the yard to the tank
+  // they were sent to. Red = pump down (with the time the tank fills), orange = leak or worn pump.
+  const state = (fid: string) => {
     const here = ongoing.filter((i) => i.facilityId === fid);
-    return here.some((i) => i.category === "pump_failure") ? "crit" : here.length ? "warn" : "ok";
+    return here.some((i) => i.category === "pump_failure") ? "crit" : here.some((i) => i.category === "pipeline_leak" || i.category === "pump_degradation") ? "warn" : "ok";
   };
   const levelAt = (fid: string) => {
     const arr = tl.levels[fid]; if (!arr) return null;
     return arr[Math.min(arr.length - 1, Math.max(0, Math.floor((at - tl.startUnix) / tl.seriesStepSeconds)))] ?? null;
   };
-  const color = { crit: "var(--crit)", warn: "var(--warn-fill)", ok: "var(--water)" } as const;
+  const fullAt = (fid: string) => {
+    const f = ongoing.find((i) => i.facilityId === fid && i.category === "pump_failure");
+    const p = f && tl.plans.find((x) => x.incidentId === f.id);
+    return p?.shutdownUnix != null && p.shutdownUnix > at ? { at: p.shutdownUnix, saved: p.planShutdownUnix == null && p.kind !== "do_nothing" && p.kind !== "unavailable" } : null;
+  };
   return (
     <section className={cn("overflow-hidden", !bare && "glass")} aria-label="Field map">
       <div className={cn("flex flex-wrap items-center justify-between gap-2 px-4 pt-3 text-[13px]", bare && "hidden")}>
         <span className="font-semibold">The field</span>
-        <span className="flex flex-wrap gap-3 text-faint"><span><Dot c="var(--crit)" /> pump down</span><span><Dot c="var(--warn-fill)" /> leak or worn</span><span><Dot c="var(--water)" /> running</span><span><Truck small /> truck</span><span>◆ disposal</span></span>
+        <span className="flex flex-wrap gap-3 text-faint"><span><Dot c="var(--crit)" /> pump down</span><span><Dot c="var(--warn-fill)" /> leak or worn</span><span><Dot c="var(--water)" /> running</span><span><Truck small /> truck</span></span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label="Systems, facilities, yards and trucks">
-        {layout.map(({ s, ox, oy, disp, yard, fac }) => {
-          const busy = tl.trucks.filter((j) => j.systemId === s.id && at >= j.fromUnix && at <= j.toUnix).length;
-          const down = s.facilities.some((f) => stateOf(f.id) === "crit");
-          return (
-            <g key={s.id}>
-              <rect x={ox + 6} y={oy + 6} width={CW - 12} height={CH - 12} rx={12} fill={down ? "color-mix(in oklab, var(--crit) 5%, transparent)" : "transparent"} stroke="var(--line-soft)" />
-              <text x={ox + 18} y={oy + 26} fontSize={12.5} fontWeight={700} fill="currentColor">{`${s.id}`}<tspan fontWeight={500} opacity={0.6}>{` · ${s.fleetSize - Math.min(busy, s.fleetSize)}/${s.fleetSize} trucks free`}</tspan></text>
-              {tl.trucks.filter((j) => j.systemId === s.id && at >= j.fromUnix && at <= j.toUnix).map((j) => {
-                const f = fac.get(j.facilityId); return f ? <line key={`r${j.incidentId}#${j.truck}`} x1={yard.x} y1={yard.y} x2={f.x} y2={f.y} stroke="var(--crit)" strokeWidth={1.5} strokeDasharray="4 4" opacity={0.6} /> : null;
-              })}
-              {s.facilities.map((f) => { const p = fac.get(f.id)!; return <line key={f.id} x1={p.x} y1={p.y} x2={disp.x} y2={disp.y} stroke={color[stateOf(f.id)]} strokeWidth={2} opacity={0.55} />; })}
-              <rect x={disp.x - 5} y={disp.y - 5} width={10} height={10} transform={`rotate(45 ${disp.x} ${disp.y})`} fill="currentColor" opacity={0.8} />
-              <g transform={`translate(${yard.x - 10} ${yard.y - 10})`}>
-                <rect width={20} height={20} rx={5} fill="none" stroke="currentColor" strokeWidth={1.4} opacity={0.6} />
-                <text x={10} y={33} textAnchor="middle" fontSize={10} fill="currentColor" opacity={0.55}>yard</text>
-              </g>
-              {s.facilities.map((f) => {
-                const p = fac.get(f.id)!, st = stateOf(f.id), lvl = levelAt(f.id);
-                const out = { x: p.x + (p.x - disp.x) * 0.35, y: p.y + (p.y - disp.y) * 0.35 };
-                return (
-                  <g key={f.id}>
-                    {st === "crit" && <circle cx={p.x} cy={p.y} r={15} fill="none" stroke={color.crit} strokeWidth={2} opacity={0.45}><animate attributeName="r" values="11;18;11" dur="1.6s" repeatCount="indefinite" /></circle>}
-                    <circle cx={p.x} cy={p.y} r={11} fill="var(--background, white)" stroke={color[st]} strokeWidth={2.5} />
-                    <text x={p.x} y={p.y + 3.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="currentColor">{(/_FACILITY_(.+)$/.exec(f.id)?.[1] ?? f.id).slice(0, 2)}</text>
-                    {lvl != null && <text x={out.x} y={out.y + 3} textAnchor="middle" fontSize={9.5} fontWeight={st === "crit" ? 700 : 500} fill={st === "crit" ? color.crit : "currentColor"} opacity={st === "crit" ? 1 : 0.6}>{`${Math.round(lvl)}%`}</text>}
-                  </g>
-                );
-              })}
-              {tl.trucks.filter((j) => j.systemId === s.id).map((j) => {
-                const f = fac.get(j.facilityId); if (!f) return null;
-                const pos = truckPos(j, at, yard, f, disp); if (!pos) return null;
-                return <g key={`${j.incidentId}#${j.truck}`} transform={`translate(${pos.x - 11} ${pos.y - 7})`}><Truck /></g>;
-              })}
-            </g>
-          );
-        })}
-      </svg>
+      <div className="grid gap-2 p-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+        {tl.systems.map((s) => <SystemTile key={s.id} s={s} tl={tl} at={at} state={state} levelAt={levelAt} fullAt={fullAt} slots={Math.max(...tl.systems.map((x) => x.facilities.length))} />)}
+      </div>
     </section>
+  );
+}
+
+function SystemTile({ s, tl, at, state, levelAt, fullAt, slots }: {
+  s: Timeline["systems"][number]; tl: Timeline; at: number; state: (f: string) => "crit" | "warn" | "ok";
+  levelAt: (f: string) => number | null; fullAt: (f: string) => { at: number; saved: boolean } | null; slots: number;
+}) {
+  // Every tile is as wide as the largest system, so all tiles draw at one scale; tanks sit centred.
+  const n = s.facilities.length, gap = 64, W = Math.max(250, 70 + slots * gap), H = 206;
+  const left = 52 + ((slots - n) * gap) / 2;
+  const ROAD = 30, TOP = 58, TH = 64, BAR = 176;
+  const xs = s.facilities.map((_, i) => left + i * gap + 17);
+  const yard = { x: 18, y: ROAD }, exit = { x: W - 8, y: ROAD };
+  const jobs = tl.trucks.filter((j) => j.systemId === s.id && at >= j.fromUnix && at <= j.toUnix);
+  const free = Math.max(0, s.fleetSize - new Set(jobs.map((j) => j.truck)).size);
+  const color = { crit: "var(--crit)", warn: "var(--warn-fill)", ok: "var(--water)" } as const;
+  const down = s.facilities.some((f) => state(f.id) === "crit");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full rounded-xl" role="img" aria-label={`${s.id}: ${n} facilities`}
+      style={{ background: down ? "color-mix(in oklab, var(--crit) 7%, transparent)" : "color-mix(in oklab, currentColor 3%, transparent)" }}>
+      <text x={10} y={16} fontSize={12.5} fontWeight={700} fill="currentColor">{s.id}<tspan fontWeight={500} opacity={0.6}>{` · ${free}/${s.fleetSize} trucks free`}</tspan></text>
+      {/* road and yard */}
+      <line x1={yard.x} y1={ROAD} x2={exit.x} y2={ROAD} stroke="currentColor" strokeOpacity={0.18} strokeWidth={6} strokeLinecap="round" />
+      <line x1={yard.x} y1={ROAD} x2={exit.x} y2={ROAD} stroke="currentColor" strokeOpacity={0.35} strokeWidth={1} strokeDasharray="4 6" />
+      <rect x={4} y={ROAD - 9} width={22} height={18} rx={4} fill="var(--background, white)" stroke="currentColor" strokeOpacity={0.5} />
+      <text x={15} y={ROAD + 4} textAnchor="middle" fontSize={9} fontWeight={700} fill="currentColor" opacity={0.7}>{free}</text>
+      {/* disposal */}
+      <rect x={30} y={BAR} width={W - 44} height={7} rx={3.5} fill="currentColor" opacity={0.22} />
+      <text x={W - 14} y={BAR + 21} textAnchor="end" fontSize={9.5} fill="currentColor" opacity={0.55}>disposal ◆</text>
+      {s.facilities.map((f, i) => {
+        const x = xs[i]!, st = state(f.id), lvl = levelAt(f.id), full = fullAt(f.id);
+        const fill = Math.max(0, Math.min(100, lvl ?? 0)) / 100, letter = (/_FACILITY_(.+)$/.exec(f.id)?.[1] ?? f.id).slice(0, 5);
+        const tankX = x - 17, waterH = TH * fill;
+        return (
+          <g key={f.id}>
+            {/* pipe to disposal: flows while the pump runs */}
+            <line x1={x} y1={TOP + TH} x2={x} y2={BAR} stroke={color[st]} strokeOpacity={st === "ok" ? 0.35 : 0.8} strokeWidth={3} />
+            {st !== "crit" && <line x1={x} y1={TOP + TH} x2={x} y2={BAR} stroke={color[st]} strokeWidth={3} className="pipe-flow" />}
+            {/* tank */}
+            <rect x={tankX} y={TOP} width={34} height={TH} rx={6} fill="var(--background, white)" stroke={color[st]} strokeWidth={st === "ok" ? 1.5 : 2.5}>
+              {st === "crit" && <animate attributeName="stroke-opacity" values="1;0.35;1" dur="1.4s" repeatCount="indefinite" />}
+            </rect>
+            <clipPath id={`clip-${f.id}`}><rect x={tankX + 1.5} y={TOP + 1.5} width={31} height={TH - 3} rx={5} /></clipPath>
+            <rect x={tankX} y={TOP + TH - waterH} width={34} height={waterH} fill={st === "crit" ? "var(--crit)" : "var(--water)"} opacity={st === "crit" ? 0.55 : 0.4} clipPath={`url(#clip-${f.id})`} style={{ transition: "y 0.4s, height 0.4s" }} />
+            <line x1={tankX - 3} y1={TOP + TH * 0.08} x2={tankX + 37} y2={TOP + TH * 0.08} stroke="var(--crit)" strokeOpacity={0.6} strokeDasharray="2 2" />
+            <text x={x} y={TOP + TH / 2 + 4} textAnchor="middle" fontSize={11} fontWeight={700} fill="currentColor">{lvl == null ? "–" : `${Math.round(lvl)}%`}</text>
+            <text x={x} y={TOP + TH + 15} textAnchor="middle" fontSize={10.5} fontWeight={700} fill="currentColor" opacity={0.75}>{letter}</text>
+            {full && (
+              <g>
+                <rect x={x - 30} y={TOP - 20} width={60} height={15} rx={7.5} fill={full.saved ? "var(--ok, #248a3d)" : "var(--crit)"} />
+                <text x={x} y={TOP - 9.5} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#fff">{full.saved ? "covered" : `full ${clock(full.at)}`}</text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+      {/* trucks on the road: yard -> above the tank -> off to disposal -> back */}
+      {jobs.map((j) => {
+        const i = s.facilities.findIndex((f) => f.id === j.facilityId); if (i < 0) return null;
+        const pos = truckPos(j, at, yard, { x: xs[i]!, y: ROAD }, exit); if (!pos) return null;
+        return <g key={`${j.incidentId}#${j.truck}`} transform={`translate(${pos.x - 11} ${pos.y - 8})`}><Truck /></g>;
+      })}
+    </svg>
   );
 }
 
@@ -382,7 +395,7 @@ function Pipeline({ tl, steps, facilities, feed, liveHere, playing, at }: { tl: 
         ))}
       </ol>
       <p className="mt-2 text-[11.5px] text-faint">
-        Plans are the operator API's own (planner + validator, shared fleet per system), made at each failure's onset; the money is each plan versus doing
+        Plans are the operator API’s own (planner + validator, shared fleet per system), made at each failure’s onset; the money is each plan versus doing
         nothing. A simulation of the recording: nothing here is sent to the board or written back to the data.
       </p>
     </section>

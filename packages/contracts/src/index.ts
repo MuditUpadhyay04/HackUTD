@@ -95,7 +95,9 @@ export interface SimulationTimeline {
   incidents: { id: string; category: Category; systemId: string; facilityId: string; onsetUnix: number; endUnix: number | null; provenance: "software" | "fpga" }[];
   /** Pump failures: the plan made at onset (the system's fleet shared across its failures). */
   plans: { incidentId: string; facilityId: string; systemId: string; plannedUnix: number; kind: PlanOption["kind"] | "unavailable"; label: string;
-    cost: number | null; doNothingCost: number | null; kept: number | null; trucks: number; shutIns: { wellId: string; atUnix: number }[] }[];
+    cost: number | null; doNothingCost: number | null; kept: number | null; trucks: number; shutIns: { wellId: string; atUnix: number }[];
+    /** When the tank reaches its shutdown limit if nobody acts (null: it doesn't before the repair), and with the plan. */
+    shutdownUnix: number | null; planShutdownUnix: number | null }[];
   /** Truck trips from the plan made at each failure's onset: leave the yard at fromUnix, arrive at each trip time, back by toUnix. */
   trucks: { systemId: string; truck: number; incidentId: string; facilityId: string; fromUnix: number; toUnix: number; arrivalsUnix: number[] }[];
   totals: { doNothing: number; plan: number; kept: number; failures: number; inspections: number };

@@ -26,3 +26,16 @@ describe("shared prose grounding", () => {
     expect(lintProse("Pump down at S4 C, 2h47m to the limit.")).toEqual({ rawTimes: 0, ids: 0, snakeLabels: 0, chars: 38 });
   });
 });
+
+describe("tidyProse: formatting is fixed, not rejected", () => {
+  const ground: Grounding = { entities: ["S4_FACILITY_C"], labels: ["pump_failure"], categories: ["pump_failure"], data: { level: 92 } };
+  test("line breaks, bullets and emphasis are removed; content is unchanged; angle brackets still fail", () => {
+    expect(checkProse(ground, "**S4_FACILITY_C** pump failure:\n- tank 92% full\n- send a truck.")).toBe("S4_FACILITY_C pump failure: tank 92% full send a truck.");
+    expect(() => checkProse(ground, "Tank <b>92%</b> full.")).toThrow("angle brackets");
+  });
+  test("a slight overrun is cut at the last full sentence; a large one still fails", () => {
+    const s = "S4_FACILITY_C pump failure, tank 92% full. ";
+    expect(checkProse(ground, s.repeat(3).trim(), { maxLength: 120 }).length).toBeLessThanOrEqual(120);
+    expect(() => checkProse(ground, s.repeat(10), { maxLength: 120 })).toThrow("limit 120");
+  });
+});
