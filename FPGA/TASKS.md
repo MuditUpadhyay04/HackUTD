@@ -19,7 +19,7 @@ file during a wave (agents report status in their final message) to avoid merge 
 | T0.4 | Spec v4: align with Mudit's `features_int.py` (numerics.md §1 D6–D12, Lucas's calls Sun 00:10) | T0.1 | Claude (Lucas's session) | DONE | `spec/` v4, `spec/README.md` changelog |
 | T0.0 | **Mudit:** apply `spec/numerics.md` §11 to `ml/hutd_ml`, regenerate weights + golden sets G0/G1/G2 | T0.4 | Mudit | TODO | branch `ml` |
 | T0.5 | **Mudit:** R7 option C (spec question 70) in `features_int.py`; regenerate weights + golden sets; re-run `robustness.py` and report the 2 %-missing numbers | Q70 | Mudit | TODO | branch `ml` |
-| T0.2c | `model/` + vectors for spec question 70 (R7 option C); `check_mudit.py` PASS against Mudit's T0.5 | Q70 (finish on T0.5) | | TODO | `model/`, `tb/vectors/` |
+| T0.2c | `model/` + vectors for spec question 70 (R7 option C); `check_mudit.py` PASS against Mudit's T0.5 | Q70 (finish on T0.5) | fpga-model agent | CLAIMED | branch `eog/T0.2c` (model + vectors for #70; check_mudit reports the hold-overflow gap until T0.5) |
 | T0.2b | Update `model/` (`eog_ref.py`, `cases.py`, `gen_vectors.py`, `test_model.py`) to spec v4; add `check_mudit.py` (byte-for-byte RESULT/ALERT agreement with Mudit's engine, see `model/README.md`); regenerate `tb/vectors/` | T0.4 (finish on T0.0) | fpga-model agent | DONE | 097f0a1, merged adf6dcb (vectors 388eb6e merged d1e29fc); model = Mudit @ d1ba779 byte for byte; `check_mudit.py` full run PASS (38 checks, every case + all 5 golden sets incl. G1 30,240 records); `test_model.py` 14/14 |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)

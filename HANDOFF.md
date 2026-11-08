@@ -41,7 +41,7 @@ far used v1 numerics, so:
   HIST_RESET, DROPPED `SINCE_RESET`/`WVER` = 0). No version bump. T0.2b and every v4 rework must apply them.
 - Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
 
-- **Last updated:** 2026-11-08 ~02:55 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
+- **Last updated:** 2026-11-08 ~03:10 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
 - **Repo:** `C:\Users\gurne\Documents\Lucas HackUTD\HackUTD\HackUTD` (the inner folder; the outer `HackUTD\` is
@@ -106,6 +106,13 @@ What was left on disk, and what this session did with it:
 **Spec v4 replan (Nov 8 ~01:10, after a third usage cutoff and an account switch).** Lucas's order: T0.2b first,
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
+
+**Update ~03:10:** alarm DONE (1bed865); pack RTL (9e684bc) and regs RTL (ac0d183) in REVIEW, so every module's RTL
+is written. Lucas's rulings #67–#70 landed (59ee67b): #67–#69 go to the ARM app (T2.ps1 agent told); **#70 R7 option C
+reopens validate** (hold overflow → INVALID + FIELD_LOST, no history reset). Validate RTL and verifier were resumed for
+it, and the model agent is doing T0.2c (model + vectors for #70). Mudit's T0.5 (R7 in features_int.py) is pending;
+ml checkout now at 5e013eb (v3 weights and goldens, pre-R7). In flight: verifiers for countdown, head, memory, pack,
+regs; validate RTL + verifier (R7); T0.2c; T2.ps1.
 
 **State at ~02:55 (Nov 8):**
 - **DONE on spec v4:** T0.2b (model = Mudit @ d1ba779 byte for byte, check_mudit full PASS), validate, features; plus
