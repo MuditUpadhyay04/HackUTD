@@ -1,0 +1,46 @@
+# SymbiYosys job for eog_regs (Verify role, task T1.regs.fv). Properties: fv_eog_regs.sv (G1-G7, R_*, covers).
+#   bash scripts/formal.sh regs          # all tasks, report in reports/formal_regs.txt
+#
+# Harness parameters: N_FAC = 2, RES_DEPTH = 2, AL_DEPTH = 2, N_WELL = 8, CYC_PER_MS = 4 (see the harness header).
+# eog_regs has no multiplier, so there is no abstract/real split; every task sees the same design.
+#
+# prove : PDR (abc pdr), unbounded. k-induction is not used: the DUT's AXI pipeline, sweep counter, FIFO pointers and
+#         DATA beat counter are invisible at the ports, so port-level properties are not inductive without internal
+#         invariants (the independence rule keeps the RTL's internals out of the harness).
+# bmc   : smtbmc, every assertion from reset, depth 30 (reset + sweep + ~5 AXI transactions or a full DATA push and a
+#         RESULT record). Quick counterexamples for the RTL author.
+# cover : the spec's cover (CONFIG row written, slot enabled, DATA record pushed, RESULT read back) and sanity
+#         covers; depth 40.
+#
+# Run times: see the end of this header (filled in from the stub shake-out).
+
+[tasks]
+prove
+bmc
+cover
+
+[options]
+prove: mode prove
+bmc:   mode bmc
+bmc:   depth 30
+cover: mode cover
+cover: depth 40
+
+[engines]
+prove: abc pdr
+bmc:   smtbmc boolector
+cover: smtbmc boolector
+
+[script]
+read_verilog -formal -sv eog_fv_props.sv
+read_verilog -formal -sv -I . eog_regs.sv
+read_verilog -formal -sv -I . fv_eog_regs.sv
+prep -top fv_eog_regs
+memory -nomap
+memory_map
+
+[files]
+../common/eog_fv_props.sv
+../../rtl/eog_defs.svh
+../../rtl/eog_regs.sv
+fv_eog_regs.sv
