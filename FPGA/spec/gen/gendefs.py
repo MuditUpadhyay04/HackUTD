@@ -22,7 +22,9 @@ w("localparam integer EOG_N_WELL  = 8;    // well slots per facility")
 w("localparam integer EOG_N_FEAT  = 31;   // 12 channels + 19 memory features")
 w("localparam integer EOG_N_CLS   = 4;    // [pipeline_leak, pump_degradation, pump_failure, facility_shut_in]")
 w("localparam integer EOG_II_MAX  = 16;   // max cycles between accepted records per stage when downstream is ready")
-w("localparam integer EOG_CD_N    = 16;   // countdown inflow ring depth")
+w("localparam integer EOG_CD_N    = 16;   // countdown inflow ring depth (prefilled)")
+w("localparam integer EOG_CD_LOG2 = 4;")
+w("localparam integer EOG_WIN_WORDS = 71; // weight window: 70 words = blob bytes 0..279, word 70 = VER")
 w("")
 w("// ---- numerics (numerics.md) ----")
 w(f"localparam integer EOG_FEAT_SHIFT = {S};                 // S, fixed")
@@ -32,7 +34,7 @@ w(f"localparam logic [31:0] EOG_K_PIPE  = 32'd{K_PIPE};      // round(2^17*16384
 w("localparam integer EOG_ONE = 16384;                      // 1.0 in feature units")
 w("localparam integer EOG_EMA_FAST = 3;                     // alpha = 1/8")
 w("localparam integer EOG_EMA_SLOW = 6;                     // alpha = 1/64")
-w("localparam integer EOG_CD_SCALE = 8;                     // minutes = (K_cd * dlevel) / (q << 8)")
+w("localparam integer EOG_CD_SCALE = 8;                     // minutes = (K_cd * dlevel) // (q << 8)")
 w("localparam logic [15:0] EOG_CD_NONE = 16'hFFFF;          // not filling / > 45 days / unknown")
 w("")
 w("// ---- status codes ----")
@@ -42,7 +44,7 @@ w("")
 w("// ---- reason bits (RESULT.reason, numerics.md section 6) ----")
 R = [("FIELD_HELD", 0), ("GAP_HELD", 1), ("HIST_RESET", 2), ("OUT_OF_RANGE", 3), ("ILLEGAL_ENUM", 4), ("FEAT_SAT", 5),
      ("PUMP_INCONS", 6), ("WELL_INCONS", 7), ("DUPLICATE", 8), ("OUT_OF_ORDER", 9), ("UNKNOWN_FAC", 10),
-     ("FIELD_ABSENT", 11), ("FRAMING", 12), ("NO_MODEL", 13), ("FIELD_LOST", 14)]
+     ("FRAMING", 12)]
 for n, v in R:
     w(f"localparam integer EOG_R_{n} = {v};")
 w("")
@@ -62,7 +64,7 @@ TABLES = {
  "G": ("GLOBAL CONFIG (32 B = 256 bits)",
        [("S", 0, 8), ("HOLD_MAX", 8, 8), ("CD_LOG2", 16, 8), ("PERSIST_K", 24, 8), ("HB_PERIOD_MS", 32, 16),
         ("HB_TIMEOUT_MS", 48, 16), ("LOGIT_THR", 64, 64), ("GAP_THR", 128, 16), ("FLAGS", 144, 8), ("RSV0", 152, 8),
-        ("SHUTIN_WATER_MAX", 160, 16), ("RSV1", 176, 80)]),
+        ("PERSIST_K4", 160, 32), ("RSV1", 192, 64)]),
  "RES": ("RESULT record (32 B = 256 bits)",
        [("FAC_ID", 0, 16), ("STATUS", 16, 8), ("SINCE_RESET", 24, 8), ("TS", 32, 32), ("REASON", 64, 32), ("LOGITS", 96, 64),
         ("RULES", 160, 8), ("WVER", 168, 8), ("CD_P10", 176, 16), ("CD_P50", 192, 16), ("CD_P90", 208, 16), ("RESULT_NO", 224, 32)]),
