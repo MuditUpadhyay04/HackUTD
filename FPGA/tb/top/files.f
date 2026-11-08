@@ -1,0 +1,13 @@
+rtl/eog_mul.sv
+rtl/eog_div.sv
+rtl/eog_unpack.sv
+rtl/eog_validate.sv
+rtl/eog_features.sv
+rtl/eog_memory.sv
+rtl/eog_countdown.sv
+rtl/eog_head.sv
+rtl/eog_alarm.sv
+rtl/eog_pack.sv
+rtl/eog_regs.sv
+rtl/eog_top.sv
+tb/top/tb_eog_top.sv
