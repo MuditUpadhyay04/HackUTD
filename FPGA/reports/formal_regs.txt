@@ -1,0 +1,15 @@
+# formal regs  2026-11-08T11:38:13Z  sby rc=0  (formal/regs/eog_regs.sby)
+eog_regs_bmc: PASS 0 1776
+eog_regs_cover: PASS 0 540
+eog_regs_prove_axi: PASS 0 549
+eog_regs_prove_cfg: PASS 0 576
+eog_regs_prove_cq0: PASS 0 1308
+eog_regs_prove_cq1: PASS 0 2402
+eog_regs_prove_cq2: PASS 0 3707
+eog_regs_prove_cq3: PASS 0 3035
+eog_regs_prove_ctl: PASS 0 619
+eog_regs_prove_data: PASS 0 4438
+eog_regs_prove_fifo: PASS 0 5193
+eog_regs_prove_glb: PASS 0 908
+eog_regs_prove_puls: PASS 0 523
+eog_regs_prove_rd: PASS 0 666
