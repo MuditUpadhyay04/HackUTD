@@ -15,11 +15,12 @@ ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **S
     §8.
   - **PROPOSED**: you may code against it, but the owner still has to confirm.
   - **OPEN**: don't assume anything.
-- **The FPGA is the fixed point (Mudit, Sun 02:55).** FPGA spec v4 (wire format, numerics, module contracts) and
-  the RTL built to it are done. Changing them would take far longer than we have, so **everything else adapts to
-  them**: ingest, ML, the server, agents and the console. Nothing here asks for an FPGA or RTL change. A component
-  that seems to need one raises it with Lucas only if something is actually broken; Lucas decides, and a workaround
-  outside the FPGA is the default.
+- **The FPGA is the fixed point (Mudit, Sun 02:55).** FPGA spec v4 (wire format, numerics, module contracts) is
+  locked, and the RTL is built to it (most modules signed off; countdown, head and regs finishing review, §7).
+  Changing either would take far longer than we have, so **everything else adapts to them**: ingest, ML, the
+  server, agents and the console. Nothing here asks for an FPGA or RTL change. A component that seems to need one
+  raises it with Lucas only if something is actually broken; Lucas decides, and a workaround outside the FPGA is the
+  default.
 - **Who has the final word (Mudit, Sun 02:35).** This is a tiebreaker, not a shortcut: the approvers listed in §8
   are always consulted first, and the final say applies only when they still disagree.
 

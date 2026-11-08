@@ -10,7 +10,7 @@ points into it.
   the ML pipeline with **weights v4**, a few console fixes for hard rule 9 (I-11), and the rewritten global plan.
   PR #3 is fully covered and can be closed. FPGA **code** stays on Lucas's branch `FPGA` until his own PR after
   T2.top; the FPGA spec and task board are already on `main` (his PR #5).
-- **The FPGA is the fixed point.** Spec v4 and the RTL are done and won't change. Everything else, the server
+- **The FPGA is the fixed point.** Spec v4 is locked and the RTL is built to it (countdown, head and regs are finishing review); neither will change for the server's sake. Everything else, the server
   included, adapts to them (`global_plan.md`, "How this file works").
 - **Final say:** server, agents and Nemotron are **yours**; spec / FPGA / RTL are Lucas's; ML, weights, `replay.py`
   and `listen.py` are Mudit's. It's a tiebreaker: the §8 approvers are consulted first.
