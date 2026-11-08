@@ -31,6 +31,8 @@ far used v1 numerics, so:
   `origin/ml`; until then trust the spec text.
 - **Spec questions 1–19:** answered against v1. Re-check each against v4 and `features_int.py` (notably #10, #12,
   #16 word numbers); where Mudit's code decides it, his code wins.
+- **Spec questions 67–69 (Lucas, Sun 01:59) are ARM-app rules for T2.ps1** (WEIGHTS_ACK status 3, fixed
+  192.168.1.50 destinations, ACK to sender, re-sent CONFIG sequence). Pass them to the T2.ps1 agent.
 - **Spec questions 20–25 (Lucas, Sun 01:17) override the `numerics.md` v4 text** to match Mudit's `ml` @ 8e67750
   (countdown clamp, NOT_FILLING at shutdown, ALERT SOURCE bits, reason bits 11/13/14 restored, first-record
   HIST_RESET, DROPPED `SINCE_RESET`/`WVER` = 0). No version bump. T0.2b and every v4 rework must apply them.
