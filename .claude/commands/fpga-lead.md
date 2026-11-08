@@ -15,10 +15,12 @@ little human input as possible. $ARGUMENTS
    `bash FPGA/scripts/sim.sh axi_mul` and `bash FPGA/scripts/formal.sh axi_mul` — both must PASS before anything else.
    If a tool is missing, stop and tell Lucas exactly what to install (OSS CAD Suite under Linux/WSL2).
 4. Dataset: clone https://github.com/nihaal419/HackUTD-ZeroDay next to the repo if `$EOG_DATA` is not set.
+5. Mudit's reference: `git fetch origin ml`; check whether task T0.0 (his spec-v4 changes, `FPGA/spec/numerics.md` §11)
+   has landed on `origin/ml`. If not, start anyway (vectors are regenerated later) and tell Lucas it is pending.
 
 ## 1. Wave 0
 
-- T0.2: spawn the `fpga-model` agent (worktree isolation). In parallel do T0.3 yourself (`FPGA/formal/common/`,
+- T0.2b: spawn the `fpga-model` agent (worktree isolation) to update `model/` to spec v4 and add `check_mudit.py`. In parallel do T0.3 yourself (`FPGA/formal/common/`,
   fix `FPGA/scripts/*.sh` for the installed tools). Merge both into `FPGA` when their checks pass.
 
 ## 2. Wave 1 — parallel

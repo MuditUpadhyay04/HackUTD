@@ -5,9 +5,9 @@ H = [("REC_NO",32,"record number assigned by eog_unpack (monotonic, wraps); beco
      ("FAC",5,"facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown)"),
      ("TS",32,"DATA.ts_unix"),
      ("STATUS",3,"wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused)"),
-     ("REASON",16,"reason bits, see numerics.md §6"),
-     ("SINCE_RESET",8,"records since this facility's last history reset, saturating at 255 (0 on the reset record)"),
-     ("HIST_RESET",1,"this record starts a new history for its facility")]
+     ("REASON",16,"reason bits, numerics.md section 6"),
+     ("SINCE_RESET",8,"VALID/HELD records of this facility since its last history reset, before this record (saturating 255)"),
+     ("HIST_RESET",1,"a history reset happened at this record (later stages clear this facility's state; never on DROPPED)")]
 U = [("REC_NO",32,""),("IN_LAST",1,""),("FRAME_ERR",1,"TLAST arrived before beat 6, record incomplete"),("REC",384,"the 48 B DATA record, byte k at bits [8k+7:8k]")]
 V = H + [("INFLOW",16,"s16, 0.5 bpd"),("LEVEL",16,"s16, 0.01 %"),("PUMP_FLOW",16,"s16, 0.5 bpd"),("RECV_FLOW",16,"s16, 0.5 bpd"),
      ("DIS_PSI",16,"s16, 0.1 psi"),("PIPE_PSI",16,"s16, 0.1 psi"),("PUMP_ST",2,"0 off, 1 running, 2 fault"),
