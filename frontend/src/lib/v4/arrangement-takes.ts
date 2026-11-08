@@ -1,6 +1,6 @@
 // Pure ordering and domain helpers for plan takes, failure tracks and the time axis.
 import type { FacilityState, Incident, PlanOption, Snapshot, SystemState } from "@/lib/engine/types";
-import { incidentsAt, localWindow } from "./derive";
+import { incidentsAt, localWindow, projectionEnd as playheadProjectionEnd } from "./derive";
 import type { Bounds } from "./arrangement-scale";
 
 const finiteCost = (o: PlanOption) => Number.isFinite(o.cost);
@@ -60,7 +60,8 @@ export function timeDomain(snapshot: Snapshot): Bounds {
   const win = localWindow(snapshot);
   return {
     start: Math.min(snapshot.dataset.startUnix, win.start),
-    end: Math.max(snapshot.dataset.nowUnix, snapshot.nowUnix, projectionEnd(snapshot)),
+    // the playhead can run to derive.projectionEnd (repair end, truck return), which can outlast the plan curves
+    end: Math.max(snapshot.dataset.nowUnix, snapshot.nowUnix, projectionEnd(snapshot), playheadProjectionEnd(snapshot) ?? 0),
   };
 }
 

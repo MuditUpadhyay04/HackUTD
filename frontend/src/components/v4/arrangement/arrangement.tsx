@@ -1,7 +1,7 @@
 "use client";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import type { Snapshot } from "@/lib/engine/types";
-import { localWindow } from "@/lib/v4/derive";
+import { isProjected, localWindow, projectedOffsetText } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
 import { stamp } from "@/lib/v4/format";
 import { clampView, gridTicks, panView, timeToX, viewSpan, xToTime, zoomView, type View } from "@/lib/v4/arrangement-scale";
@@ -113,7 +113,7 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
       <div className="arr" ref={rootRef} aria-label="Arrangement">
         <div className="arr-ruler">
           <div className="arr-hdr">
-            <TimeReadout />
+            <TimeReadout snapshot={snapshot} />
             <span className="arr-zoom">
               <button type="button" className="press" aria-label="Zoom out" onClick={() => zoomBy(1 / 1.6)}>-</button>
               <button type="button" className="press" aria-label="Zoom in" onClick={() => zoomBy(1.6)}>+</button>
@@ -177,9 +177,10 @@ function ArrangementInner({ snapshot }: { snapshot: Snapshot }) {
 
 // ---------------------------------------------------------------------------
 
-function TimeReadout() {
+function TimeReadout({ snapshot }: { snapshot: Snapshot }) {
   const minute = usePlayhead((s) => Math.floor(s.t / 60));
-  return <span className="arr-time">{stamp(minute * 60)}</span>;
+  const projected = isProjected(snapshot, minute * 60);
+  return <span className="arr-time" data-projected={projected}>{stamp(minute * 60)}{projected ? ` PROJECTED ${projectedOffsetText(snapshot, minute * 60)}` : ""}</span>;
 }
 
 const RulerTicks = memo(function RulerTicks() {
@@ -217,7 +218,7 @@ function Regions({ regions }: { regions: ReturnType<typeof unloadedRegions> }) {
         const left = Math.max(0, l);
         return (
           <div key={`${r.kind}:${r.start}`} className={`arr-region ${r.kind}`} style={{ left, width: Math.min(width, rr) - left }}>
-            <span>{r.kind === "notloaded" ? "NOT LOADED" : "PROJECTED"}</span>
+            <span>{r.kind === "notloaded" ? "NOT LOADED" : "PROJECTED, NOT RECORDED"}</span>
           </div>
         );
       })}

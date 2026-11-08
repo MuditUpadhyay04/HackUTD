@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { FacilityState, Incident, Snapshot } from "@/lib/engine/types";
-import { countdownAt, facilityAt, incidentsAt, lineColor, localWindow, sampleSeries, tickerAt, truckPositions } from "./derive";
+import { countdownAt, facilityAt, incidentsAt, isProjected, lineColor, localWindow, projectionEnd, projectionFollowing, sampleSeries, tickerAt, truckPositions } from "./derive";
 
 const NOW = 1_000_000;
 const ts = (n: number) => Array.from({ length: n }, (_, i) => NOW - (n - 1 - i) * 300);
@@ -193,4 +193,106 @@ test("lineColor cycles n1..n8", () => {
   expect(lineColor(7)).toBe("var(--n8)");
   expect(lineColor(8)).toBe("var(--n1)");
   expect(lineColor(-1)).toBe("var(--n8)");
+});
+
+describe("projection (what-if past nowUnix, hard rule 6)", () => {
+  const H = 3600;
+  // do_nothing: 60% now rising to the 95% limit at +120 min. plan (trucks): falls to 40% and never trips.
+  const doNothing = { kind: "do_nothing" as const, label: "", cost: 9000, trucks: 0, tripsPerTruck: 0, truckArrivalsMin: [], shutIns: [], tankTrips: true, tripAtMin: 120, levelCurve: [{ min: 0, pct: 60 }, { min: 120, pct: 95 }, { min: 240, pct: 100 }] };
+  const trucks = { ...doNothing, kind: "trucks" as const, cost: 400, trucks: 1, tripsPerTruck: 1, truckArrivalsMin: [30], tankTrips: false, tripAtMin: null, levelCurve: [{ min: 0, pct: 60 }, { min: 60, pct: 50 }, { min: 180, pct: 40 }] };
+  const pf = incident({ id: "pf", category: "pump_failure", onsetUnix: NOW - 1800, hoursToLimit: { p10: 1, p50: 2, p90: 3 }, repairEndsUnix: NOW + 3 * H, plan: trucks, options: [trucks, doNothing] });
+  const fleets = [{ systemId: "S1", size: 2, assignments: [{ truck: 1, incidentId: "pf", facilityId: "S1_FACILITY_A", fromUnix: NOW, toUnix: NOW + 5 * H, tripsArrivalUnix: [NOW + 1800] }] }];
+  const s = snap({ alerts: [pf], fleets });
+  const A = s.systems[0].facilities[0], B = s.systems[0].facilities[1];
+
+  test("projectionEnd is the max of repair end, truck return and last curve minute", () => {
+    expect(projectionEnd(s)).toBe(NOW + 5 * H); // truck toUnix beats repair end (3h) and curve (4h)
+    expect(isProjected(s, NOW)).toBe(false);
+    expect(isProjected(s, NOW + 1)).toBe(true);
+  });
+  test("projectionEnd is capped at 48 hours", () => {
+    const long = snap({ alerts: [{ ...pf, repairEndsUnix: NOW + 200 * H }], fleets });
+    expect(projectionEnd(long)).toBe(NOW + 48 * H);
+  });
+  test("no projection without an ongoing pump failure, or when the snapshot is not live", () => {
+    expect(projectionEnd(snap())).toBeNull();
+    expect(isProjected(snap(), NOW + 600)).toBe(false);
+    expect(projectionEnd(snap({ alerts: [incident({ id: "lk", category: "pipeline_leak" })] }))).toBeNull();
+    const past = snap({ alerts: [pf], fleets, nowUnix: NOW - 3600 });
+    expect(projectionEnd(past)).toBeNull();
+    expect(isProjected(past, NOW - 600)).toBe(false);
+    // recorded past is unchanged: sampled series, not a curve
+    expect(facilityAt(past, past.systems[0].facilities[0], NOW - 3900).projected).toBe(false);
+  });
+  test("failing tank follows do_nothing before approval and the recommended plan after", () => {
+    const t = NOW + 3600;
+    const before = facilityAt(s, A, t, []);
+    expect(before.projected).toBe(true);
+    expect(before.following).toBe("do_nothing");
+    expect(before.levelPct).toBeCloseTo(77.5, 5); // halfway 60 -> 95
+    expect(before.status).toBe("down");
+    const after = facilityAt(s, A, t, ["pf"]);
+    expect(after.following).toBe("approved");
+    expect(after.levelPct).toBeCloseTo(50, 5);
+    expect(facilityAt(s, A, t, new Set(["pf"])).levelPct).toBeCloseTo(50, 5);
+  });
+  test("status becomes shut when the followed curve reaches the limit (and stays shut)", () => {
+    expect(facilityAt(s, A, NOW + 2 * H - 60, []).status).toBe("down");
+    expect(facilityAt(s, A, NOW + 2 * H, []).status).toBe("shut");
+    expect(facilityAt(s, A, NOW + 3 * H, []).status).toBe("shut");
+    expect(facilityAt(s, A, NOW + 4 * H, ["pf"]).status).toBe("down"); // plan never trips
+  });
+  test("countdown agrees with the followed curve", () => {
+    const c = countdownAt(pf, s, NOW + 1800, []);
+    expect(c.kind).toBe("counting");
+    expect(c.shutdownUnix?.p50).toBe(NOW + 2 * H);
+    expect(c.remainingHours?.p50).toBeCloseTo(1.5, 5);
+    expect(countdownAt(pf, s, NOW + 2 * H, []).kind).toBe("shut");
+    expect(countdownAt(pf, s, NOW + 1800, ["pf"]).kind).toBe("averted");
+  });
+  test("a failing tank without a do_nothing curve holds its level and is marked unknown", () => {
+    const noIdle = { ...pf, options: [trucks] };
+    const s2 = snap({ alerts: [noIdle], fleets });
+    const f = facilityAt(s2, s2.systems[0].facilities[0], NOW + 3600, []);
+    expect(f.following).toBe("unknown");
+    expect(f.levelPct).toBe(53); // last recorded level
+    expect(countdownAt(noIdle, s2, NOW + 3600, []).kind).toBe("unknown");
+    expect(projectionFollowing(s2, [])).toEqual([{ systemId: "S1", following: "unknown" }]);
+  });
+  test("non-failing facilities hold their last known values (never new flows)", () => {
+    const at = facilityAt(s, B, NOW + 2 * H, []);
+    const now = facilityAt(s, B, NOW, []);
+    expect(at.projected).toBe(true);
+    expect(at.levelPct).toBe(now.levelPct);
+    expect(at.pumpFlowBpd).toBe(now.pumpFlowBpd);
+    expect(at.inflowBpd).toBe(now.inflowBpd);
+    expect(at.quality).toBe(now.quality);
+    expect(at.status).toBe(now.status);
+    expect(at.following).toBeNull();
+    // a healthy facility in a system with a failure
+    const other = snap({ alerts: [{ ...pf, facilityId: "S1_FACILITY_B" }], fleets });
+    const h = facilityAt(other, other.systems[0].facilities[0], NOW + 2 * H, []);
+    expect(h.levelPct).toBe(53);
+    expect(h.pumpFlowBpd).toBe(10);
+    expect(h.status).toBe("flowing");
+  });
+  test("trucks are ghosts until approval, solid after, and move past nowUnix", () => {
+    const at = (a: string[]) => truckPositions(s, "S1", NOW + 900, a).find((x) => x.truck === 1)!;
+    expect(at([]).phase).toBe("outbound");
+    expect(at([]).planned).toBe(true);
+    expect(at(["pf"]).planned).toBe(false);
+    const sysPlan = { ...pf, plan: { ...trucks, systemPlanId: "SP1" } } as Incident;
+    const s3 = snap({ alerts: [sysPlan], fleets });
+    expect(truckPositions(s3, "S1", NOW + 900, ["SP1"]).find((x) => x.truck === 1)!.planned).toBe(false);
+  });
+  test("ticker NOW cell becomes a projected label", () => {
+    const m = Object.fromEntries(tickerAt(s, NOW + 2 * H + 600, []).map((i) => [i.key, i]));
+    expect(m.now.value).toBe("PROJECTED +2H 10M");
+    expect(m.now.projected).toBe(true);
+    expect(m.firstShutdown.value).toBe(NOW + 2 * H);
+    expect(Object.fromEntries(tickerAt(s, NOW + 600, ["pf"]).map((i) => [i.key, i.value])).firstShutdown).toBe("NONE");
+    const recorded = tickerAt(s, NOW, []).find((i) => i.key === "now")!;
+    expect(recorded.projected).toBeUndefined();
+    expect(recorded.unit).toBe("datetime");
+  });
 });

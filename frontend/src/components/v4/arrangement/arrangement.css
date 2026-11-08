@@ -138,3 +138,5 @@
   .arr-pop, .arr-pop[data-state="closed"] { transition: opacity 150ms linear; transform: none; }
   .arr-note:active, .arr-btn:active:not(:disabled), .arr-zoom button:active, .arr-more:active { transform: none; }
 }
+
+.arr-time[data-projected="true"] { color: var(--amber); }

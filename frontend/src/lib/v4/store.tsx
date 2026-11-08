@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState, useSyncExternalStore, t
 import type { Snapshot } from "@/lib/engine/types";
 import type { OperatorAction, Snapshot as ApiSnapshot } from "@hackutd/contracts";
 import { api, commandKey, unwrap } from "@/lib/api";
-import { localWindow } from "@/lib/v4/derive";
+import { localWindow, projectionEnd } from "@/lib/v4/derive";
 
 export const STEP_SECONDS = 300;
 /** 1x = 5 minutes of data per second. */
@@ -32,7 +32,7 @@ export interface PlayheadActions {
   toggle(): void;
   /** direction * 5 minutes. */
   step(direction: 1 | -1): void;
-  /** Clamped to [dataset.startUnix, dataset.nowUnix]; stops playback at the end. */
+  /** Clamped to [dataset.startUnix, projectionEnd or dataset.nowUnix]; stops playback at the end. */
   seek(t: number): void;
   setSpeed(speed: Speed): void;
   toggleSound(): void;
@@ -52,9 +52,11 @@ export interface PlayheadStore {
 // Survives run changes (module scope, per browser tab).
 const carry = { playing: false, speed: 1 as Speed, sound: false };
 
-export function createPlayheadStore(snapshot: Pick<Snapshot, "nowUnix" | "dataset" | "systems">): PlayheadStore {
+export function createPlayheadStore(snapshot: Pick<Snapshot, "nowUnix" | "dataset" | "systems" | "alerts" | "fleets">): PlayheadStore {
   const lo = snapshot.dataset.startUnix;
-  const hi = snapshot.dataset.nowUnix;
+  // End of the playable range: the dataset end, or the end of the projection (what-if zone) on a live snapshot with a
+  // pump failure. Past snapshot.nowUnix the shell never commits a run (it is a simulation, hard rule 6).
+  const hi = Math.max(snapshot.dataset.nowUnix, projectionEnd(snapshot as Snapshot) ?? 0);
   let state: PlayheadState = { t: snapshot.nowUnix, playing: carry.playing, speed: carry.speed, sound: carry.sound, approved: [], focus: null };
   const listeners = new Set<() => void>();
   const set = (patch: Partial<PlayheadState>) => {

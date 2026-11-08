@@ -2,7 +2,7 @@
 import { memo, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import type { FacilityState, Incident, PlanOption, Snapshot } from "@/lib/engine/types";
 import { approvePlan, StalePlanError, usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
-import { facilityAt, lineColor, sampleSeries, type FacilityStatus } from "@/lib/v4/derive";
+import { facilityAt, isProjected, lineColor, sampleSeries, type FacilityStatus } from "@/lib/v4/derive";
 import { facilityName, hhmm, usd, UNKNOWN } from "@/lib/v4/format";
 import { curvePath, seriesMax, seriesPath } from "@/lib/v4/arrangement-paths";
 import { facilityClips, type Clip } from "@/lib/v4/arrangement-clips";
@@ -10,6 +10,10 @@ import { takesOf } from "@/lib/v4/arrangement-takes";
 import { laneViewBox, useArr, xOf } from "./ctx";
 
 /** Playhead time in whole minutes: readouts re-render at most once per data minute, never per frame. */
+function useApproved() {
+  return usePlayhead((s) => s.approved);
+}
+
 function useMinuteT(): number {
   return usePlayhead((s) => Math.floor(s.t / 60)) * 60;
 }
@@ -49,7 +53,8 @@ function Glyph({ status }: { status: FacilityStatus }) {
 function FacilityReadout({ facility }: { facility: FacilityState }) {
   const { snapshot } = useArr();
   const t = useMinuteT();
-  const at = useMemo(() => facilityAt(snapshot, facility, t), [snapshot, facility, t]);
+  const approved = useApproved();
+  const at = useMemo(() => facilityAt(snapshot, facility, t, approved), [snapshot, facility, t, approved]);
   const s = STATUS[at.status];
   return (
     <span className="arr-readout">
@@ -145,9 +150,15 @@ const LANES = [
   { key: "receiveFlow", name: "RECEIVE" },
 ] as const;
 
-function LaneValue({ series, mode, pct }: { series: FacilityState["series"]["level"]; mode: "step" | "linear"; pct: boolean }) {
+function LaneValue({ facility, lane }: { facility: FacilityState; lane: (typeof LANES)[number]["key"] }) {
+  const { snapshot } = useArr();
   const t = useMinuteT();
-  const v = sampleSeries(series, t, mode);
+  const approved = useApproved();
+  const pct = lane === "level";
+  // Past nowUnix the lanes hold their last reading; only a failing tank follows its level curve (derive.facilityAt).
+  const v = isProjected(snapshot, t)
+    ? (pct ? facilityAt(snapshot, facility, t, approved).levelPct : sampleSeries(facility.series[lane], snapshot.nowUnix, "step"))
+    : sampleSeries(facility.series[lane], t, pct ? "linear" : "step");
   if (v == null) return <b className="arr-unk">{UNKNOWN}</b>;
   return <b>{pct ? `${v.toFixed(0)}%` : `${Math.round(v).toLocaleString("en-US")} BPD`}</b>;
 }
@@ -168,7 +179,7 @@ function Lanes({ facility, color }: { facility: FacilityState; color: string }) 
         <div className="arr-row sub" key={l.key}>
           <div className="arr-hdr sub" style={{ ["--c" as string]: color }}>
             <span>{l.name}{l.key === "level" ? <i className="arr-limit"> LIMIT {snapshot.limits.shutdownPct}%</i> : null}</span>
-            <LaneValue series={facility.series[l.key]} mode={l.key === "level" ? "linear" : "step"} pct={l.key === "level"} />
+            <LaneValue facility={facility} lane={l.key} />
           </div>
           <div className="arr-lane">
             <GapDither gaps={built[i].gaps} />

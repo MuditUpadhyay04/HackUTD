@@ -5,7 +5,7 @@
 // keyboard-initiated camera moves never animate.
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FacilityState, Snapshot, SystemState } from "@/lib/engine/types";
-import { lineColor } from "@/lib/v4/derive";
+import { isProjected, lineColor, projectionFollowing, type Following } from "@/lib/v4/derive";
 import { bpd } from "@/lib/v4/format";
 import { dotSpacing, fitCam, lodAt, zoomAt, type Cam } from "@/lib/v4/pipeview-camera";
 import { computeLayout, layoutKey, type Box, type ClusterLayout, type PipeLayout, type SystemInput } from "@/lib/v4/pipeview-layout";
@@ -90,11 +90,28 @@ function pxColor(root: HTMLElement, v: string): string {
   return name ? getComputedStyle(root).getPropertyValue(name).trim() || "#2CE5FF" : v;
 }
 
+const FOLLOWING_TEXT: Record<Following, string> = { approved: "APPROVED PLAN", do_nothing: "DO NOTHING", unknown: "NO CURVE, LEVEL HELD" };
+
+/** Slim top-left overlay while the playhead is in the PROJECTED zone (hard rules 6 and 12). */
+function ProjectionBadge({ snapshot }: { snapshot: Snapshot }) {
+  const key = usePlayhead((s) => (isProjected(snapshot, s.t) ? projectionFollowing(snapshot, s.approved).map((f) => `${f.systemId}:${f.following}`).join(",") : null));
+  if (key == null) return null;
+  const rows = key === "" ? [] : key.split(",").map((r) => { const i = r.lastIndexOf(":"); return { id: r.slice(0, i), f: r.slice(i + 1) as Following }; });
+  return (
+    <div className="pv-proj" role="status" aria-label="Projection, not recorded">
+      {rows.length <= 1
+        ? <div>PROJECTION, NOT RECORDED. FOLLOWING: {rows[0] ? FOLLOWING_TEXT[rows[0].f] : "NO FAILURE"}</div>
+        : rows.map((r) => <div key={r.id}>PROJECTION, NOT RECORDED. {r.id} FOLLOWING: {FOLLOWING_TEXT[r.f]}</div>)}
+    </div>
+  );
+}
+
 export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, "_");
   const store = usePlayheadStore();
   const { setFocus } = usePlayheadActions();
   const focus = usePlayhead((s) => s.focus);
+  const projected = usePlayhead((s) => isProjected(snapshot, s.t));
   // Real pane aspect (width/height), quantized to 0.25 so a window drag does not relayout on every pixel.
   const [aspect, setAspect] = useState<number | null>(null);
   const { key: lkey, layout } = layoutFor(snapshot, aspect ?? undefined);
@@ -392,7 +409,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   const empty = layout.clusters.length === 0;
 
   return (
-    <div className="pv" ref={rootRef} tabIndex={0} role="group" aria-label="Pipe View, network map" onKeyDown={onKeyDown}>
+    <div className="pv" ref={rootRef} data-projected={projected ? "true" : undefined} tabIndex={0} role="group" aria-label="Pipe View, network map" onKeyDown={onKeyDown}>
       <svg
         className="pv-svg" ref={svgRef} data-lod="near"
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerEnd} onPointerCancel={onPointerEnd}
@@ -418,6 +435,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
         </g>
       </svg>
       <canvas className="pv-canvas" ref={canvasRef} aria-hidden="true" />
+      <ProjectionBadge snapshot={snapshot} />
       <div className="pv-hud">
         <div className="pv-hint">DRAG PAN, CTRL SCROLL ZOOM, 0 FIT, 1 TO 9 FRAME SYSTEM</div>
         <div className="pv-legend" aria-label="State encoding">

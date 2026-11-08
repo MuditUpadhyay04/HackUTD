@@ -33,6 +33,7 @@ function Rolling({ text }: { text: string }) {
 
 function Value({ item, text }: { item: TickerItem; text: string }) {
   const v = item.value;
+  if (item.projected && typeof v === "string") return <span className="tk-proj">{text}</span>;
   if (v == null) return <span className="tk-unknown">UNKNOWN</span>;
   if (typeof v === "number" && item.unit === "count") return <NumberFlow value={v} format={{ useGrouping: false }} />;
   if (typeof v === "number" && item.unit === "usd") return <NumberFlow value={Math.round(v)} prefix="$" format={{ maximumFractionDigits: 0 }} />;
@@ -58,7 +59,7 @@ const Cell = memo(function Cell({ item }: { item: TickerItem }) {
   const hot = item.key === "pumpsDown" && typeof item.value === "number" && item.value > 0;
   const title = item.key === "alarms" ? "Board alarms (E-STOP, Night Shift), display only" : item.key === "board" ? "Board provenance" : undefined;
   return (
-    <div className="tk-c" data-k={item.key} data-p={PRIORITY[item.key] ?? 1} data-hot={hot} title={title}>
+    <div className="tk-c" data-k={item.key} data-p={PRIORITY[item.key] ?? 1} data-hot={hot} data-projected={item.projected ? "true" : undefined} title={item.projected ? "PROJECTED: a what-if simulation past the last reading, not recorded telemetry" : title}>
       <span className="label">{item.label}</span>
       <span className="tk-v"><Value item={item} text={text} /></span>
       <i className="tk-ul" ref={ul} />
@@ -69,7 +70,8 @@ const Cell = memo(function Cell({ item }: { item: TickerItem }) {
 export function Ticker({ snapshot }: { snapshot: Snapshot }) {
   // Select a primitive (the minute); an array selector would change identity on every store notification.
   const minute = usePlayhead((s) => Math.round(s.t / 60));
-  const items = useMemo(() => tickerAt(snapshot, minute * 60), [snapshot, minute]);
+  const approved = usePlayhead((s) => s.approved);
+  const items = useMemo(() => tickerAt(snapshot, minute * 60, approved), [snapshot, minute, approved]);
   return (
     <div className="tk" role="group" aria-label="Status ticker">
       <div className="tk-row">

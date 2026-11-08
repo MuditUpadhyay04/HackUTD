@@ -1,7 +1,7 @@
 // View model for one Pipe View line at playhead time t. Pure: every value comes from derive.ts (facilityAt,
 // countdownAt) and the Snapshot. Missing data stays null and is never rendered as healthy (hard rule 9).
 import type { FacilityState, Quality, Series, Snapshot } from "@/lib/engine/types";
-import { countdownAt, facilityAt, type FacilityStatus } from "./derive";
+import { countdownAt, facilityAt, type Approved, type FacilityStatus } from "./derive";
 import { countdownText } from "./format";
 import type { PlayheadState } from "./store";
 
@@ -58,8 +58,8 @@ export function staleMinutes(series: Series, t: number): number | null {
   return i < 0 ? null : Math.max(0, Math.round((t - series.t[i]) / 60));
 }
 
-export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number): LineVM {
-  const a = facilityAt(snapshot, fac, t);
+export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number, approved: Approved = []): LineVM {
+  const a = facilityAt(snapshot, fac, t, approved);
   const has = (c: string) => a.activeIncidents.some((i) => i.category === c);
   let q: QLevel = Q_LEVEL[a.quality];
   if (a.status === "nodata" && q === 0) q = 3;
@@ -77,11 +77,12 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number): L
   let tone: Tone = "none";
   let etaText: string | null = null;
   if (down && failInc) {
-    const c = countdownAt(failInc, snapshot, t);
+    const c = countdownAt(failInc, snapshot, t, approved);
     tone = "down";
     if (c.kind === "counting") { stateText = `SHUTDOWN ${countdownText(c.remainingHours?.p50)}`; etaText = `P10 ${countdownText(c.remainingHours?.p10)} TO P90 ${countdownText(c.remainingHours?.p90)}`; }
     else if (c.kind === "shut") stateText = "SHUTDOWN AT LIMIT";
     else if (c.kind === "not_filling") stateText = "PUMP DOWN, NOT FILLING";
+    else if (c.kind === "averted") stateText = "PUMP DOWN, SHUTDOWN AVERTED";
     else stateText = "SHUTDOWN UNKNOWN";
   } else if (shut) { stateText = "SHUT IN"; tone = redOn ? "down" : "none"; }
   else if (a.status === "leak") { tone = "inspect"; stateText = leakInc?.estLeakBblPerDay != null ? `INSPECT ${Math.round(leakInc.estLeakBblPerDay)} BBL/D EST` : "INSPECT LEAK"; }
@@ -89,8 +90,10 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number): L
   else if (a.status === "idle") stateText = "IDLE";
 
   // Data quality overrides the plain look: the line is grain, never healthy.
-  const stale = Math.max(staleMinutes(fac.series.level, t) ?? 0, staleMinutes(fac.series.pumpFlow, t) ?? 0);
-  const nearNow = Math.abs(t - snapshot.nowUnix) <= STEP;
+  // Projected time holds the last reading: staleness is measured at nowUnix, not at the projected t.
+  const tr = a.projected ? snapshot.nowUnix : t;
+  const stale = Math.max(staleMinutes(fac.series.level, tr) ?? 0, staleMinutes(fac.series.pumpFlow, tr) ?? 0);
+  const nearNow = a.projected || Math.abs(t - snapshot.nowUnix) <= STEP;
   let reasonText: string | null = null;
   if (bad) {
     if (nearNow && fac.dataQuality.reasons.length > 0) reasonText = clean(fac.dataQuality.reasons[0]);
@@ -143,12 +146,14 @@ export function lineViewAt(snapshot: Snapshot, fac: FacilityState, t: number): L
  */
 export function makeLineSelector(snapshot: Snapshot, fac: FacilityState): (s: PlayheadState) => LineVM {
   let lastMinute = Number.NaN;
+  let lastApproved: PlayheadState["approved"] | null = null;
   let last: LineVM | null = null;
   return (s) => {
     const minute = Math.floor(s.t / 60);
-    if (last && minute === lastMinute) return last;
+    if (last && minute === lastMinute && s.approved === lastApproved) return last;
     lastMinute = minute;
-    const next = lineViewAt(snapshot, fac, minute * 60);
+    lastApproved = s.approved;
+    const next = lineViewAt(snapshot, fac, minute * 60, s.approved);
     if (!last || last.key !== next.key) last = next;
     return last;
   };

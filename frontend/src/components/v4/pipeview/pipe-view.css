@@ -105,3 +105,8 @@
   .v4 .pv-line .vis > *, .v4 .pv-line .vis > g > * { transition-duration: 150ms; }
   .v4 .pv-tfill { transition: none; }
 }
+
+/* PROJECTED zone: unmistakable amber frame plus a slim top-left label (what-if, never recorded telemetry). */
+.v4 .pv[data-projected="true"]::after { content: ""; position: absolute; inset: 0; pointer-events: none; border: 2px dashed var(--amber); opacity: 0.7; }
+.v4 .pv-proj { position: absolute; left: 8px; top: 8px; z-index: 3; display: flex; flex-direction: column; gap: 1px; padding: 2px 6px; pointer-events: none; font: 600 10px var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--amber); background-color: var(--bg); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; border: 1px solid var(--amber); border-radius: var(--r-1); }
+.v4 .pv-proj > div { background: var(--bg); padding: 0 3px; }

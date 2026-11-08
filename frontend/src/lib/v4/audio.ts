@@ -48,6 +48,13 @@ export function playAlert(): void {
   tone(440, 0.22, 0.16, 0.06, "triangle");
 }
 
+/** Projected tank trip: a low three-note descent, distinct from the failure alert. */
+export function playTrip(): void {
+  tone(520, 0.12, 0, 0.07, "square");
+  tone(390, 0.12, 0.13, 0.07, "square");
+  tone(260, 0.3, 0.26, 0.07, "square");
+}
+
 /** Mount once (Transport does). Diffs derived state on playhead changes; no re-render. */
 export function useAudioCues(snapshot: Snapshot): void {
   const store = usePlayheadStore();
@@ -62,7 +69,8 @@ export function useAudioCues(snapshot: Snapshot): void {
     window.addEventListener("keydown", gesture, true);
 
     const init = store.getState();
-    let prev: AudioProbe | null = probeAt(snapshot, init.t);
+    let prev: AudioProbe | null = probeAt(snapshot, init.t, init.approved);
+    let approved = init.approved;
     let minute = Math.floor(init.t / 60);
     let wasPlaying = init.playing;
     let wasSound = init.sound;
@@ -72,15 +80,20 @@ export function useAudioCues(snapshot: Snapshot): void {
         wasSound = s.sound;
         if (s.sound) { unlockAudio(); playTick(); } // audible confirmation, inside the toggle's gesture
       }
+      if (s.approved !== approved) { // approval changes the followed curve: re-baseline silently
+        approved = s.approved;
+        prev = probeAt(snapshot, s.t, approved);
+      }
       const m = Math.floor(s.t / 60);
       if (m === minute && s.playing === wasPlaying) return; // steps change on minute boundaries only
       minute = m;
       wasPlaying = s.playing;
-      const next = probeAt(snapshot, s.t);
+      const next = probeAt(snapshot, s.t, s.approved);
       const cues = diffCues(prev, next, s.playing);
       prev = next;
       if (!s.sound) return;
-      if (cues.alert) playAlert();
+      if (cues.trip) playTrip();
+      else if (cues.alert) playAlert();
       else if (cues.tick) playTick();
     });
     return () => {

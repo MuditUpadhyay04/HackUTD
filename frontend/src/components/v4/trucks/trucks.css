@@ -31,3 +31,4 @@
 /* Unloading: tiny dithered "fill draining" bar above the tank. */
 .v4 .rd-drain { position: absolute; left: 2px; top: -9px; width: 18px; height: 6px; background-color: color-mix(in srgb, currentColor 18%, transparent); background-image: var(--dither-50); background-size: 8px 8px; image-rendering: pixelated; border: 1px solid currentColor; opacity: 0; }
 .v4 .rd-truck[data-phase="unloading"] .rd-drain { opacity: 1; }
+.v4 .rd-tag[data-kind="projected"] { border: 1px solid var(--amber); color: var(--amber); background-color: var(--raised); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }

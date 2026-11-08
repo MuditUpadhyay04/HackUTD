@@ -7,6 +7,9 @@
 .v4 .tk-v { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 500; letter-spacing: 0.02em; color: var(--text); font-variant-numeric: tabular-nums; }
 .v4 .tk-c[data-hot="true"] .tk-v { color: var(--red); }
 .v4 .tk-unknown { display: inline-block; padding: 1px 6px; color: var(--text); background-color: var(--raised); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; border: 1px solid var(--line-2); border-radius: var(--r-1); font-size: var(--fs-1); }
+/* PROJECTED NOW cell: amber text on a 25% dither (a what-if, never recorded telemetry). */
+.v4 .tk-c[data-projected="true"] { background-color: var(--raised); background-image: var(--dither-25); background-size: 8px 8px; image-rendering: pixelated; }
+.v4 .tk-proj { color: var(--amber); font-weight: 600; padding: 1px 4px; background: var(--bg); border-radius: var(--r-1); }
 /* Amber underline: transition on opacity, retriggered from script (instant on, then fade). */
 .v4 .tk-ul { position: absolute; left: 8px; right: 8px; bottom: 3px; height: 2px; background: var(--amber); opacity: 0; transform-origin: left; transition: opacity 600ms ease-out; pointer-events: none; }
 .v4 .tk-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }

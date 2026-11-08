@@ -33,7 +33,7 @@ export function StatusGlyph({ status, size = 12 }: { status: FacilityStatus; siz
 const iconProps = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
 
 export function Rail({ snapshot, datasetId }: { snapshot: Snapshot; datasetId?: string }) {
-  const keys = usePlayhead((s) => snapshot.systems.map((sys) => systemStatusAt(snapshot, sys, s.t)).join(","));
+  const keys = usePlayhead((s) => snapshot.systems.map((sys) => systemStatusAt(snapshot, sys, s.t, s.approved)).join(","));
   const focused = usePlayhead((s) => (s.focus?.kind === "system" ? s.focus.id : null));
   const { setFocus } = usePlayheadActions();
   const statuses = keys.split(",") as FacilityStatus[];

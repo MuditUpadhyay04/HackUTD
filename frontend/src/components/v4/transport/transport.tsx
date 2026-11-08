@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import type { RuntimeMode } from "@hackutd/contracts";
 import type { Snapshot } from "@/lib/engine/types";
 import type { RunControls } from "@/lib/v4/use-run";
-import { inWindow, isLive, localWindow } from "@/lib/v4/derive";
+import { inWindow, isLive, isProjected, localWindow } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions, SPEEDS } from "@/lib/v4/store";
 import { stamp, systemNum } from "@/lib/v4/format";
 import { useGlobalKeyboard, useReverseSpeed } from "@/lib/v4/keyboard";
@@ -38,8 +38,9 @@ export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunContr
   const [upload, setUpload] = useState(false);
 
   const win = useMemo(() => localWindow(snapshot), [snapshot]);
-  const live = isLive(snapshot) && minute >= snapshot.nowUnix - 60;
-  const loaded = inWindow(win, minute);
+  const projected = isProjected(snapshot, minute);
+  const live = isLive(snapshot) && minute >= snapshot.nowUnix - 60 && !projected;
+  const loaded = projected || inWindow(win, minute);
   const goLive = useCallback(() => { if (isLive(snapshot)) a.seek(snapshot.nowUnix); else run.commitAt(null); }, [snapshot, a, run]);
 
   useGlobalKeyboard({ onPalette: () => setPalette((o) => !o) });
@@ -68,7 +69,7 @@ export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunContr
       <button type="button" className="tx-btn press" onClick={() => a.step(1)} aria-label="Step forward 5 minutes" title="Step forward 5 minutes (Right)">{I.fwd}</button>
       <div className="tx-time" aria-live="off">
         <b>{stamp(minute)}</b>
-        <span data-warn={!loaded || reverse != null}>{reverse != null ? `REVERSE ${reverse}X` : !loaded ? "NOT LOADED" : live ? "LAST READING" : "REPLAY"}</span>
+        <span data-warn={!loaded || reverse != null || projected} data-projected={projected}>{reverse != null ? `REVERSE ${reverse}X` : projected ? "PROJECTED" : !loaded ? "NOT LOADED" : live ? "LAST READING" : "REPLAY"}</span>
       </div>
       <div className="tx-seg" role="group" aria-label="Speed">
         {SPEEDS.map((s) => <button key={s} type="button" className="tx-btn press" aria-pressed={reverse == null && s === speed} onClick={() => a.setSpeed(s)} title={`${s * 5} minutes of data per second`}>{s}X</button>)}

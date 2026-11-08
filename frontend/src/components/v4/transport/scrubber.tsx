@@ -3,7 +3,7 @@
 // data outside the window). Dragging seeks the playhead; the shell commits a new run after the debounce.
 import { useLayoutEffect, useMemo, useRef, type KeyboardEvent, type PointerEvent } from "react";
 import type { Snapshot } from "@/lib/engine/types";
-import { localWindow } from "@/lib/v4/derive";
+import { localWindow, projectionEnd } from "@/lib/v4/derive";
 import { stamp } from "@/lib/v4/format";
 import { usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
 
@@ -12,7 +12,9 @@ export function MiniScrubber({ snapshot }: { snapshot: Snapshot }) {
   const a = usePlayheadActions();
   const minute = usePlayhead((s) => Math.floor(s.t / 60) * 60);
   const lo = snapshot.dataset.startUnix;
-  const hi = snapshot.dataset.nowUnix;
+  const proj = useMemo(() => projectionEnd(snapshot), [snapshot]);
+  // The scale runs on into the PROJECTED zone (what-if past the last reading) when the run is live with a pump failure.
+  const hi = Math.max(snapshot.dataset.nowUnix, proj ?? 0);
   const span = Math.max(1, hi - lo);
   const win = useMemo(() => localWindow(snapshot), [snapshot]);
   const frac = (t: number) => Math.min(1, Math.max(0, (t - lo) / span));
@@ -64,7 +66,7 @@ export function MiniScrubber({ snapshot }: { snapshot: Snapshot }) {
       aria-valuemax={hi}
       aria-valuenow={minute}
       aria-valuetext={stamp(minute)}
-      title={`LOADED ${stamp(win.start)} TO ${stamp(win.end)}. DITHERED PARTS ARE NOT LOADED.`}
+      title={`LOADED ${stamp(win.start)} TO ${stamp(win.end)}. DITHERED PARTS ARE NOT LOADED.${proj != null ? ` AMBER DITHER AFTER NOW IS PROJECTED, NOT RECORDED, TO ${stamp(proj)}.` : ""}`}
       onPointerDown={onDown}
       onPointerMove={onMove}
       onPointerUp={onUp}
@@ -74,7 +76,9 @@ export function MiniScrubber({ snapshot }: { snapshot: Snapshot }) {
       <div className="sc-track" ref={track}>
         <i className="sc-seg" data-loaded="false" style={{ left: 0, width: pct(ws) }} />
         <i className="sc-seg" data-loaded="true" style={{ left: pct(ws), width: pct(Math.max(0, we - ws)) }} />
-        <i className="sc-seg" data-loaded="false" style={{ left: pct(we), width: pct(1 - we) }} />
+        {proj != null
+          ? <i className="sc-seg" data-projected="true" style={{ left: pct(we), width: pct(1 - we) }} />
+          : <i className="sc-seg" data-loaded="false" style={{ left: pct(we), width: pct(1 - we) }} />}
       </div>
       <i className="sc-now" style={{ left: pct(frac(snapshot.nowUnix)) }} />
       <div className="sc-head" ref={head} />

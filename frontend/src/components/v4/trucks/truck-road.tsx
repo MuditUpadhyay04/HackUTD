@@ -6,7 +6,7 @@
 import "./trucks.css";
 import { memo, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { Snapshot } from "@/lib/engine/types";
-import { incidentsAt, lineColor, truckPositions } from "@/lib/v4/derive";
+import { incidentsAt, isPlanApproved, isProjected, lineColor, truckPositions } from "@/lib/v4/derive";
 import { facilityName } from "@/lib/v4/format";
 import { usePlayhead, usePlayheadStore, STEP_SECONDS } from "@/lib/v4/store";
 
@@ -75,8 +75,9 @@ const Strip = memo(function Strip({ snapshot, systemId }: { snapshot: Snapshot; 
   const downKey = usePlayhead((s) => incidentsAt(snapshot, s.t).filter((i) => i.category === "pump_failure" && i.systemId === systemId).map((i) => i.facilityId).join(","));
   const approvedAll = usePlayhead((s) => {
     const mine = incidentsAt(snapshot, s.t).filter((i) => i.category === "pump_failure" && i.systemId === systemId);
-    return mine.length > 0 && mine.every((i) => s.approved.includes(i.id) || (i.plan != null && s.approved.includes((i.plan as { id?: string }).id ?? "\0")));
+    return mine.length > 0 && mine.every((i) => isPlanApproved(i, s.approved));
   });
+  const projected = usePlayhead((s) => isProjected(snapshot, s.t));
   const free = usePlayhead((s) => truckPositions(snapshot, systemId, s.t, s.approved).filter((p) => p.phase === "yard").length);
 
   const stops = useMemo(() => (stopKey ? stopKey.split(",") : []), [stopKey]);
@@ -122,6 +123,7 @@ const Strip = memo(function Strip({ snapshot, systemId }: { snapshot: Snapshot; 
     <div className="rd" role="group" aria-label={`Truck road, system ${systemId}`}>
       <div className="rd-head">
         <div className="rd-title"><b>SYSTEM {systemId}</b><span>TRUCKS FREE {free}/{size}</span></div>
+        {projected && <span className="rd-tag" data-kind="projected">PROJECTED, NOT RECORDED</span>}
         <span className="rd-tag" data-kind="plan">PLANNED, NOT DISPATCHED</span>
         <span className="rd-tag" data-ok={approvedAll}>{approvedAll ? "APPROVED, ACKNOWLEDGED" : "RECOMMENDED, NOT APPROVED"}</span>
       </div>

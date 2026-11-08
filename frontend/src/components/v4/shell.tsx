@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import type { Snapshot } from "@/lib/engine/types";
 import type { RunControls } from "@/lib/v4/use-run";
-import { inWindow, localWindow } from "@/lib/v4/derive";
+import { inWindow, isProjected, localWindow } from "@/lib/v4/derive";
 import { usePlayheadStore } from "@/lib/v4/store";
 import { Ticker } from "./ticker/ticker";
 import { PipeView } from "./pipeview/pipe-view";
@@ -17,21 +17,24 @@ export const COMMIT_DEBOUNCE_MS = 600;
  * Time model (docs/ui-v4-build.md): inside localWindow(snapshot) the playhead is rendered locally. Outside it, wait
  * 600 ms after the last scrub (or after play runs past nowUnix) and load a run at that time. A run already loading
  * blocks further commits. t at or past the dataset end commits LIVE (commitAt does the mapping).
+ * Exception: on a live snapshot with a pump failure, t past nowUnix is the PROJECTED what-if zone (derive.isProjected):
+ * it is simulated locally and never commits a run (hard rule 6).
  */
 function useDebouncedCommit(snapshot: Snapshot, run: RunControls) {
   const store = usePlayheadStore();
   const win = useMemo(() => localWindow(snapshot), [snapshot]);
   const { commitAt, loading } = run;
   useEffect(() => {
+    const local = (t: number) => inWindow(win, t) || isProjected(snapshot, t);
     let timer: number | undefined;
     const fire = () => {
       timer = undefined;
       const s = store.getState();
-      if (!inWindow(win, s.t)) commitAt(s.t);
+      if (!local(s.t)) commitAt(s.t);
     };
     const check = () => {
       const s = store.getState();
-      if (loading || inWindow(win, s.t)) { window.clearTimeout(timer); timer = undefined; return; }
+      if (loading || local(s.t)) { window.clearTimeout(timer); timer = undefined; return; }
       // While playing past the window the playhead moves every frame: keep the pending timer instead of re-arming it.
       if (s.playing && timer !== undefined) return;
       window.clearTimeout(timer);
@@ -40,7 +43,7 @@ function useDebouncedCommit(snapshot: Snapshot, run: RunControls) {
     check();
     const off = store.subscribe(check);
     return () => { off(); window.clearTimeout(timer); };
-  }, [store, win, commitAt, loading]);
+  }, [store, win, snapshot, commitAt, loading]);
 }
 
 const MIN = 0.2, MAX = 0.8;
