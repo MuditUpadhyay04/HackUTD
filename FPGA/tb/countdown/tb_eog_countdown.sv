@@ -221,7 +221,8 @@ module tb_eog_countdown;
                         ep    = ep + 1;
                         st_ev = st_ev + 1;
                     end
-                    ev_wait = 1'b0;
+                    ev_wait  = 1'b0;
+                    last_acc = -1;   // the drain is not an II gap
                 end
                 if (ni < n && !ev_wait && !(mode == P_ABORT && ni >= n_stop) &&
                     (mode == P_FULL || ($unsigned($random(seed)) % 100) < p_v)) begin

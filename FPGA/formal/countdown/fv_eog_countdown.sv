@@ -56,8 +56,8 @@
 //   - a_hrdrop: HIST_RESET = 0 on DROPPED records (conventions §3 v4: "never on DROPPED")
 //   - CONFIG rows of slots 0..N_FAC-1 are constants (anyconst; conventions §5) with K_CD < 2^24 (numerics §7 and
 //     §10: the ingest refuses larger; the spec's multiplier is 24 x 17); rows of slots >= N_FAC are free every cycle
-//   - FV_ARITH only: K_CD < 2^A_KB, SHUT_LVL < 2^A_SB, LEVEL and INFLOW sign-extended from A_LB / A_IB bits
-//     (structural, so multipliers and dividers shrink; see the .sby)
+//   - per task (.sby chparam): INFLOW / LEVEL sign-extended from N_IB / N_LB bits, K_CD < 2^N_KB,
+//     SHUT_LVL < 2^N_SB (structural narrowing, so adders, multipliers and dividers shrink; defaults = full range)
 // Nothing else about the input is assumed (FAC, HIST_RESET on VALID/HELD/INVALID, LEVEL, INFLOW, FEAT are free).
 //
 // Defines: FV_PROVE (record-local checks + pass-through; no shadow), FV_ARITH (real arithmetic, C6/C5_ord/C3_eq),
@@ -73,10 +73,14 @@ module fv_eog_countdown #(
     parameter integer II_CHK  = 16,    // eog_fv_stage II_MAX  (0 = not checked)
     parameter integer LAT_CHK = 128,   // eog_fv_stage LAT_MAX (0 = not checked)
     parameter integer RW      = 8,     // REC_NO low bits compared by eog_fv_stage
-    parameter integer A_KB    = 15,    // FV_ARITH: K_CD < 2^A_KB
-    parameter integer A_SB    = 10,    // FV_ARITH: SHUT_LVL < 2^A_SB
-    parameter integer A_LB    = 11,    // FV_ARITH: LEVEL in [-2^(A_LB-1), 2^(A_LB-1))
-    parameter integer A_IB    = 5      // FV_ARITH: INFLOW in [-2^(A_IB-1), 2^(A_IB-1))
+    // Operand ranges (structural narrowing; the defaults are the full spec ranges):
+    parameter integer N_IB    = 16,    // INFLOW sign-extended from N_IB bits: [-2^(N_IB-1), 2^(N_IB-1))
+    parameter integer N_LB    = 16,    // LEVEL  sign-extended from N_LB bits
+    parameter integer N_KB    = 24,    // K_CD < 2^N_KB (spec: < 2^24)
+    parameter integer N_SB    = 16,    // SHUT_LVL < 2^N_SB
+    parameter integer PAYLOAD = 1      // 0: input bits the countdown does not interpret (IN_LAST, FAC_RAW, TS, REASON,
+                                       // SINCE_RESET, FEAT, RULES4, REC_NO above RW) are tied to 0; used by the
+                                       // history tasks, whose pass-through is covered by `prove` (H_*)
 ) (
     input  logic         clk,          // top-level inputs are free: the solver drives them
     input  logic         rst_n,
@@ -100,13 +104,22 @@ module fv_eog_countdown #(
     // ---------------------------------------------------------------------------------------------------------
     // Input bus
     logic [645:0] in_data;
-`ifdef FV_ARITH
-    assign in_data = {{(16 - A_LB){in_bus[EOG_BM_LEVEL + A_LB - 1]}}, in_bus[EOG_BM_LEVEL +: A_LB],
-                      {(16 - A_IB){in_bus[EOG_BM_INFLOW + A_IB - 1]}}, in_bus[EOG_BM_INFLOW +: A_IB],
-                      in_bus[EOG_BM_INFLOW - 1:0]};
-`else
-    assign in_data = in_bus;
-`endif
+    always_comb begin
+        in_data = in_bus;
+        if (PAYLOAD == 0) begin
+            in_data = '0;
+            in_data[EOG_BM_REC_NO +: RW]          = in_bus[EOG_BM_REC_NO +: RW];
+            in_data[EOG_BM_FAC +: 5]              = in_bus[EOG_BM_FAC +: 5];
+            in_data[EOG_BM_STATUS +: 3]           = in_bus[EOG_BM_STATUS +: 3];
+            in_data[EOG_BM_HIST_RESET]            = in_bus[EOG_BM_HIST_RESET];
+            in_data[EOG_BM_INFLOW +: 16]          = in_bus[EOG_BM_INFLOW +: 16];
+            in_data[EOG_BM_LEVEL +: 16]           = in_bus[EOG_BM_LEVEL +: 16];
+        end
+        for (int b = 0; b < 16; b++) begin
+            if (b >= N_IB) in_data[EOG_BM_INFLOW + b] = in_bus[EOG_BM_INFLOW + N_IB - 1];
+            if (b >= N_LB) in_data[EOG_BM_LEVEL + b]  = in_bus[EOG_BM_LEVEL + N_LB - 1];
+        end
+    end
 
     // ---------------------------------------------------------------------------------------------------------
     // CONFIG rows: one constant row per slot 0..N_FAC-1 (conventions §5), K_CD < 2^24; free for slots >= N_FAC.
@@ -116,11 +129,8 @@ module fv_eog_countdown #(
     always_comb begin
         f_rows = f_rows_any;
         for (int s = 0; s < N_FAC; s++) begin
-            f_rows[s*512 + EOG_CFG_K_CD + 24 +: 8] = '0;
-`ifdef FV_ARITH
-            f_rows[s*512 + EOG_CFG_K_CD + A_KB +: (24 - A_KB)]     = '0;
-            f_rows[s*512 + EOG_CFG_SHUT_LVL + A_SB +: (16 - A_SB)] = '0;
-`endif
+            for (int b = 0; b < 32; b++) if (b >= N_KB) f_rows[s*512 + EOG_CFG_K_CD + b]     = 1'b0;
+            for (int b = 0; b < 16; b++) if (b >= N_SB) f_rows[s*512 + EOG_CFG_SHUT_LVL + b] = 1'b0;
         end
     end
 
