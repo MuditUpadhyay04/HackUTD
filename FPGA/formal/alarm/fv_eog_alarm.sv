@@ -3,7 +3,8 @@
 // Written from spec/modules/eog_alarm.md, spec/numerics.md §1 (D7, D8, D10) and §9, spec/conventions.md (spec v4)
 // and the lead's answers in TASKS.md "Spec questions" #1, #3-#11 (re-checked against v4), #22 (ALERT SOURCE per
 // kind, Lucas final = Mudit's features_int.py) and #31 (HIST_RESET clears only the counters; Mudit's
-// reset_history @ d1ba779 agrees), using the module's port table only; the RTL internals are not read. Run with `bash scripts/formal.sh alarm` (formal/alarm/eog_alarm.sby; task split and depths are there).
+// reset_history @ d1ba779 agrees, accepted), using the module's port table only; the RTL internals are not read.
+// Run with `bash scripts/formal.sh alarm` (formal/alarm/eog_alarm.sby; task split and depths are there).
 //
 // Port-level only (no hierarchical references). The stage contract uses the v2 observation ports f_inflight /
 // f_oldest_recno (conventions §7) through formal/common/eog_fv_stage.
@@ -21,7 +22,8 @@
 //                stage is quiet (no record in flight, no expected ALERT outstanding, no in_valid), and in_valid
 //                stays 0 until the ack's ACKED sweep is complete (+ ACK_G cycles). Why: the spec does not fix the
 //                order between an ack and a record that is in flight, and the order changes the outcome.
-//   FV_TIE       (with FV_MODEL) copied-only fields of bus L are functions of the REC_NO byte; FV_HITS: LOGIT[k] in
+//   FV_TIE       (with FV_MODEL) copied-only fields of bus L are functions of the REC_NO byte (HIST_RESET, FAC,
+//                STATUS, RULES stay free); FV_HITS: LOGIT[k] in
 //                {THR[k], THR[k] + 1}, CH3 in {GAP_THR, GAP_THR + 1}. Solver load only (see the assumptions).
 //   FV_NO_A5 / FV_ONLY_A5  split the model checks over two bmc tasks (the ALERT-sequence checks are the costly ones).
 //   FV_KMAX      bound PERSIST_K and PERSIST_K4[k] (solver load).
@@ -35,7 +37,8 @@
 //   A1     A1_es_kind (an ES_RAISED push matches an expected ES_RAISED: the model raises it only on a VALID/HELD
 //          record of f whose leak counter reached K[0]), A1_rise (|es_latch on the Pmod rises only when the model's
 //          es_latch is set), A7_m_* (exact latch state when quiet)
-//   A2     A2_fall (a latch bit on the Pmods falls only inside an acknowledge window), the expected ACKED are
+//   A2     A2_fall (|latch on the Pmods falls only inside an acknowledge window and only if the model's ack
+//          cleared every bit of that type; HIST_RESET / INVALID never clear a latch), the expected ACKED are
 //          latch & ~cond at the ack (A5_seq), A7_m_* (exact latch state when quiet)
 //   A3     A3_cls (CLASSES = class_active of the model's counters), A3_hit (a set CLASSES bit implies this
 //          record's LOGIT[k] > THR[k], strict), A3_inv (INVALID / non-updating records: CLASSES = 0)
@@ -609,7 +612,8 @@ module fv_eog_alarm #(
     // =========================================================================================================
     // A8: every btn0 high level is shorter than A8_L cycles; ack_srv = 0. Then nothing acknowledges.
     // A8_L: DEB_MS ms measured on a free-running ms tick can be as short as (DEB_MS - 1) * CYC_PER_MS + 1 cycles
-    // (same +-1 ms tolerance as the LED fault window, TASKS #9; spec question raised). FV_A8_STRICT: DEB_MS * CYC.
+    // (same +-1 ms tolerance as the LED fault window, TASKS #9; spec question in the T1.alarm.fv report).
+    // FV_A8_STRICT: DEB_MS * CYC_PER_MS.
 `ifdef FV_A8_STRICT
     localparam integer A8_L = DEB * CYC;
 `else
