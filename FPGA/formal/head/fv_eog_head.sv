@@ -36,7 +36,7 @@
 //   RST             after a hard reset (wb_rst_n = 0) active_ver = 0 (word 70 of both banks reads 0, via the
 //                   shadow), active_bank = 0, swap_pending = 0 (via H2_pend)
 //   SRST_bank/_ver  a soft reset (rst_n = 0, wb_rst_n = 1) leaves active_bank and active_ver unchanged and a pending
-//                   swap pending (H2_pend) without executing; the shadow ignores rst_n, so RB / H3_ver check that
+//                   swap (or one requested during it) pending (H2_pend) without executing; the shadow ignores rst_n, so RB / H3_ver check that
 //                   every window word, readback included, survives it (spec v3)
 //   WIGN            (through RB / H3_ver) writes while rst_n = 0 or wb_rst_n = 0 are ignored: the shadow drops them
 //   H4_zero         active_ver = 0 at accept, or STATUS INVALID/DROPPED -> LOGITS = 0
@@ -81,8 +81,8 @@
 //   free for every status.
 //   wb_we: wb_addr <= 70; word 70 [31:8] written 0 (VER is [7:0]); word 1 [7:5] written 0 (S_OUT <= 31); a weight
 //   half with feature index >= N_FEAT written 0, and at reduced N_FEAT only words the DUT uses are written (no
-//   effect at N_FEAT = 31). Writes during either reset are allowed (and must be ignored). No swap_req while
-//   rst_n = 0.
+//   effect at N_FEAT = 31). Writes during either reset are allowed (and must be ignored). swap_req is free; one
+//   during a soft reset becomes pending and executes once rst_n = 1 (lead, Sun 01:50).
 //   Resets (spec v3): wb_rst_n = 0 in the first cycle and wb_rst_n = 0 -> rst_n = 0 (a hard reset resets both);
 //   rst_n alone (soft reset) is free.
 //   dbg_fac (eog_regs DBGSEL) changes only while no record is in flight.
@@ -249,7 +249,6 @@ module fv_eog_head #(
     always_comb begin
         if (!f_past_valid) a_hard0: assume (!wb_rst_n);
         if (!wb_rst_n)     a_hard:  assume (!rst_n);
-        if (!rst_n)        a_rreq:  assume (!swap_req);
         if (wb_we) begin
             a_wb_addr: assume (wb_addr <= 7'd70 && used_word(wb_addr));
             if (wb_addr == 7'd70) a_wb_ver:  assume (wb_wdata[31:8] == 24'd0);
