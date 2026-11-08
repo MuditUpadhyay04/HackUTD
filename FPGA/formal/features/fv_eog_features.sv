@@ -29,6 +29,8 @@
 //   u_stage.st_*        stage contract, conventions §3/§7 (formal/common eog_fv_stage): one in -> one out, in order
 //                       (REC_NO), nothing lost or invented, f_inflight / f_oldest_recno match, at most MAXF records
 //                       held, II <= 16 (st_ii), latency <= 128 (st_lat)
+//   H_shadow            harness invariant (true by construction; helps k-induction): the in-flight shadow records
+//                       meet the A_* input assumptions
 //
 // Which multiplier is linked (selected by the .sby task):
 //   FV_ABSTRACT_MUL  formal/common/eog_mul_abstract.sv (product unconstrained except 0 for a 0 operand): every
@@ -169,6 +171,39 @@ module fv_eog_features (
     logic [VW-1:0] e;
     assign e = (f_in_flight == 8'd0) ? in_data : f_sh[f_ri * VW +: VW];
 
+    // H_shadow (harness invariant, true by construction: slots are written from in_data, which meets the A_*
+    // assumptions): every in-flight slot holds a record that meets them. Without it k-induction may start from a
+    // held record with, e.g., STATUS = 5 or a non-DROPPED FAC >= N_FAC, which the upstream never sends.
+    logic [MAXF-1:0] h_bad;
+    logic [VW-1:0]   s_r;
+    logic [2:0]      s_st;
+    logic [4:0]      s_fac;
+    logic [7:0]      s_nw;
+    logic [1:0]      s_age;
+    logic            s_wbad;
+    always_comb begin
+        h_bad = '0; s_r = '0; s_st = '0; s_fac = '0; s_nw = '0; s_age = '0; s_wbad = 1'b0;
+        for (int s = 0; s < MAXF; s++) begin
+            s_r    = f_sh[s*VW +: VW];
+            s_age  = (2'(s) - f_out_cnt[1:0]) & SLOT_MASK;     // position in the in-flight queue (0 = oldest)
+            s_st   = s_r[EOG_BV_STATUS +: EOG_BV_STATUS_W];
+            s_fac  = s_r[EOG_BV_FAC +: EOG_BV_FAC_W];
+            s_nw   = (s_fac < N_FAC) ? f_rows[s_fac * CW + EOG_CFG_N_WELLS +: 8] : 8'd0;
+            s_nw   = (s_nw > 8'd8) ? 8'd8 : s_nw;
+            s_wbad = 1'b0;
+            for (int i = 0; i < 8; i++)
+                if (s_nw <= i && (s_r[EOG_BV_WELL_ACT + i] || s_r[EOG_BV_WELL_WATER + 16*i +: 16] != 16'd0))
+                    s_wbad = 1'b1;
+            if ({6'd0, s_age} < f_in_flight)
+                h_bad[s] = !(s_st == EOG_ST_VALID || s_st == EOG_ST_HELD || s_st == EOG_ST_INVALID
+                             || s_st == EOG_ST_DROPPED)
+                           || (s_st != EOG_ST_DROPPED && (s_fac >= N_FAC || s_wbad))
+                           || ((s_st == EOG_ST_VALID || s_st == EOG_ST_HELD)
+                               && !(s_r[EOG_BV_FLD_OK +: EOG_BV_FLD_OK_W] == 7'h7F && s_r[EOG_BV_WELLS_OK]));
+        end
+    end
+    always_comb if (f_past_valid && rst_n) H_shadow: assert (h_bad == '0);
+
     // ---- reference: expected bus F for record e (numerics.md §4) --------------------------------------------
     logic [2:0]    e_st;
     logic          e_vh, e_dr;
@@ -259,28 +294,29 @@ module fv_eog_features (
                        || o_feat[c*16 +: 16] == 16'd0;
 `else
     // Product: the real x*M (signed 53-bit; |x| <= 2^19, M < 2^32), or with FV_CONCAT_MUL the stand-in P(x, M) of
-    // formal/features/eog_mul_concat.sv (the same function the linked eog_mul computes).
-    function automatic logic signed [52:0] f_prod(input logic [19:0] x, input logic [31:0] m);
-`ifdef FV_CONCAT_MUL
-        logic [51:0] pc;
-        if (x == 20'd0 || m == 32'd0) pc = 52'd0;
-        else if (!x[19])              pc = {x - 20'd1, m};
-        else                          pc = -{~x, m};
-        f_prod = $signed({pc[51], pc});
-`else
-        f_prod = $signed({{33{x[19]}}, x}) * $signed({21'd0, m});
-`endif
-    endfunction
-
+    // formal/features/eog_mul_concat.sv (the same function the linked eog_mul computes). Written inline (no
+    // function) to keep Yosys' function handling out of the reference.
     logic [12*16-1:0]   f_val;    // expected channel value
     logic [11:0]        f_satc;   // channel's unsaturated value outside [-32768, 32767]
-    logic signed [52:0] t_rnd;    // loop temporaries
+    logic [19:0]        t_x;      // loop temporaries
+    logic [31:0]        t_m;
+    logic [51:0]        t_pc;
+    logic signed [52:0] t_prod, t_rnd;
     logic signed [35:0] t_q;
     always_comb begin
-        t_rnd = '0;
-        t_q   = '0;
+        t_x = '0; t_m = '0; t_pc = '0; t_prod = '0; t_rnd = '0; t_q = '0;
         for (int c = 0; c < 12; c++) begin
-            t_rnd = f_prod(f_x[c*20 +: 20], f_m[c*32 +: 32]) + 53'sd65536;
+            t_x = f_x[c*20 +: 20];
+            t_m = f_m[c*32 +: 32];
+`ifdef FV_CONCAT_MUL
+            if (t_x == 20'd0 || t_m == 32'd0) t_pc = 52'd0;
+            else if (!t_x[19])                t_pc = {t_x - 20'd1, t_m};
+            else                              t_pc = -{~t_x, t_m};
+            t_prod = $signed({t_pc[51], t_pc});
+`else
+            t_prod = $signed({{33{t_x[19]}}, t_x}) * $signed({21'd0, t_m});
+`endif
+            t_rnd = t_prod + 53'sd65536;
             t_q   = $signed(t_rnd[52:17]);                            // >>> 17
             f_satc[c]         = (t_q > 36'sd32767) || (t_q < -36'sd32768);
             f_val[c*16 +: 16] = (t_q > 36'sd32767) ? 16'h7FFF : (t_q < -36'sd32768) ? 16'h8000 : t_q[15:0];
