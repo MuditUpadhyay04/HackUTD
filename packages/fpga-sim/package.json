@@ -1,0 +1,32 @@
+{
+  "name": "@hackutd/fpga-sim",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Reusable TypeScript software/CPU replacement for the FPGA inference runtime. Standalone in-process library with explicit common runtime contracts and a thin v1 wire-codec boundary. No Elysia server, DB, React, model training, or board deployment.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "echo 'use bun build or tsc'",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "lint": "bun x tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "bun-types": "^1.4.0"
+  },
+  "engines": {
+    "bun": ">=1.4.0"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

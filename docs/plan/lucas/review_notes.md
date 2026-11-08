@@ -4,6 +4,13 @@ Checked against: [`fpga_hardware_plan.md`](fpga_hardware_plan.md) (snapshot of t
 Sat 21:20 CST), the challenge reference repo at commit `135ba4c` (`README.md`, `SPEC.md`, `history/full_week/`),
 and the Eclypse Z7 / Zynq-7000 public documentation. Written Sat Nov 7, 2026 ~21:45 CST.
 
+**Status (Sun Nov 8, 01:10 CST):**
+
+- Resolved in the FPGA spec: R1, R2 (D1, D2, D6), R3 (D3: `S_feat` = 17) and R5 (D11 weight window).
+- R4 (E-STOP framing) is still global O6.
+- R6 is noted in the spec.
+- R7 (hold/reset under missing data) is Lucas's call; A6 stands until he decides.
+
 These are **review notes, not decisions.** Lucas owns the plan; anything adopted goes into the live doc's
 changelog first, then into the repo copy and [`global_plan.md`](../../../global_plan.md).
 
@@ -23,6 +30,7 @@ python3 docs/research/check_fpga_plan.py /path/to/HackUTD-ZeroDay
 | R4 | Policy, needs a sign-off | **E-STOP on a confirmed leak** conflicts with the challenge's leak response and the team's safety framing. | The challenge README and SPEC say a leak gets `field_inspection` ("send an inspector"), not a shutdown. AGENTS.md says FPGA → shutdown is architectural intent, not validated safety control. The handoff says never act directly on unvalidated scores, and the E-STOP trigger includes the leak logit, whose thresholds are not calibrated yet (question 10). | Keep E-STOP as a **latched local alarm signal** (LED/Pmod) that nothing is wired to. The console's recommended action for a leak stays `field_inspection`. Label E-STOP in the UI and the pitch as a hardware alarm demo, not an automatic shutdown. | Lucas + Jason; Gurneal for the UI wording |
 | R5 | Low | Weight blob size versus the self-test vectors. | The blob is "about 270 B, so a single chunk", but COMMIT "runs the self-test vectors packed in the blob". One vector (31 int16 features + 4 int16 expected logits) is 70 B, so at most ~10 vectors keep the blob inside one 1,024 B chunk. | Fix the vector count and layout together with the byte order (question 11). | Lucas + Mudit |
 | R6 | Low | The "about 40 min" and "about 5.3 h" moving-average time constants count **running** records only. | The averages update only while the pump runs. Practice pumps run 66.6% of frames (stopped 30.3%, faulted 3.1%), so the wall-clock spans are about **1 h** and **8 h**. | Note for Mudit's feature validation (question 14); no RTL change. | Mudit |
+| R7 | Medium, only if the judging data has gaps | The hold/reset rule wipes memory too often when readings go missing at random. | Measured with `ml/hutd_ml/robustness.py`: with 2 % of telemetry rows deleted, 22 % of records are HELD, and "more than 2 consecutive records with any held field" resets each facility's memory about **2.7 times per facility-day**. Half of all results then rest on < 64 steps of memory, and leak / degradation average precision drops from 0.97 / 0.94 to 0.83 / 0.73. | Count holds **per field**, not per record. When one field exceeds `hold_max`, mark that field missing (record INVALID) but **don't wipe the memory features**; reset memory only on a real time gap (> `hold_max` missing steps). `features_int.py` will mirror whatever is chosen (assumption A6). | Lucas |
 
 ## 2. Verified, no action needed
 
