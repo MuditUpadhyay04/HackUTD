@@ -2,7 +2,8 @@
 # Verify role, task T1.alarm.fv.
 #   bash scripts/formal.sh alarm          # all tasks, report in reports/formal_alarm.txt
 #
-# Harness: fv_eog_alarm.sv (property list and ID mapping in its header). eog_alarm has no multiplier, so there is
+# Harness: fv_eog_alarm.sv (property list and ID mapping in its header). TASKS #22 (ALERT SOURCE per kind) and
+# #31 (HIST_RESET / INVALID clear only the counters) are applied. eog_alarm has no multiplier, so there is
 # no abstract model. Shrunk parameters: N_FAC = 2, CYC_PER_MS = 2, DEB_MS = 2 (II_MAX = 16, LAT_MAX = 12).
 #
 # Split (port-only proofs; the harness never looks inside the DUT):
@@ -13,10 +14,10 @@
 #          relations between output ports. depth 20 > II_MAX + 2 so the II / latency counters are tied to a real
 #          window.
 # bmc_seq  from reset, -DFV_MODEL -DFV_ONLY_A5: the reference model of numerics §9 (per-class K, strict >,
-#          HIST_RESET / INVALID clear the counters, INVALID touches nothing else) predicts the exact ALERT sequence:
-#          every push equals the next expected ALERT (RAISED / CLEARED per record, ACKED per cleared latch bit,
-#          drops consume one), SOURCE bit 2 = autonomous while the record waited, no extra push, none late (A1, A2,
-#          A4, A5, A9). Plus everything of prove and the ALERT field format.
+#          HIST_RESET / INVALID clear the counters, INVALID touches nothing else: TASKS #31) predicts the exact ALERT
+#          sequence: every push equals the next expected ALERT (RAISED / CLEARED per record, ACKED per cleared latch
+#          bit, drops consume one; SOURCE per kind as TASKS #22), SOURCE bit 2 = autonomous while the record waited,
+#          no extra push, none late (A1, A2, A4, A5, A9). Plus everything of prove and the ALERT field format.
 # bmc_mod  from reset, -DFV_MODEL -DFV_NO_A5: the same model checks bus A per record (copied fields, CLASSES =
 #          class_active with per-class K: A3, A4, A9) and the latch state on the Pmods once quiet, |es_latch rising
 #          only with the model's es_latch set, latch bits falling only inside an ack window (A1, A2, A7).
@@ -24,9 +25,12 @@
 #          Acks from ack_srv only, while the stage is quiet. -DFV_TIE -DFV_HITS keep the solver load down: copied-only
 #          fields are functions of REC_NO, LOGIT[k] in {THR[k], THR[k]+1}, CH3 in {GAP_THR, GAP_THR+1} (the compares
 #          and the copies are also checked by A3_hit in prove and bit for bit in simulation).
-#          depth 14: reset, then 3-4 records (raise, CLEARED, re-raise with K up to 2), a quiet gap, an ack and its
-#          sweep over both slots, with random back-pressure, drops, heartbeats and resets. The ALERT pairing grows
-#          about 2x per step for the solver; 14 is what fits in a few minutes (bitwuzla).
+#          depth 14: reset, then 3-4 records (raise, CLEARED, re-raise with K up to 2), a quiet gap, an ack and a
+#          one-slot sweep, with random back-pressure, drops, heartbeats and resets. The ALERT pairing grows about 2x
+#          per step for the solver; 14 is what fits in a few minutes (bitwuzla).
+# bmc_ack  bmc_seq narrowed for depth (-DFV_ACKFAST: out_ready = 1, no drops, no reset after the first cycle, no LED
+#          override; -DFV_KMAX=1) so an ack sweep over NS and ES latches of both slots fits: depth 18. Catches a
+#          wrong ACKED order (ES before NS) that bmc_seq's depth cannot reach.
 # bmc_a8   from reset, -DFV_A8: A8 debounce. Every btn0 high level < (DEB_MS - 1) * CYC_PER_MS + 1 = 3 cycles,
 #          ack_srv = 0 => no ACKED push and no latch bit falling on the Pmods. depth 20: records raise and
 #          un-condition a latch (about 8 cycles), then 10+ cycles of arbitrary short btn0 levels and ms ticks.
@@ -37,6 +41,7 @@
 [tasks]
 prove
 bmc_seq
+bmc_ack
 bmc_mod
 bmc_a8
 cover
@@ -46,6 +51,8 @@ prove:   mode prove
 prove:   depth 20
 bmc_seq: mode bmc
 bmc_seq: depth 14
+bmc_ack: mode bmc
+bmc_ack: depth 18
 bmc_mod: mode bmc
 bmc_mod: depth 14
 bmc_a8:  mode bmc
@@ -56,6 +63,7 @@ cover:   depth 24
 [engines]
 prove:   smtbmc yices
 bmc_seq: smtbmc bitwuzla
+bmc_ack: smtbmc bitwuzla
 bmc_mod: smtbmc bitwuzla
 bmc_a8:  smtbmc yices
 cover:   smtbmc yices
@@ -65,6 +73,7 @@ read_verilog -formal -sv eog_fv_props.sv
 read_verilog -formal -sv -I . eog_alarm.sv
 prove:   read_verilog -formal -sv -I . -DFV_PROVE fv_eog_alarm.sv
 bmc_seq: read_verilog -formal -sv -I . -DFV_MODEL -DFV_ONLY_A5 -DFV_TIE -DFV_HITS fv_eog_alarm.sv
+bmc_ack: read_verilog -formal -sv -I . -DFV_MODEL -DFV_ONLY_A5 -DFV_TIE -DFV_HITS -DFV_ACKFAST -DFV_KMAX=1 fv_eog_alarm.sv
 bmc_mod: read_verilog -formal -sv -I . -DFV_MODEL -DFV_NO_A5 -DFV_TIE -DFV_HITS fv_eog_alarm.sv
 bmc_a8:  read_verilog -formal -sv -I . -DFV_A8 fv_eog_alarm.sv
 cover:   read_verilog -formal -sv -I . fv_eog_alarm.sv

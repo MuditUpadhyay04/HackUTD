@@ -1,8 +1,9 @@
 // fv_eog_alarm.sv — formal harness for eog_alarm (Verify role, task T1.alarm.fv).
 //
 // Written from spec/modules/eog_alarm.md, spec/numerics.md §1 (D7, D8, D10) and §9, spec/conventions.md (spec v4)
-// and the lead's answers in TASKS.md "Spec questions" #1, #3-#11 (re-checked against v4), using the module's port
-// table only; the RTL internals are not read. Run with `bash scripts/formal.sh alarm` (formal/alarm/eog_alarm.sby; task split and depths are there).
+// and the lead's answers in TASKS.md "Spec questions" #1, #3-#11 (re-checked against v4), #22 (ALERT SOURCE per
+// kind, Lucas final = Mudit's features_int.py) and #31 (HIST_RESET clears only the counters; Mudit's
+// reset_history @ d1ba779 agrees), using the module's port table only; the RTL internals are not read. Run with `bash scripts/formal.sh alarm` (formal/alarm/eog_alarm.sby; task split and depths are there).
 //
 // Port-level only (no hierarchical references). The stage contract uses the v2 observation ports f_inflight /
 // f_oldest_recno (conventions §7) through formal/common/eog_fv_stage.
@@ -286,14 +287,15 @@ module fv_eog_alarm #(
         AL_fmt_kind: assert (a_kind >= EOG_AK_NS_RAISED && a_kind <= EOG_AK_ACKED);
         AL_fmt_fac:  assert (a_fac < N_FAC);
         AL_fmt_rsv:  assert (a_src[7:5] == 3'd0 && a_src[3] == 1'b0 && a_rules[7:5] == 3'd0 && a_cls[7:4] == 4'd0);
-        // record ALERTs: SOURCE bit 0 = RULES[3:0] != 0, bit 1 = class_active != 0 (numerics §9, features_int.py)
-        if (a_kind != EOG_AK_ACKED)
-            AL_fmt_src: assert (a_src[0] == (a_rules[3:0] != 4'd0) && a_src[1] == (a_cls != 8'd0));
+        // SOURCE per kind: TASKS #22 (Lucas final, = features_int.py)
         if (a_kind == EOG_AK_NS_RAISED)
-            AL_fmt_nsr: assert (a_src[4] == 1'b0 && a_src[1:0] != 2'd0);
+            AL_fmt_nsr: assert (a_src[4] == 1'b0 && a_src[0] == (a_rules[3:0] != 4'd0) && a_src[1] == (a_cls != 8'd0)
+                                && a_src[1:0] != 2'd0);
         if (a_kind == EOG_AK_ES_RAISED)
-            AL_fmt_esr: assert (a_src[4] && a_cls[0]);
-        if (a_kind == EOG_AK_ACKED)    // SOURCE = {type, 4'b0}: bit 2 = 0 per TASKS #26 (proposed, = #4)
+            AL_fmt_esr: assert (a_src[4] && a_src[0] && a_src[1] == (a_cls != 8'd0) && a_cls[0]);
+        if (a_kind == EOG_AK_CLEARED)
+            AL_fmt_clr: assert (a_src[1:0] == 2'd0);
+        if (a_kind == EOG_AK_ACKED)    // SOURCE = {type, 4'b0}: only bit 4 (TASKS #22, #32)
             AL_fmt_ack: assert ((a_src & 8'hEF) == 8'd0 && al_data[EOG_AL_TS +: 32] == 32'd0
                                 && al_data[EOG_AL_RESULT_NO +: 32] == 32'd0 && a_rules == 8'd0 && a_cls == 8'd0
                                 && al_data[EOG_AL_CD_P10 +: 16] == 16'hFFFF);
@@ -338,8 +340,8 @@ module fv_eog_alarm #(
         end
         m_vh  = (i_st == EOG_ST_VALID) || (i_st == EOG_ST_HELD);
         m_upd = (m_vh || i_st == EOG_ST_INVALID) && (i_fac < N_FAC);       // TASKS #1, #10
-        m_clr = i_hr || i_st == EOG_ST_INVALID;     // counters cleared before the update (D7; TASKS #25 proposed:
-                                                    // HIST_RESET on INVALID clears only the counters)
+        m_clr = i_hr || i_st == EOG_ST_INVALID;     // counters cleared before the update (D7; TASKS #31: a
+                                                    // HIST_RESET, also on INVALID, clears only the counters)
         if (m_clr) begin m_oc = '0; m_ol = '0; end
         m_gap = (i_ch3 > g_gap);                    // strict (D7)
         for (k = 0; k < 4; k = k + 1) begin
@@ -411,18 +413,19 @@ module fv_eog_alarm #(
         cur_fl  = cur ? rs_fl[7:4] : rs_fl[3:0];
         cur_ca  = cur ? rs_ca[7:4] : rs_ca[3:0];
         cur_j   = cur_fl[0] ? 2'd0 : cur_fl[1] ? 2'd1 : cur_fl[2] ? 2'd2 : 2'd3;
-        // SOURCE: bit 0 RULES[3:0] != 0, bit 1 class_active != 0, bit 2 autonomous (checked by A5_auto), bit 4
-        // latch type (numerics §9; the same bits on every record ALERT, as features_int.py)
-        cur_src = {3'd0, cur_j[0], 2'd0, cur_ca != 4'd0, cur_rec[EOG_BL_RULES +: 4] != 4'd0};
+        // SOURCE (TASKS #22, Lucas final = features_int.py; bit 2 autonomous is checked by A5_auto):
+        //   NS_RAISED {bit1 any class active, bit0 RULES[3:0] != 0}; ES_RAISED {bit4 1, bit1 any class active,
+        //   bit0 1}; CLEARED {bit4 latch type} only
         case (cur_j)
-            2'd0:    cur_kind = EOG_AK_NS_RAISED;
-            2'd1:    cur_kind = EOG_AK_ES_RAISED;
-            default: cur_kind = EOG_AK_CLEARED;
+            2'd0:    begin cur_kind = EOG_AK_NS_RAISED; cur_src = {6'd0, cur_ca != 4'd0, cur_rec[EOG_BL_RULES +: 4] != 4'd0}; end
+            2'd1:    begin cur_kind = EOG_AK_ES_RAISED; cur_src = {3'd0, 1'b1, 2'd0, cur_ca != 4'd0, 1'b1}; end
+            2'd2:    begin cur_kind = EOG_AK_CLEARED;   cur_src = 8'h00; end
+            default: begin cur_kind = EOG_AK_CLEARED;   cur_src = 8'h10; end
         endcase
         pend = ak_any || open0 || open1;
         if (ak_any) begin
             exp_al = mk_al(ak_f, EOG_AK_ACKED, {3'd0, ak_t, 4'd0}, 32'd0, 32'd0, 8'd0, 8'd0, 16'hFFFF);
-            // SOURCE bit 2 of ACKED = 0: TASKS #26 (proposed, = #4; T0.2b confirms against Mudit's code)
+            // ACKED SOURCE: only bit 4 (TASKS #22, #32)
             exp_ok = 2'b01;
         end else begin
             exp_al = mk_al(cur_rec[EOG_BL_FAC +: 5], cur_kind, cur_src, cur_rec[EOG_BL_TS +: 32],
@@ -473,7 +476,7 @@ module fv_eog_alarm #(
                 if (m_upd) for (fu = 0; fu < N_FAC; fu = fu + 1) if (i_fac == fu) begin
                     m_cnt[fu*32 +: 32] <= m_ncnt;
                     m_leak[fu*8 +: 8]  <= m_nleak;
-                    if (m_vh) begin     // INVALID: counters only (D7, TASKS #25 proposed)
+                    if (m_vh) begin     // INVALID: counters only (D7, TASKS #31)
                         m_nsl[fu] <= m_nsl[fu] | m_nsc_new;
                         m_esl[fu] <= m_esl[fu] | m_esc_new;
                         m_nsc[fu] <= m_nsc_new;
