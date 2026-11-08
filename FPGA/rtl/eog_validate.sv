@@ -1,11 +1,14 @@
 // eog_validate -- framing, facility, time and field checks; hold/reset. Decides every record's STATUS.
 // Spec v4: spec/modules/eog_validate.md, spec/numerics.md section 3 (steps 1-10, D7, D9), conventions.md 3/6/7.
 // Normative integer reference: Mudit's ml/hutd_ml/features_int.py Engine.process / _fields (S1) @ 8e67750, as
-// adopted by Lucas's rulings (TASKS.md spec questions 23-25, which override the numerics.md v4 text):
+// adopted by Lucas's rulings (TASKS.md spec questions, which override the numerics.md v4 text):
 //   #23 reason bits 11 FIELD_ABSENT and 14 FIELD_LOST are set again (bit 13 NO_MODEL belongs to eog_head);
 //   #24 a facility's first record (no last_ts: after power-up, soft reset or a CONFIG write) is a new history,
 //       HIST_RESET = 1 and reason bit 2;
-//   #25 every DROPPED record has SINCE_RESET = 0.
+//   #25 every DROPPED record has SINCE_RESET = 0;
+//   #70 (R7 option C, replaces numerics 3 step 5): hold_run saturates at 3; hold_run > hold turns every held
+//       field into a missing one (INVALID, FIELD_LOST) with NO history reset: last_valid and hold_run are kept.
+//       History resets come only from a time gap (missing > hold), a CONFIG write or a slot's first record.
 //
 // Micro-architecture (one record at a time):
 //   * The whole decision is combinational in the accept cycle: cfg_fac = FAC_ID[4:0] reads the CONFIG row
@@ -24,10 +27,10 @@
 //   7+N_WELL+i      well water,  slot i
 // A field is required iff k < 7 or its well slot i < n_wells = min(CFG.N_WELLS, N_WELL).
 //
-// Per record (non-DROPPED), matching features_int.py:
-//   clr      = fresh | time reset          (state seen as cleared before the field checks)
+// Per record (non-DROPPED):
+//   clr      = fresh | time reset          (history reset: state seen as cleared before the field checks)
 //   held0[k] = required, not OK, has a last_valid value (after clr)
-//   hold_run = any held0 ? hold_run + 1 : 0; hold_run > hold -> history reset, held fields become missing
+//   hold_run = any held0 ? min(hold_run + 1, 3) : 0; hold_run > hold (ovf) -> held fields become missing
 //   INVALID  = any missing field; every OK field still updates last_valid, hold_run and last_ts are stored,
 //              SINCE_RESET is not incremented, PREV_LEVEL is kept.
 //
@@ -75,9 +78,6 @@ module eog_validate (
     localparam integer FW = (N_FAC > 1) ? $clog2(N_FAC) : 1;   // slot index width
     localparam logic [15:0] NFAC16 = N_FAC[15:0];
     localparam logic [3:0]  NWELL4 = N_WELL[3:0];
-    // Reason bits restored by spec question 23 (numerics.md section 6 of v1); eog_defs.svh v4 has no names yet.
-    localparam integer R_FIELD_ABSENT = 11;     // a required field's PRESENT bit is clear
-    localparam integer R_FIELD_LOST   = 14;     // a required field has no value to use (record is INVALID)
 
     // ------------------------------------------------------------------------------------------------------
     // Per-slot state
@@ -85,7 +85,7 @@ module eog_validate (
     logic [N_FAC-1:0]  fresh;                   // no last_ts: next record is a new history (RAM contents unused)
     logic [31:0]       ts_mem   [0:N_FAC-1];    // last_ts
     logic [7:0]        sr_mem   [0:N_FAC-1];    // since_reset after the slot's last non-DROPPED record
-    logic [1:0]        hr_mem   [0:N_FAC-1];    // hold_run (0 .. hold <= 2)
+    logic [1:0]        hr_mem   [0:N_FAC-1];    // hold_run (0 .. 3, saturating)
     logic [15:0]       pl_mem   [0:N_FAC-1];    // prev_level: LEVEL of the last VALID/HELD record
     logic              pok_mem  [0:N_FAC-1];    // prev_level exists
     logic [16*NF-1:0]  val_mem  [0:N_FAC-1];    // per field: last_valid value
@@ -232,14 +232,13 @@ module eog_validate (
     endgenerate
 
     // ------------------------------------------------------------------------------------------------------
-    // Steps 4-6: OK / held / missing, per-facility hold counter, hold-overflow reset
+    // Steps 4-6: OK / held / missing, per-facility hold counter, hold limit (#70: INVALID, no reset)
     // ------------------------------------------------------------------------------------------------------
     logic [NF-1:0]    ok, has_e, held0, held, miss, fok, has_n, r_abs, r_enum, r_rng;
     logic [16*NF-1:0] used;     // value carried out (OK / held on VALID-HELD / 0)
     logic [16*NF-1:0] val_n;    // new last_valid values
     logic             any_held0, ovf, invalid, hist;
     logic [1:0]       hr_e, hr_n;
-    logic [2:0]       hr_inc;
 
     genvar gk;
     generate
@@ -253,7 +252,7 @@ module eog_validate (
             assign fok[gk]    = ok[gk] | (held[gk] & ~invalid);
             assign used[16*gk +: 16] = ok[gk]  ? raw[16*gk +: 16] :
                                        fok[gk] ? rd_val[16*gk +: 16] : 16'd0;
-            assign has_n[gk]  = ok[gk] | (req[gk] & has_e[gk] & ~ovf);
+            assign has_n[gk]  = ok[gk] | (req[gk] & has_e[gk]);   // last_valid kept on a hold overflow
             assign val_n[16*gk +: 16] = ok[gk] ? raw[16*gk +: 16] : rd_val[16*gk +: 16];
             assign r_abs[gk]  = req[gk] & ~pres[gk];
             assign r_enum[gk] = req[gk] & pres[gk] & bad_enum[gk];
@@ -263,11 +262,10 @@ module eog_validate (
 
     assign any_held0 = |held0;
     assign hr_e      = clr ? 2'd0 : hr_mem[idx];
-    assign hr_inc    = {1'b0, hr_e} + 3'd1;
-    assign ovf       = any_held0 & (hr_inc > {1'b0, hold});
-    assign hr_n      = (any_held0 & ~ovf) ? hr_inc[1:0] : 2'd0;   // <= hold <= 2 when stored
+    assign hr_n      = ~any_held0 ? 2'd0 : ((hr_e == 2'd3) ? 2'd3 : (hr_e + 2'd1));   // min(hold_run + 1, 3)
+    assign ovf       = (hr_n > hold);                             // implies any_held0 (hold >= 0)
     assign invalid   = |miss;
-    assign hist      = clr | ovf;                                 // HIST_RESET / reason bit 2 (non-DROPPED)
+    assign hist      = clr;                                       // HIST_RESET / reason bit 2 (non-DROPPED)
 
     // ------------------------------------------------------------------------------------------------------
     // Steps 7-10: status, consistency flags, SINCE_RESET, outputs
@@ -329,8 +327,8 @@ module eog_validate (
             reason[EOG_R_ILLEGAL_ENUM] = |r_enum;
             reason[EOG_R_PUMP_INCONS]  = pump_incons;
             reason[EOG_R_WELL_INCONS]  = |well_inc;
-            reason[R_FIELD_ABSENT]     = |r_abs;
-            reason[R_FIELD_LOST]       = invalid;
+            reason[EOG_R_FIELD_ABSENT] = |r_abs;
+            reason[EOG_R_FIELD_LOST]   = invalid;
         end
     end
 
@@ -413,14 +411,11 @@ module eog_validate (
     assign f_osr  = od[EOG_BV_SINCE_RESET +: EOG_BV_SINCE_RESET_W];
 
     // Per-slot state (meaningful only once the slot is not fresh; the arrays are not reset):
-    // hold_run <= 2, stored enums legal. (No labels inside generate loops: Yosys names procedural assertions
-    // by label only, so a label repeated per slot collides.)
+    // stored enums legal. (No labels inside generate loops: Yosys names procedural assertions by label only,
+    // so a label repeated per slot collides.)
     genvar fs, fk;
     generate
         for (fs = 0; fs < N_FAC; fs = fs + 1) begin : g_fv_slot
-            always_comb begin
-                if (rst_n && !fresh[fs]) assert (hr_mem[fs] <= 2'd2);
-            end
             for (fk = 0; fk < NF; fk = fk + 1) begin : g_fv_fld
                 always_comb begin
                     if (rst_n && !fresh[fs] && has_mem[fs][fk]) begin
@@ -445,12 +440,15 @@ module eog_validate (
                 fi_drop_sr: assert (f_osr == 8'd0);
             end else begin
                 fi_inrange: assert (od[EOG_BV_FAC_RAW +: EOG_BV_FAC_RAW_W] < NFAC16);
-                fi_lost:    assert (f_orsn[R_FIELD_LOST] == (f_ost == EOG_ST_INVALID));
+                fi_lost:    assert (f_orsn[EOG_R_FIELD_LOST] == (f_ost == EOG_ST_INVALID));
                 fi_hr_sr:   assert (!od[EOG_BV_HIST_RESET] || (f_osr == 8'd0));
                 fi_hr_pk:   assert (!od[EOG_BV_HIST_RESET] || !od[EOG_BV_PREV_OK]);
                 fi_ts:      assert (ts_mem[f_oi] == od[EOG_BV_TS +: EOG_BV_TS_W]);
-                fi_hrun0:   assert (f_orsn[EOG_R_FIELD_HELD] || (hr_mem[f_oi] == 2'd0));
+                // hold_run after the record: 0 unless a field was held or lost to the hold limit (INVALID);
+                // never above 2 after a VALID/HELD record (hold <= 2).
+                fi_hrun0:   assert (f_orsn[EOG_R_FIELD_HELD] || (f_ost == EOG_ST_INVALID) || (hr_mem[f_oi] == 2'd0));
                 fi_hrun1:   assert (!f_orsn[EOG_R_FIELD_HELD] || (hr_mem[f_oi] != 2'd0));
+                fi_hrun2:   assert ((f_ost == EOG_ST_INVALID) || (hr_mem[f_oi] != 2'd3));
                 if (!od[EOG_BV_PREV_OK]) fi_pl0: assert (od[EOG_BV_PREV_LEVEL +: 16] == 16'd0);
                 if (f_ost == EOG_ST_INVALID) begin
                     fi_sr_inv:  assert (sr_mem[f_oi] == f_osr);
