@@ -8,6 +8,7 @@
 # Also copies ps7_init.tcl and the ELF to <workspace>/out/ for deploy/xsdb_deploy.tcl.
 import glob
 import os
+import re
 import shutil
 import sys
 import traceback
@@ -168,6 +169,22 @@ if extras:
         dst = os.path.join(inc, base + "_c.h" if ext == ".c" else base + ext)
         shutil.copyfile(e, dst)
         log("copied", e, "->", dst)
+
+# Direct PC<->board cable has no DHCP server: the template waits 240 ticks for a lease. Use the static fallback
+# (192.168.1.10) immediately, as the hand-patched vws2 main.c did. Idempotent; keeps main.c.orig.
+for mainc in glob.glob(os.path.join(os.path.dirname(srcs[0]), "main.c")):
+    txt = open(mainc, encoding="utf-8", errors="replace").read()
+    new = re.sub(r"dhcp_start\(echo_netif\);\s*\n(\s*)dhcp_timoutcntr\s*=\s*\d+;",
+                 r"/* HackUTD: direct cable, no DHCP server -> static fallback IP now. */\n\1dhcp_timoutcntr = 0;", txt)
+    if new != txt:
+        if not os.path.exists(mainc + ".orig"):
+            shutil.copyfile(mainc, mainc + ".orig")
+        open(mainc, "w", encoding="utf-8").write(new)
+        log("patched DHCP wait in", mainc)
+    elif "dhcp_timoutcntr = 0;" in txt:
+        log("DHCP wait already patched in", mainc)
+    else:
+        log("WARNING: DHCP wait pattern not found in", mainc)
 
 comp = client.get_component(name=APP)
 try:
