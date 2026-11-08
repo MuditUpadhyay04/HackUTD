@@ -1,11 +1,12 @@
-"""Self-checks of the reference model, ingest and vectors (spec v4 + TASKS rulings 20-25).
+"""Self-checks of the reference model, ingest and vectors (spec v4 + TASKS rulings 20-25 and 70).
     python FPGA/model/test_model.py
 
 1. Layouts: every bus/record field matches rtl/eog_defs.svh; pack/unpack round-trips.
 2. Arithmetic primitives against independent (Fraction) formulas; weight window (Mudit's blob layout) round trip.
 3. Ingest: practice dataset shape, CONFIG values and metadata bounds, refusals, DATA encoding of sampled CSV rows.
 4. Directed v4 semantics: framing before the lookup, first-record reset, DROPPED fields, latched Night Shift /
-   E-STOP with CLEARED and SOURCE per kind, per-class K, countdown ring clamp and tripped tank.
+   E-STOP with CLEARED and SOURCE per kind, per-class K, countdown ring clamp and tripped tank; the hold limit of
+   spec question #70 (R7 option C) for HOLD_MAX 0, 1, 2.
 5. R1 (offline): p50 tracks the answer key's trips_at at all 13 practice pump-failure onsets.
    answer_key.json is read ONLY here, ONLY for this offline evaluation (global_plan hard rule 1).
 6. Invariants over every vector case: stage contract, DROPPED/INVALID rules, averages within input range,
@@ -298,6 +299,41 @@ def _():
     x = e.push(C.rec(0, t0 + 600, f.step(), inflow=1600, level=5000))["result"]
     k_dl = CFG.get(f.row(), "K_CD") * (9200 - 5000)
     assert (x["CD_P10"], x["CD_P50"], x["CD_P90"]) == (cd_minutes(k_dl, 1600), cd_minutes(k_dl, 200), 0xFFFF)
+
+
+@check("R7 option C (#70): hold limit -> INVALID (FIELD_LOST), no history reset, last_valid kept; HOLD_MAX 0/1/2")
+def _():
+    import random as _r
+    from layouts import BV
+    for hold in (0, 1, 2, 3):
+        f = C.SimFac(0, 2400, 3600, 3, 1200, 1050, _r.Random(6), 55)
+        e = Engine()
+        e.configure(I.global_record(HOLD_MAX=hold, HB_TIMEOUT_MS=0), {0: f.row()})
+        muts = [dict(inflow=1234)] + [dict(absent=[0])] * 5 + [{}] + [dict(absent=[0])] + [dict(present=0)] * 4 + [{}]
+        outs = [e.push(C.rec(0, C.TS0 + 300 * k, f.step(), **m)) for k, m in enumerate(muts)]
+        st = [o["result"]["STATUS"] for o in outs]
+        h = min(hold, 2)                         # HOLD_MAX is clamped to 2
+        run = [ST_HELD] * h + [ST_INVALID] * (5 - h)
+        assert st == [ST_VALID] + run + [ST_VALID, ST_HELD if h else ST_INVALID] + [ST_HELD] * (h - 1) + \
+            [ST_INVALID] * (4 - max(h - 1, 0)) + [ST_VALID], (hold, st)
+        for o, s in zip(outs, st):
+            rs = o["result"]["REASON"]
+            assert (rs >> R["FIELD_LOST"] & 1) == (s == ST_INVALID)
+            assert not (s == ST_INVALID and rs >> R["FIELD_HELD"] & 1)
+        assert [o["result"]["REASON"] >> R["HIST_RESET"] & 1 for o in outs] == [1] + [0] * (len(outs) - 1), hold
+        # #71: a hold-limit record keeps PREV_LEVEL/PREV_OK (no update), so the next VALID record's PREV_LEVEL is the
+        # LEVEL of the last VALID/HELD record before the run
+        lv = [BV.get(o["bus"]["V"], "LEVEL", signed=True) for o in outs]
+        last_good = max(k for k in range(6) if st[k] in (ST_VALID, ST_HELD))
+        assert BV.get(outs[6]["bus"]["V"], "PREV_LEVEL", signed=True) == lv[last_good], hold
+        assert all(BV.get(outs[k]["bus"]["V"], "PREV_OK") for k in range(1, 7)), hold
+        n_ok = [x for x in st if x in (ST_VALID, ST_HELD)]
+        assert [o["result"]["SINCE_RESET"] for o in outs][-1] == len(n_ok) - 1, hold   # INVALID never increments
+        # a held field carries its last OK value (last_valid is kept through the limit; it is next used only
+        # after an all-OK record has refreshed it, so the limit itself is not observable in the outputs)
+        held_inflow = [BV.get(o["bus"]["V"], "INFLOW", signed=True) for o, s in zip(outs, st) if s == ST_HELD]
+        assert all(x == BV.get(outs[6]["bus"]["V"], "INFLOW", signed=True) for x in held_inflow[h:]), hold
+        assert all(x == 1234 for x in held_inflow[:h]), hold
 
 
 # ------------------------------------------------------------------------------------------------ 5 R1

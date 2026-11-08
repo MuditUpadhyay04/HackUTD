@@ -8,8 +8,11 @@ numerics.md §11 changes); check_mudit.py proves this model agrees with it byte 
 Lucas's rulings on spec questions 20-25 (FPGA/TASKS.md, Sun 01:17) override the numerics.md v4 text where they
 differ: ring of max(INFLOW, 0) (#20), NOT_FILLING = 0 at/above shutdown (#21), ALERT SOURCE per kind (#22), reason
 bits 11/13/14 restored (#23), HIST_RESET on a facility's first record (#24), DROPPED RESULTs carry SINCE_RESET 0 and
-WVER 0 (#25). Other open readings follow the lead's answers (cited as TASKS #n) or Mudit's code; the few the model
-still had to decide itself are marked `MODEL-Q<n>` and listed in model/README.md.
+WVER 0 (#25). Spec question #70 (R7 option C, Lucas Sun 02:03) replaces numerics.md §3 step 5: a hold run above
+HOLD_MAX makes the record INVALID (FIELD_LOST) with no history reset; Mudit's code gets it in his task T0.5, and
+check_mudit.py reports the difference as the pre-T0.5 gap until then. Other open readings follow the lead's answers
+(cited as TASKS #n) or Mudit's code; the few the model still had to decide itself are marked `MODEL-Q<n>` and listed
+in model/README.md.
 
 Abstractions (the model has no clock):
 - `autonomous` = HB_TIMEOUT_MS != 0 and no "fresh" heartbeat: ms_since_hb is 65535 after reset, `heartbeat()`
@@ -340,11 +343,10 @@ class Engine:
             raw[("WW", i)], ok[("WW", i)] = v, good
         held = [k for k in ok if not ok[k] and k in st.last]
         missing = [k for k in ok if not ok[k] and k not in st.last]
-        # 5 hold run
-        st.hold_run = st.hold_run + 1 if held else 0
+        # 5 hold run (TASKS #70, R7 option C): capped at 3; above `hold` every held field becomes missing, so the
+        # record is INVALID (FIELD_LOST). No history reset, no HIST_RESET; last_valid is kept.
+        st.hold_run = min(st.hold_run + 1, 3) if held else 0
         if st.hold_run > hold:
-            st.reset_history()
-            hist = True
             missing += held
             held = []
         # 6 last_valid (also on records that end up INVALID)

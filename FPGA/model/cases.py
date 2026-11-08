@@ -224,10 +224,10 @@ def case_fields():
         0: {2: dict(absent=[0], pump_st=0, pump_flow=100)},  # first record, inflow absent: INVALID, no PUMP_INCONS
         3: {0: dict(absent=[0])},                      # inflow absent once -> FIELD_HELD
         4: {5: dict(pump_st=2)}, 5: {0: dict(absent=[1]), 5: dict(pump_st=2)},  # pump status 2 > HI[2]: held
-        6: {0: dict(absent=[1]), 5: dict(pump_st=2)},  # level held twice; slot 5: third -> reset, INVALID
+        6: {0: dict(absent=[1]), 5: dict(pump_st=2)},  # level held twice; slot 5: third -> INVALID (TASKS #70)
         7: {5: dict(pipe=11001)}, 8: {0: dict(absent=[3]), 5: dict(pipe=11000)},  # pipeline bound (HI[6]) and edge
         9: {0: dict(absent=[3]), 5: dict(level=999)}, 10: {0: dict(absent=[3]), 5: dict(level=1000)},  # LO[1]
-        11: {0: dict(absent=[4])},                     # after the hold-overflow reset: dis held from record 10
+        11: {0: dict(absent=[4])},                     # after the hold-overflow INVALID: dis held (hold_run 1)
         13: {1: dict(pump_st=3)}, 14: {1: dict(pump_st=7)}, 15: {1: dict(pump_st=255)},  # illegal enum x3
         17: {2: dict(well_st=[1] * 7 + [2])}, 18: {2: dict(well_st=[3] + [1] * 7)},
         20: {1: dict(level=9501)}, 21: {0: dict(inflow=-361)}, 22: {0: dict(dis=-1), 1: dict(level=9500)},
@@ -246,11 +246,11 @@ def case_fields():
         44: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 0], level=9200)},  # SHUT_IN + LVL_SHUTDOWN, CD = 0
         45: {0: dict(well_st=[0, 0, 0], well_water=[0, 0, 0], level=9300, absent=[S + 1])},  # SHUT_IN on held status
         46: {0: dict(level=8500)}, 47: {0: dict(level=8499)},     # warning edge (>=)
-        48: {2: dict(absent=[1], level=0)}, 49: {2: dict(absent=[1])}, 50: {2: dict(absent=[1])},  # level lost
+        48: {2: dict(absent=[1], level=0)}, 49: {2: dict(absent=[1])}, 50: {2: dict(absent=[1])},  # 3rd: INVALID
         52: {1: dict(pump_st=2, pump_flow=4)},         # fault with flow -> PUMP_INCONS + PUMP_FAULT
         54: {5: dict(present=0)}, 55: {5: dict(present=0)}, 56: {5: dict(present=0)},  # held, held, INVALID
-        57: {5: dict(present=0)},                      # nothing to hold after the reset: INVALID again
-        58: {5: dict(absent=[2])},                     # pump status missing (no history yet): INVALID
+        57: {5: dict(present=0)},                      # hold_run capped at 3: INVALID again, no reset
+        58: {5: dict(absent=[2])},                     # last_valid kept, pump status held, run still > 2: INVALID
     }
     steps = [("hb",)]
     for t in range(60):
@@ -258,8 +258,9 @@ def case_fields():
             d = fs[s].step()
             steps.append(("rec", rec(s, TS0 + 300 * t, d, **plan.get(t, {}).get(s, {})), True))
     return Case("fields", "synthetic: absent/illegal/out-of-range fields (metadata bounds, custom LO/HI incl. the "
-                "pump-status bound LO/HI[2]), hold runs and the overflow reset, INVALID (first record, after a "
-                "reset), consistency flags, shut-in, level rules, reserved fields (FRAMING), well slots >= n_wells",
+                "pump-status bound LO/HI[2]), hold runs and the hold limit (INVALID, no reset: TASKS #70), "
+                "INVALID first record, consistency flags, shut-in, level rules, reserved fields (FRAMING), well "
+                "slots >= n_wells",
                 glb, rows, w_hand(), steps)
 
 
@@ -293,6 +294,49 @@ def case_time(hold):
                 "order, TS jumps of +2^31 and back (exact u32 difference, no 32-bit wrap), gaps combined with field "
                 "holds; GLOBAL HOLD_MAX=%d" % hold,
                 global_record(HOLD_MAX=hold), rows, w_hand(), steps)
+
+
+def case_hold(hold):
+    """R7 option C (TASKS #70): hold runs of every length 1..8 against HOLD_MAX, the run capped at 3, runs mixing
+    fields and causes (absent, illegal enum, out of range, wells), a run across a GAP_HELD step, a time-gap reset
+    and a CONFIG touch inside a run (fields with no last_valid -> INVALID with HIST_RESET), a DROPPED duplicate
+    inside a run (no effect), and the recovery on the next clean record."""
+    rng = random.Random(19)
+    fs = _nets(rng)
+    rows = {0: fs[0].row(), 1: fs[1].row()}
+    S, W = P_WELL_ST, P_WELL_WATER
+    p0 = {2: dict(absent=[0]), 5: dict(absent=[1]), 6: dict(absent=[1])}           # runs of 1 and 2
+    p0.update({t: dict(absent=[3]) for t in (9, 10, 11)})                        # 3
+    p0.update({t: dict(absent=[4]) for t in range(14, 18)})                      # 4
+    p0.update({t: dict(present=0) for t in range(20, 26)})                       # 6, every field held
+    p0.update({28: dict(absent=[0]), 29: dict(pump_st=7), 30: dict(level=10501)})  # 3, mixed fields and causes
+    p0.update({33: dict(absent=[5]), 34: dict(absent=[5], dt=600), 35: dict(absent=[6])})  # GAP_HELD inside a run
+    p0.update({38: dict(absent=[0]), 39: dict(absent=[0]), 40: dict(absent=[0], dt=1200),  # time-gap reset in a run:
+               41: dict(absent=[0])})                                            # inflow has no last_valid
+    p0.update({45: dict(well_st=[3, 1, 1]), 46: dict(well_water=[-81, 1000, 1000]), 47: dict(absent=[S + 1, W + 2]),
+               48: dict(absent=[W])})                                            # 4, well fields
+    p1 = {t: dict(present=0) for t in range(3, 11)}                              # 8, every field held
+    p1.update({12: dict(absent=[1]), 13: dict(absent=[1])})
+    p1.update({18: dict(absent=[3]), 19: dict(absent=[3]), 20: dict(absent=[3])})  # CONFIG touch before t = 20
+    p1.update({25: dict(dt=900)})                                                # 2 missing steps
+    p1.update({30: dict(absent=[0]), 31: dict(absent=[0]), 32: dict(absent=[0], dup=True), 33: dict(absent=[0])})
+    steps = [("hb",)]
+    last = {0: TS0, 1: TS0 + 7}
+    for t in range(56):
+        if t == 20:
+            steps.append(("touch", 1))
+        for s, plan in ((0, p0), (1, p1)):
+            mut = dict(plan.get(t, {}))
+            last[s] += mut.pop("dt", 300) if t else 0
+            dup = mut.pop("dup", False)
+            r = rec(s, last[s], fs[s].step(), **mut)
+            steps.append(("rec", r, True))
+            if dup:
+                steps.append(("rec", r, True))                                   # DROPPED duplicate in a run
+    return Case("hold_h%d" % hold, "synthetic, R7 option C (TASKS #70): hold runs of length 1..8 (capped at 3) "
+                "against GLOBAL HOLD_MAX=%d, mixed fields/causes, GAP_HELD, time-gap reset and CONFIG touch inside "
+                "a run, DROPPED duplicate inside a run, recovery" % hold, global_record(HOLD_MAX=hold), rows,
+                w_hand(), steps)
 
 
 def _beats(r, last_at=None):
@@ -389,7 +433,7 @@ def case_swap():
             t += 1
         mut = {}
         if i % 17 in (5, 8, 11, 14):
-            mut = dict(present=0)                       # same slot: HELD, HELD, INVALID (reset), INVALID
+            mut = dict(present=0)                       # same slot: HELD, HELD, INVALID (hold limit), INVALID
         if i % 23 == 7:
             mut = dict(rsv1=1)                          # DROPPED (FRAMING): WVER still the active VER
         steps.append(("rec", rec(s, TS0 + 300 * t, fs[s].step(), **mut), True))
@@ -547,7 +591,8 @@ def case_random(n=1500, seed=18):
 
 
 # ------------------------------------------------------------------------------------------------ golden (Mudit)
-GOLDEN = (("g0", "v2", "g0"), ("g1", "v2", "g1"), ("g2", "v2", "g2"), ("g0v0", "v0", "g0"), ("g2v0", "v0", "g2"))
+GOLDEN = (("g0", "v2", "g0"), ("g1", "v2", "g1"), ("g2", "v2", "g2"), ("g0v0", "v0", "g0"), ("g2v0", "v0", "g2"),
+          ("g0v3", "v3", "g0"), ("g2v3", "v3", "g2"))
 
 
 def ml_dir(arg=None):
@@ -587,16 +632,16 @@ def golden_cases(ml=None):
             continue
         man, glb, rows, img, recs = load_golden(d)
         steps = [("hb",)] + [("rec", int.from_bytes(r, "little"), True) for r in recs]
-        out.append(Case(name, "Mudit's golden set %s/golden/%s (%d records, weights_ver %d, countdown %s): his "
-                        "GLOBAL, CONFIG and weight blob; top_ in/out = his data.bin / expected_results.bin"
-                        % (ver, g, len(recs), man.get("weights_version", 0), man.get("countdown")),
-                        glb, rows, img, steps))
+        out.append(Case(name, "Mudit's golden set %s/golden/%s (%d records, weights_ver %d): his GLOBAL, CONFIG, "
+                        "weight blob and data.bin; top_ out = eog_ref, which equals his expected_results.bin except "
+                        "at hold-limit records (R7, TASKS #70; his sets predate it until his T0.5)"
+                        % (ver, g, len(recs), man.get("weights_version", 0)), glb, rows, img, steps))
     return out
 
 
 def synthetic_cases():
-    return [case_fields(), case_time(2), case_time(1), case_time(0), case_framing(), case_slots(), case_swap(),
-            case_sat(), case_alarm(), case_random()]
+    return [case_fields(), case_time(2), case_time(1), case_time(0), case_hold(2), case_hold(1), case_hold(0),
+            case_framing(), case_slots(), case_swap(), case_sat(), case_alarm(), case_random()]
 
 
 def practice_cases():
