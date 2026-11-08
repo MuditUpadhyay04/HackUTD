@@ -33,6 +33,7 @@ Implements `regmap.md`.
 | | `al_full` | out | 1 | |
 | | `al_drop` | in | 1 | count it |
 | taps | `tap_valid`, `tap_status` (3), `tap_reason` (16), `stall` | in | | for STATS |
+| | `rec_in` | in | 1 | 1-cycle pulse per record leaving `eog_unpack` (DATA window or DMA) → STATS 0 (ruling #59) |
 
 ## Behavior
 
