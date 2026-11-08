@@ -25,13 +25,14 @@ WEIGHTS_STATUS = {0: "OK", 1: "CRC fail", 2: "bad length", 3: "self-test fail", 
 
 
 class Board:
-    def __init__(self, board, local, timeout=0.5):
+    def __init__(self, board, local, timeout=0.5, collect=True):
         self.board = board
         self.timeout = timeout
         self.cfg = self._sock(local, wire.PORT_CONFIG)
         self.wts = self._sock(local, wire.PORT_WEIGHTS)
-        self.res = self._sock(local, wire.PORT_RESULT)
-        self.alr = self._sock(local, wire.PORT_ALERT)
+        if collect:  # the replay sender leaves 7001/7002 free for listen.py / the server
+            self.res = self._sock(local, wire.PORT_RESULT)
+            self.alr = self._sock(local, wire.PORT_ALERT)
         self.data = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.data.bind((local, 0))
         self.seq = {"cfg": 0, "wts": 0, "data": 0, "hb": 0}

@@ -17,6 +17,9 @@ Implements [`docs/plan/mudit/ml_plan.md`](../docs/plan/mudit/ml_plan.md) against
 | `hutd_ml/compare.py` | Diffs RESULT dumps against a golden set; names the first mismatching record and field |
 | `hutd_ml/board.py` | Laptop UDP harness: CONFIG → WEIGHTS → DATA (+ HEARTBEAT) to the board, collects RESULT/ALERT/STATS, diffs |
 | `hutd_ml/fakeboard.py` | Software stand-in for the board (same UDP protocol, computes with `features_int.py`), for testing the harness, ingest and server without hardware |
+| `hutd_ml/replay.py` | **CSV → binary sender (runs on Lucas's PC)**: CONFIG → WEIGHTS → one 5-minute step at a time to the board; leaves 7001/7002 free |
+| `hutd_ml/listen.py` | Board output → JSON (stdout / JSONL / HTTP POST batches) + heartbeat. Reference consumer for the server and dashboard: see [`INTEGRATION.md`](INTEGRATION.md) |
+| `hutd_ml/augment.py`, `robustness.py` | Raw-domain distortions (pressure offsets, sizes, noise, dropped rows) and the robustness evaluation |
 
 ## Quick start
 

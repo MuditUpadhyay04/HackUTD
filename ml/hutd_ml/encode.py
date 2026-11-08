@@ -257,15 +257,18 @@ def encode_telemetry(telemetry, facs):
     return rec, ts, stats
 
 
-def encode_dataset(folder, s_feat=DEFAULT_S_FEAT, **global_kwargs):
-    folder = Path(folder)
-    net = load_network(folder)
+def encode_frames(net, tel, s_feat=DEFAULT_S_FEAT, **global_kwargs):
+    """Same as encode_dataset, from an already-loaded network dict and telemetry DataFrame."""
     facs = facilities_from_network(net)
     fac_cfg = build_facility_config(facs, net, s_feat=s_feat)
     glob = build_global_config(s_feat=s_feat, **global_kwargs)
-    tel = pd.read_csv(folder / "telemetry.csv")
     rec, ts, stats = encode_telemetry(tel, facs)
     return Encoded(facs, glob, fac_cfg, rec, ts, stats)
+
+
+def encode_dataset(folder, s_feat=DEFAULT_S_FEAT, **global_kwargs):
+    folder = Path(folder)
+    return encode_frames(load_network(folder), pd.read_csv(folder / "telemetry.csv"), s_feat, **global_kwargs)
 
 
 def decode_record(r):

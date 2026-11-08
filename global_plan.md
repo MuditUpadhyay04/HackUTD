@@ -103,7 +103,7 @@ The diagram shows the server sending WEIGHTS. The FPGA plan doesn't say which PC
 | Model, features, training | Mudit | [`docs/plan/mudit/`](docs/plan/mudit/ml_plan.md) (PROPOSED, under discussion) | The five "Asks for Mudit" in the FPGA plan: encoder + `features_int.py` + weights v0 and golden vectors first, then trained weights v1 |
 | Agents / server | Jason | — | Heartbeat, RESULT/ALERT consumption, events, truck planner |
 | Web app / full stack | Gurneal (Jimmy), with Jason | — | Dashboard on RESULT, ALERT and STATS |
-| Ingest (PC) | **OPEN, unassigned** (O9) | — | CSV → DATA, `network.json` → CONFIG |
+| Ingest (PC) | **Runs on Lucas's PC** (decided Sun 00:20); code: `ml/hutd_ml/replay.py` | [`ml/INTEGRATION.md`](ml/INTEGRATION.md) | CSV → DATA, `network.json` → CONFIG; `listen.py` turns board output into JSON for the server |
 | Replay / throughput demo | **OPEN**: "another teammate" per the FPGA plan (O10) | — | Loop or scale out records to show sustained throughput |
 
 ## 5. Interface contracts
@@ -193,7 +193,7 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 | O6 | E-STOP on a confirmed leak vs. the challenge's leak → inspection rule and hard rule 8 (review R4) | Lucas + Jason | C8 |
 | O7 | **Countdown fix:** build the band from facility inflow (a failed pump moves 0 bpd), not from inflow − pump flow, and report 0 for a tripped tank (review R1, R2). In practice data the current method shows "not filling" at 13/13 failure onsets. | Lucas; Jason for the fallback band | RESULT countdown, dashboard |
 | O8 | Global feature shift S vs. the S2 multiplier width; ingest checks every CONFIG multiplier (review R3) | Lucas + Mudit | C2, C6 |
-| O9 | Who owns ingest? | Team | Step 1 |
+| O9 | ~~Who owns ingest?~~ Decided: CSV → binary runs on Lucas's PC (`hutd_ml.replay`). Still open: does the server run on Lucas's PC, or does `hutd_ml.listen --post` forward JSON to it? | Jason | Step 1 |
 | O10 | Who owns the replay / throughput demo? | Team | Step 5 |
 | O11 | Server → web app API | Jason + Gurneal | C10 |
 | O12 | Nemotron agent scope, their inputs, and which PC process sends WEIGHTS | Jason | C9 |
@@ -202,6 +202,7 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 00:20 | Ingest decided: CSV → binary on Lucas's PC (`ml/hutd_ml/replay.py`). Added `listen.py` (board output → JSON + heartbeat, optional HTTP bridge) and `ml/INTEGRATION.md` for the server and dashboard; they can develop now against `fakeboard.py`. |
 | Sat Nov 7 23:15 | ML pipeline in `ml/`: encoder, bit-exact engine reference, trained weights v1, golden sets, UDP board harness and software board stand-in. Proposed values for O2: `persist_K` = 1, `logit_thr` = [64, 384, 0, 0] (1/256), `gap_thr` = 504. Assumptions A1–A19 in `ml/README.md` need Lucas's confirmation. No contract changes. |
 | Sat Nov 7 22:45 | Linked Mudit's ML plan (PROPOSED). No contract changes yet; its proposals for Lucas (per-class K, weight blob layout, debug readback) need his sign-off before they land in §5. |
 | Sat Nov 7 21:45 | Created the global plan from Lucas's FPGA plan (snapshot through its Sat 21:20 row): architecture, owners, contracts C1–C10, the superseded CNN/window/transport items, the demo path, change control and open questions. Logged repo-side review findings R1–R6 as O3, O5–O8. |
