@@ -10,8 +10,11 @@
  *        C <global_hex> <slot0_hex> ... <slot31_hex> <touched_mask>   GLOBAL/CONFIG changed (before the next E)
  *        W <version> <window_hex>                          a weight swap executed (280 B blob window)
  *        E <autonomous> <data_hex>                         run one DATA record; blocks until R
+ *        L <text>                                          a hal_log line (SD boot load outcome)
  *
- *   simboard <default_peer_ip_u32>
+ *   simboard <default_peer_ip_u32> [<sd_dir>]
+ * With <sd_dir>, the board "boots from SD": after eog_init it runs eog_boot_load_weights(), and hal_read_file
+ * reads <sd_dir>/<name> (the card's root directory; a missing <sd_dir> is a missing card).
  */
 #include <errno.h>
 #include <stdio.h>
@@ -54,6 +57,30 @@ int hal_udp_send(uint16_t sport, uint32_t ip, uint16_t dport, const uint8_t *buf
     putchar('\n');
     fflush(stdout);
     return 0;
+}
+
+static const char *sd_dir;
+
+int hal_read_file(const char *name, uint8_t *buf, uint32_t maxlen)
+{
+    char path[4096];
+    FILE *d;
+    snprintf(path, sizeof path, "%s/.", sd_dir ? sd_dir : "");
+    if (!sd_dir || !(d = fopen(path, "r"))) return EOG_FILE_NO_CARD;
+    fclose(d);
+    snprintf(path, sizeof path, "%s/%s", sd_dir, name);
+    FILE *f = fopen(path, "rb");
+    if (!f) return errno == ENOENT ? EOG_FILE_MISSING : EOG_FILE_IO;
+    size_t n = fread(buf, 1, maxlen, f);
+    int err = ferror(f);
+    fclose(f);
+    return err ? EOG_FILE_IO : (int)n;
+}
+
+void hal_log(const char *msg)
+{
+    printf("L %s\n", msg);
+    fflush(stdout);
 }
 
 /* Blocking read of one complete line from stdin; returns NULL on EOF. */
@@ -161,6 +188,10 @@ int main(int argc, char **argv)
     FR.engine = pipe_engine;
     FR.cfg_dirty = 1;
     eog_init(argc > 1 ? (uint32_t)strtoul(argv[1], NULL, 0) : 0x0100007Fu);
+    if (argc > 2) {                      /* SD boot: load weights.eog before serving any datagram */
+        sd_dir = argv[2];
+        eog_boot_load_weights();
+    }
     for (;;) {
         char *l;
         while ((l = next_buffered()) != NULL) {

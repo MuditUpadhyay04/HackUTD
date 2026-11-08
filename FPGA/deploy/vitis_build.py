@@ -6,16 +6,26 @@
 #             (same file name, so the template's build list needs no edits).
 # Later runs: refreshes the source and rebuilds.
 # Also copies ps7_init.tcl and the ELF to <workspace>/out/ for deploy/xsdb_deploy.tcl.
+#
+# eog build only (src = eog_app.c), for the SD boot image (FPGA/docs/SD_BOOT_WEIGHTS.md):
+#   * adds the xilffs (FatFs) library to the BSP domain (SD interface, read-only) and makes sure the app links it;
+#   * creates/builds an FSBL (zynq_fsbl) for the platform;
+#   * leaves in <workspace>/out/: fsbl.elf, eog.bit (from the XSA), eog_app.elf, for deploy/make_boot_sd.bat.
+# The mul build (src = udp_mul.c) is unchanged.
 import glob
 import os
+import re
 import shutil
 import sys
 import traceback
+import zipfile
 
 import vitis
 
 ws, xsa, src = (os.path.abspath(a) for a in sys.argv[1:4])
 PLAT, APP = "eclypse_plat", "mul_app"
+EOG = os.path.basename(src).lower() == "eog_app.c"
+FSBL_APP = "eog_fsbl"
 out = os.path.join(ws, "out")
 
 
@@ -128,6 +138,122 @@ def configure_for_lwip_template():
     log("platform rebuilt with lwIP template config")
 
 
+def add_xilffs():
+    """eog build: xilffs (FatFs) in the BSP domain, SD interface, read-only. Idempotent; logs every attempt."""
+    plat = client.get_component(name=PLAT)
+    dom = plat.get_domain(name=DOMAIN)
+    have = False
+    try:
+        libs = dom.get_libs()
+        log("domain libs:", libs)
+        have = "xilffs" in str(libs)
+    except Exception as e:
+        log("get_libs failed:", str(e)[:200])
+    if have:
+        log("xilffs already in the BSP")
+        return
+    try:
+        dom.set_lib(lib_name="xilffs")
+        log("added xilffs")
+    except Exception as e:
+        msg = str(e)
+        log("set_lib xilffs:", msg[:300])
+        if "already" not in msg.lower():
+            raise SystemExit("could not add xilffs to the BSP (needed for the SD weights load)")
+    # fs_interface 1 = SD/eMMC (the default); read_only is enough (the board never writes the card).
+    # Parameter names differ between the SDT (XILFFS_*) and the older flow; try both.
+    for param, val in (("fs_interface", "1"), ("read_only", "true")):
+        for name in ("XILFFS_" + param, param):
+            try:
+                dom.set_config(option="lib", param=name, value=val, lib_name="xilffs")
+                log("set xilffs", name, "=", val)
+                break
+            except Exception as e:
+                log("set_config xilffs", name, "failed:", str(e)[:200])
+    plat.build()
+    log("platform rebuilt with xilffs")
+
+
+def app_links_xilffs():
+    """Older app components may only link the libraries the domain had when the app was created: add xilffs to
+    USER_LINK_LIBRARIES in the app's UserConfig.cmake if that file lists libraries and xilffs is missing."""
+    for cfg in glob.glob(os.path.join(app_dir, "src", "UserConfig.cmake")):
+        txt = open(cfg, encoding="utf-8", errors="replace").read()
+        m = re.search(r"set\(\s*USER_LINK_LIBRARIES\s*([^)]*)\)", txt)
+        if not m:
+            log("UserConfig.cmake has no USER_LINK_LIBRARIES; relying on the BSP's library list")
+            continue
+        if "xilffs" in m.group(1):
+            continue
+        body = m.group(1).strip()
+        body = '"-lxilffs"' if body in ('""', "") else body + ' "-lxilffs"'
+        txt = txt[:m.start()] + "set(USER_LINK_LIBRARIES " + body + ")" + txt[m.end():]
+        open(cfg, "w", encoding="utf-8").write(txt)
+        log("added -lxilffs to", cfg)
+
+
+def find_fsbl():
+    hits = [p for p in glob.glob(os.path.join(ws, "**", "fsbl.elf"), recursive=True)
+            + glob.glob(os.path.join(ws, FSBL_APP, "build", "**", "*.elf"), recursive=True)
+            if os.path.dirname(os.path.abspath(p)) != os.path.abspath(out)]
+    return sorted(hits, key=os.path.getmtime)[-1] if hits else None
+
+
+def make_fsbl():
+    """eog build: an FSBL for BOOT.BIN. Vitis usually builds one with the platform (boot components,
+    <plat>/zynq_fsbl/...); otherwise create an FSBL app from the zynq_fsbl template and build it."""
+    f = find_fsbl()
+    if f is None:
+        xp = find_xpfm()
+        created = os.path.isdir(os.path.join(ws, FSBL_APP))
+        if not created:
+            plat = client.get_component(name=PLAT)
+            doms = []
+            try:
+                doms = [d for d in plat.list_domains()] if hasattr(plat, "list_domains") else []
+            except Exception as e:
+                log("list_domains failed:", str(e)[:200])
+            log("platform domains:", doms)
+            for dom_name in ("zynq_fsbl", "fsbl_domain", DOMAIN):
+                for tmpl in ("zynq_fsbl", "Zynq FSBL"):
+                    try:
+                        client.create_app_component(name=FSBL_APP, platform=xp, domain=dom_name, template=tmpl)
+                        log("FSBL app created from template", tmpl, "on domain", dom_name)
+                        created = True
+                        break
+                    except Exception as e:
+                        log("FSBL template", tmpl, "domain", dom_name, "failed:", str(e)[:250])
+                if created:
+                    break
+        if not created:
+            raise SystemExit("could not create an FSBL app (template zynq_fsbl); create it in the Vitis GUI as "
+                             f"'{FSBL_APP}' and re-run")
+        try:
+            client.get_component(name=FSBL_APP).build()
+        except Exception:
+            traceback.print_exc()
+            raise SystemExit("FSBL build failed")
+        f = find_fsbl()
+    if f is None:
+        raise SystemExit("no FSBL ELF found after the build")
+    shutil.copyfile(f, os.path.join(out, "fsbl.elf"))
+    log("FSBL:", f)
+
+
+def extract_bit():
+    """eog build: the bitstream for BOOT.BIN, straight from the XSA (a zip)."""
+    with zipfile.ZipFile(xsa) as z:
+        bits = [n for n in z.namelist() if n.lower().endswith(".bit")]
+        if not bits:
+            raise SystemExit(f"{xsa} has no bitstream: export the XSA with 'include bitstream'")
+        with z.open(bits[0]) as r, open(os.path.join(out, "eog.bit"), "wb") as w:
+            shutil.copyfileobj(r, w)
+    log("bitstream:", bits[0], "->", os.path.join(out, "eog.bit"))
+
+
+if EOG:
+    add_xilffs()
+
 xpfm = find_xpfm()
 log("xpfm:", xpfm)
 if not os.path.isdir(app_dir):
@@ -169,6 +295,9 @@ if extras:
         shutil.copyfile(e, dst)
         log("copied", e, "->", dst)
 
+if EOG:
+    app_links_xilffs()
+
 comp = client.get_component(name=APP)
 try:
     comp.build()
@@ -189,5 +318,10 @@ elif not os.path.exists(os.path.join(out, "ps7_init.tcl")):
     raise SystemExit("ps7_init.tcl not found: copy it from a Vivado XSA that contains it into out/")
 log("ELF:", elfs[-1])
 log("ps7_init:", ps7[0] if ps7 else os.path.join(out, "ps7_init.tcl"))
+if EOG:
+    shutil.copyfile(elfs[-1], os.path.join(out, "eog_app.elf"))
+    extract_bit()
+    make_fsbl()
+    log("SD boot inputs in", out, ": fsbl.elf eog.bit eog_app.elf (deploy/make_boot_sd.bat)")
 log("BUILD_OK")
 vitis.dispose()

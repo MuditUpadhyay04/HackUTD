@@ -56,27 +56,38 @@ def u32_ip(v):
     return socket.inet_ntoa(struct.pack("<I", v))
 
 
+def host_path(p):
+    """A path as the simboard binary sees it (WSL on Windows)."""
+    s = str(p)
+    if os.name == "nt":
+        s = s.replace("\\", "/")
+        return "/mnt/" + s[0].lower() + s[2:] if s[1] == ":" else s
+    return s
+
+
 def simboard_cmd(binary=None):
     b = Path(binary or HERE / "build" / "simboard")
     if os.name == "nt":
-        s = str(b).replace("\\", "/")
-        lin = "/mnt/" + s[0].lower() + s[2:] if s[1] == ":" else s
-        return ["wsl.exe", "-d", os.environ.get("EOG_WSL_DISTRO", "Ubuntu-24.04"), "--exec", lin]
+        return ["wsl.exe", "-d", os.environ.get("EOG_WSL_DISTRO", "Ubuntu-24.04"), "--exec", host_path(b)]
     return [str(b)]
 
 
 class SimBoard:
-    def __init__(self, bind="127.0.0.2", pc="127.0.0.1", ml_dir=None, udp=True, binary=None, log=None):
+    def __init__(self, bind="127.0.0.2", pc="127.0.0.1", ml_dir=None, udp=True, binary=None, log=None, sd_dir=None):
+        """sd_dir: boot from SD, with sd_dir as the card's root directory (weights.eog is loaded before any
+        datagram); simboard's hal_log lines (the load outcome) collect in self.logs."""
         self.wire, self.fi, self.mi = import_ml(ml_dir)
         self.log = log
         self.engine = None
         self.weights = self.fi.Weights()
         self.sent = []            # (src_port, dst_ip, dst_port, bytes) in send order
         self.engine_calls = 0
+        self.logs = []            # hal_log lines (L ...)
         self.lock = threading.Lock()
         self.wlock = threading.Lock()
         self.stop = threading.Event()
-        self.proc = subprocess.Popen(simboard_cmd(binary) + [str(ip_u32(pc))], stdin=subprocess.PIPE,
+        args = [str(ip_u32(pc))] + ([host_path(Path(sd_dir).resolve())] if sd_dir is not None else [])
+        self.proc = subprocess.Popen(simboard_cmd(binary) + args, stdin=subprocess.PIPE,
                                      stdout=subprocess.PIPE, bufsize=0)
         self.socks = {}
         self.out = None
@@ -129,7 +140,12 @@ class SimBoard:
         if not line:
             return
         tag, *f = line.split(" ")
-        if tag == "S":
+        if tag == "L":
+            with self.lock:
+                self.logs.append(line[2:])
+            if self.log:
+                self.log(line[2:])
+        elif tag == "S":
             sport, ip, dport, data = int(f[0]), u32_ip(int(f[1])), int(f[2]), bytes.fromhex(f[3])
             with self.lock:
                 self.sent.append((sport, ip, dport, data))
@@ -221,8 +237,9 @@ def main(argv=None):
     ap.add_argument("--pc", default="127.0.0.1")
     ap.add_argument("--ml", default=None)
     ap.add_argument("--seconds", type=float, default=None)
+    ap.add_argument("--sd", default=None, help="boot from SD: folder standing in for the card's root (weights.eog)")
     a = ap.parse_args(argv)
-    b = SimBoard(a.bind, a.pc, a.ml)
+    b = SimBoard(a.bind, a.pc, a.ml, sd_dir=a.sd, log=lambda m: print("board:", m, flush=True))
     print(f"simboard (C eog_proto) on {a.bind} (7000/7003/7004) -> PC {a.pc} (7001/7002)", flush=True)
     try:
         t_end = time.monotonic() + a.seconds if a.seconds else None
