@@ -66,7 +66,9 @@ assert FAC_CONFIG_DTYPE.itemsize == 64
 GLOBAL_CONFIG_DTYPE = np.dtype([
     ("S", "u1"), ("hold_max", "u1"), ("cd_log2", "u1"), ("persist_K", "u1"),
     ("hb_period_ms", "<u2"), ("hb_timeout_ms", "<u2"),
-    ("logit_thr", "<i2", (4,)), ("gap_thr", "<i2"), ("flags", "u1"), ("reserved", "u1", (13,)),
+    ("logit_thr", "<i2", (4,)), ("gap_thr", "<i2"), ("flags", "u1"), ("reserved0", "u1"),
+    ("persist_K4", "u1", (4,)),  # bytes 20-23: per-class K (FPGA D10); 0 = use persist_K (byte 3)
+    ("reserved", "u1", (8,)),
 ])
 assert GLOBAL_CONFIG_DTYPE.itemsize == 32
 
@@ -82,6 +84,10 @@ assert RESULT_DTYPE.itemsize == 32
 ST_VALID, ST_HELD, ST_RESERVED, ST_INVALID, ST_DROPPED = range(5)
 R_FIELD_HELD, R_GAP_HELD, R_RESET, R_RANGE, R_ENUM, R_SATURATED, R_PUMP_INCONSISTENT, R_WELL_INCONSISTENT, \
     R_DUPLICATE, R_OUT_OF_ORDER, R_UNKNOWN_FACILITY = (1 << i for i in range(11))
+R_FIELD_ABSENT = 1 << 11  # a field's present bit is clear (FPGA numerics.md section 6)
+R_FRAMING = 1 << 12       # non-zero reserved field (FPGA D9)
+R_NO_MODEL = 1 << 13      # VALID/HELD record while no weights are loaded (weights version 0)
+R_FIELD_LOST = 1 << 14    # a field with no value to hold (the record is INVALID)
 RULE_PUMP_FAULT, RULE_SHUT_IN, RULE_AT_SHUTDOWN, RULE_AT_WARNING, RULE_NOT_FILLING = (1 << i for i in range(5))
 COUNTDOWN_NONE = 0xFFFF
 
@@ -92,6 +98,7 @@ ALERT_DTYPE = np.dtype([
 ])
 assert ALERT_DTYPE.itemsize == 16
 A_NIGHT_SHIFT, A_ESTOP, A_CLEARED, A_ACKED = 1, 2, 3, 4
+SRC_RULE, SRC_MODEL, SRC_AUTONOMOUS, SRC_ARM_REPLAY, SRC_LATCH_ESTOP = (1 << i for i in range(5))
 
 CONFIG_ACK = struct.Struct("<HBBI")   # fac_id (0xFFFF = GLOBAL), status, reserved, acked seq
 WEIGHTS_CHUNK = struct.Struct("<IHH")  # offset, length (<= 1024), flags (bit 0 = COMMIT); data follows

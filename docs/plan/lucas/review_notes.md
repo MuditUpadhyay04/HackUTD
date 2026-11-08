@@ -4,6 +4,13 @@ Checked against: [`fpga_hardware_plan.md`](fpga_hardware_plan.md) (snapshot of t
 Sat 21:20 CST), the challenge reference repo at commit `135ba4c` (`README.md`, `SPEC.md`, `history/full_week/`),
 and the Eclypse Z7 / Zynq-7000 public documentation. Written Sat Nov 7, 2026 ~21:45 CST.
 
+**Status (Sun Nov 8, 01:10 CST):**
+
+- Resolved in the FPGA spec: R1, R2 (D1, D2, D6), R3 (D3: `S_feat` = 17) and R5 (D11 weight window).
+- R4 (E-STOP framing) is still global O6.
+- R6 is noted in the spec.
+- R7 (hold/reset under missing data) is Lucas's call; A6 stands until he decides.
+
 These are **review notes, not decisions.** Lucas owns the plan; anything adopted goes into the live doc's
 changelog first, then into the repo copy and [`global_plan.md`](../../../global_plan.md).
 

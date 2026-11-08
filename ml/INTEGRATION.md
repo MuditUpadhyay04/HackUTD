@@ -102,7 +102,7 @@ answer 2xx quickly. Three types:
 | `probability` | Calibrated confidence 0–1. Needs `--weights-json`. **Show this as the "confidence" in the UI.** |
 | `above_threshold` | Problems whose score is over the tuned alarm threshold. Needs `--config`. **This is the detection.** |
 | `rules` | Hard facts, not ML: `pump_fault` (pump reports a fault), `shut_in` (all wells off), `level_at_shutdown`, `level_at_warning`, `not_filling` (normal while the pump runs; ignore it for alerting). |
-| `countdown_min` | Minutes until the tank reaches its shutdown level if nothing changes. p50 = best estimate; p10 = soonest; p90 = latest. `null` = not filling / > 45 days. **Only meaningful while `pump_fault`** (see §5, countdown caveat). |
+| `countdown_min` | Minutes until the tank reaches its shutdown level if nothing changes. p50 = best estimate; p10 = soonest; p90 = latest. `null` = not filling / > 45 days. It assumes the pump moves nothing, so **show it only while `pump_fault`**. 0 / 0 / 0 = the tank is already at its shutdown level (tripped). |
 | `weights_ver` | Which model made the call: **2** = current trained model (v2); **1** = previous trained model; **240** = untrained test weights (scores meaningless); **0** = no model loaded (scores 0; rules and countdown still valid). |
 | `result_no` | Monotonic counter. Gaps mean lost UDP packets. |
 
@@ -116,7 +116,13 @@ answer 2xx quickly. Three types:
 
 | Field | Meaning |
 | --- | --- |
-| `kind` | `night_shift_raised` (operator attention needed), `estop_raised`, `cleared` (condition gone), `acknowledged` |
+| `kind` | `night_shift_raised` (operator attention needed), `estop_raised`, `cleared` (the condition went away; `latch` says which), `acknowledged` (an operator pressed the board's button) |
+| `latch` | `night_shift` or `estop`: which alarm this alert is about |
+
+Both alarms **latch** on the board. A facility raises Night Shift (or E-STOP) once. When the condition goes away
+you get `cleared`, but the board's light stays on until someone acknowledges it on the board. A facility is
+therefore never raised twice without an acknowledgement in between. Use `result` objects for live per-step state,
+and `alert` objects for the operator's notification feed.
 | `source` | `rule`, `model`, `raised_while_autonomous`, `replayed_from_buffer` |
 
 **`estop_raised`** fires on a *confirmed leak*: the flow-gap rule and the leak score both trip. It's a **local
@@ -174,14 +180,9 @@ buffering.
 
   Degradation is slow by nature, because early wear looks like normal noise. Failure and shut-in come straight from
   the pump fault code and the well status.
-- **Countdown caveat:**
-  - Right after a pump fails, the countdown can read `null` or far too long for about the first hour. The board's
-    countdown averages the last 80 minutes, which include the time before the failure when the pump was still
-    running.
-  - A fix is proposed (review R1/R2 in `docs/plan/lucas/review_notes.md`) and pending Lucas's decision.
-  - Until then, the server can compute its own countdown for failed pumps: remaining room in the tank ÷ facility
-    inflow. Inflow and level are in the telemetry, and tank capacity and limits are in `network.json`.
-  - It will change if the fix is adopted (`fakeboard.py --countdown review_r1r2` already behaves that way).
+- **Countdown:** Lucas adopted the fix (FPGA D1/D2). The countdown now uses the facility's inflow ("if the pump
+  moves nothing"), so it is correct from the moment a pump fails and reads 0 once the tank has tripped. The
+  stand-in and the golden sets already behave this way.
 - **The fake board is the reference**, not the hardware. The real board must produce byte-identical results;
   Lucas is verifying that. The JSON contract above doesn't change between them.
 - **Current weights are v2**, trained with augmented copies of the data so they hold up if the judging network's pressures look different. Future weights keep the same JSON; only `weights_ver` changes.

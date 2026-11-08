@@ -115,7 +115,9 @@ def test_handoff_fixture_latest_frames(enc):
             got[k] = s["features"][:12]
     for (fac, t), q in want.items():
         diff = np.abs(np.array(got[(names[fac], t)]) - np.array(q))
-        assert diff.max() <= 3, (fac, t, diff)
+        # the fixtures use float readings; the wire carries 0.5 bpd steps, so the 3-well sum (channel 10) can be off
+        # by 3 x 0.25 bpd = 0.75 / B * 16384 <= 10 LSB; single readings by <= 4 LSB
+        assert diff.max() <= 10 and np.delete(diff, 10).max() <= 4, (fac, t, diff)
 
 
 @needs_data
@@ -134,7 +136,34 @@ def test_edge_case_statuses(enc, tmp_path):
     assert reason[17] & wire.R_ENUM and reason[18] & wire.R_RANGE
     assert st[21] == wire.ST_DROPPED and st[22] == wire.ST_DROPPED
     assert reason[21] == reason[22] == wire.R_UNKNOWN_FACILITY
+    assert st[29] == st[30] == wire.ST_DROPPED and reason[29] == reason[30] == wire.R_FRAMING  # before the slot check
+    assert st[31] == wire.ST_VALID
+    assert all(res["since_reset"][i] == 0 for i in range(len(res)) if st[i] == wire.ST_DROPPED)
     assert m["records"] == len(res)
+
+
+@needs_data
+def test_alarm_latches(enc, tmp_path):
+    """Night Shift / E-STOP latch (no acknowledge in goldens): each is raised at most once per facility, every
+    CLEARED follows a raise of the same latch type, and alerts within a record follow the agreed order."""
+    w_q, b_q, s_out = model_int.weights_v0()
+    wts = model_int.to_weights(model_int.pack_blob(w_q, b_q, s_out), 9)
+    _, _, alerts = fi.run(enc.records[:6000], enc.global_config, enc.facility_config, wts)
+    assert alerts
+    order = {wire.A_NIGHT_SHIFT: 0, wire.A_ESTOP: 1, wire.A_CLEARED: 2}
+    raised, last = {}, {}
+    for a in alerts:
+        latch = "es" if a["source"] & wire.SRC_LATCH_ESTOP else "ns"
+        key = (a["fac_id"], latch)
+        if a["kind"] in (wire.A_NIGHT_SHIFT, wire.A_ESTOP):
+            assert key not in raised
+            raised[key] = True
+        else:
+            assert a["kind"] == wire.A_CLEARED and key in raised
+        rk = (a["result_no"],)
+        rank = order[a["kind"]] * 2 + (latch == "es")
+        assert last.get(rk, -1) < rank
+        last[rk] = rank
 
 
 @needs_data

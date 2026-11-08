@@ -20,7 +20,7 @@ from . import features_int as fi, model_int, wire
 
 
 class FakeBoard:
-    def __init__(self, bind="127.0.0.2", pc="127.0.0.1", countdown="plan_v1"):
+    def __init__(self, bind="127.0.0.2", pc="127.0.0.1", countdown="review_r1r2"):
         self.pc = pc
         self.countdown = countdown
         self.socks = {}
@@ -197,7 +197,7 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--bind", default="127.0.0.2")
     ap.add_argument("--pc", default="127.0.0.1")
-    ap.add_argument("--countdown", default="plan_v1", choices=["plan_v1", "review_r1r2"])
+    ap.add_argument("--countdown", default="review_r1r2", choices=["review_r1r2", "plan_v1"])
     ap.add_argument("--seconds", type=float, default=None)
     a = ap.parse_args(argv)
     print(f"fake board on {a.bind} (DATA 7000, CONFIG 7003, WEIGHTS 7004) -> PC {a.pc} (7001, 7002)")

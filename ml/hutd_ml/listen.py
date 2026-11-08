@@ -28,10 +28,10 @@ from . import encode, wire
 STATUS = {0: "VALID", 1: "HELD", 2: "RESERVED", 3: "INVALID", 4: "DROPPED"}
 REASONS = ["field_held", "step_gap_held", "history_reset", "out_of_range", "illegal_enum", "feature_saturated",
            "pump_flow_inconsistent", "well_status_water_inconsistent", "duplicate", "out_of_order",
-           "unknown_facility"]
+           "unknown_facility", "field_absent", "framing", "no_model", "field_lost"]
 RULES = ["pump_fault", "shut_in", "level_at_shutdown", "level_at_warning", "not_filling"]
 ALERT_KIND = {1: "night_shift_raised", 2: "estop_raised", 3: "cleared", 4: "acknowledged"}
-ALERT_SOURCE = ["rule", "model", "raised_while_autonomous", "replayed_from_buffer"]
+ALERT_SOURCE = ["rule", "model", "raised_while_autonomous", "replayed_from_buffer"]  # bit 4 = latch type
 
 
 def bits(v, names):
@@ -72,6 +72,7 @@ class Decoder:
         fid, ts = int(a["fac_id"]), int(a["ts_unix"])
         return {"type": "alert", "fac_id": fid, **self._names(fid), "ts_unix": ts, "time": self._iso(ts),
                 "kind": ALERT_KIND.get(int(a["kind"]), int(a["kind"])), "source": bits(a["source"], ALERT_SOURCE),
+                "latch": "estop" if int(a["source"]) >> 4 & 1 else "night_shift",
                 "result_no": int(a["result_no"]), "rules": bits(a["rules"], RULES),
                 "classes": bits(a["classes"], wire.HEADS),
                 "countdown_p10_min": None if int(a["countdown_p10"]) == wire.COUNTDOWN_NONE else int(a["countdown_p10"])}

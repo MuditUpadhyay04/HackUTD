@@ -55,6 +55,8 @@ class _Fac:
     def __init__(self, n_wells):
         self.n_wells = n_wells
         self.last_ts = None
+        # alarm conditions and latches (FPGA D8): survive history resets; only an acknowledge (hardware) clears
+        self.ns_cond = self.es_cond = self.ns_latch = self.es_latch = False
         self.reset_history()
 
     def reset_history(self):
@@ -71,19 +73,20 @@ class _Fac:
         self.ring = None
         self.persist = [0] * 4
         self.gap_run = 0
-        self.night_shift = False
-        self.estop = False
 
 
 class Engine:
     """Stateful engine for one run. `process(record)` -> (RESULT dict, stages dict, list of ALERT dicts)."""
 
-    def __init__(self, global_config, facility_config, weights=None, countdown="plan_v1", persist_k=None):
+    def __init__(self, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None):
         g = global_config[0] if getattr(global_config, "shape", ()) else global_config
         self.s = int(g["S"])
         self.hold_max = int(g["hold_max"])
         self.cd_log2 = int(g["cd_log2"])
-        self.k = list(persist_k) if persist_k is not None else [int(g["persist_K"])] * 4
+        if persist_k is not None:
+            self.k = [max(int(x), 1) for x in persist_k]
+        else:  # per-class K from GLOBAL bytes 20-23; 0 falls back to byte 3 (FPGA D10)
+            self.k = [max(int(k4) or int(g["persist_K"]), 1) for k4 in g["persist_K4"]]
         self.logit_thr = [int(x) for x in g["logit_thr"]]
         self.gap_thr = int(g["gap_thr"])
         self.cfg = {int(c["fac_id"]): c for c in facility_config if int(c["flags"]) & 1}
@@ -101,7 +104,8 @@ class Engine:
     def _result(self, r, status, reason, st=None, logits=(0, 0, 0, 0), rules=0, cd=(wire.COUNTDOWN_NONE,) * 3):
         res = {"fac_id": int(r["fac_id"]), "status": status, "since_reset": min(st.since_reset, 255) if st else 0,
                "ts_unix": int(r["ts_unix"]), "reason": reason, "logits": list(logits), "rules": rules,
-               "weights_ver": self.weights.version & 0xFF, "countdown": list(cd), "result_no": self.result_no}
+               "weights_ver": 0 if status == wire.ST_DROPPED else self.weights.version & 0xFF,
+               "countdown": list(cd), "result_no": self.result_no}
         self.result_no = (self.result_no + 1) & 0xFFFFFFFF
         return res
 
@@ -117,9 +121,11 @@ class Engine:
         checks = {}
         for i, name in enumerate(wire.FACILITY_FIELDS):
             ok = bool(p >> i & 1)
-            if ok and name == "pump_status" and raw[name] not in (0, 1, 2):
+            if not ok:
+                reason |= wire.R_FIELD_ABSENT
+            elif name == "pump_status" and raw[name] not in (0, 1, 2):
                 ok, reason = False, reason | wire.R_ENUM
-            elif ok and not lo[i] <= raw[name] <= hi[i]:
+            elif not lo[i] <= raw[name] <= hi[i]:
                 ok, reason = False, reason | wire.R_RANGE
             checks[name] = ok
         ws = int(r["well_status"])
@@ -127,13 +133,17 @@ class Engine:
             name = f"ws{s}"
             raw[name] = ws >> (2 * s) & 3
             ok = bool(p >> (wire.P_WELL_STATUS0 + s) & 1)
-            if ok and raw[name] not in (0, 1):
+            if not ok:
+                reason |= wire.R_FIELD_ABSENT
+            elif raw[name] not in (0, 1):
                 ok, reason = False, reason | wire.R_ENUM
             checks[name] = ok
             name = f"ww{s}"
             raw[name] = int(r["well_water"][s])
             ok = bool(p >> (wire.P_WELL_WATER0 + s) & 1)
-            if ok and not int(c["well_lo"]) <= raw[name] <= int(c["well_hi"]):
+            if not ok:
+                reason |= wire.R_FIELD_ABSENT
+            elif not int(c["well_lo"]) <= raw[name] <= int(c["well_hi"]):
                 ok, reason = False, reason | wire.R_RANGE
             checks[name] = ok
         held = [n for n, ok in checks.items() if not ok and n in st.last_valid]
@@ -147,7 +157,7 @@ class Engine:
         mean = total >> self.cd_log2
         shutdown = int(c["shutdown_lvl"])
         if self.countdown_variant == "review_r1r2" and level >= shutdown:
-            return (0, 0, 0), mean <= 0
+            return (0, 0, 0), False  # D2: tripped tank reads 0, checked before "not filling"
         dl = max(shutdown - level, 0)
         kcd = int(c["K_cd"])
 
@@ -163,21 +173,23 @@ class Engine:
     # ---- main ------------------------------------------------------------------------------------------------
     def process(self, r):
         fid = int(r["fac_id"])
+        if int(r["reserved0"]) or int(r["reserved1"]) or int(r["reserved2"]):  # A13 / FPGA D9: before the lookup
+            return self._result(r, wire.ST_DROPPED, wire.R_FRAMING), None, []
         if fid >= wire.MAX_FACILITIES or fid not in self.cfg:
             return self._result(r, wire.ST_DROPPED, wire.R_UNKNOWN_FACILITY), None, []
         c, st = self.cfg[fid], self.fac[fid]
-        if int(r["reserved0"]) or int(r["reserved1"]) or int(r["reserved2"]):
-            return self._result(r, wire.ST_INVALID, 0, st), None, []  # A13
 
         # S1: timestamp step
         ts = int(r["ts_unix"])
         reason = 0
-        if st.last_ts is not None:
+        if st.last_ts is None:  # first record of this facility: a new history (FPGA numerics.md 3.3)
+            reason |= wire.R_RESET
+        else:
             d = ts - st.last_ts
-            if d == 0:
-                return self._result(r, wire.ST_DROPPED, wire.R_DUPLICATE, st), None, []
+            if d == 0:  # every DROPPED RESULT carries since_reset = 0 and changes no state
+                return self._result(r, wire.ST_DROPPED, wire.R_DUPLICATE), None, []
             if d < STEP_S:  # negative, or a partial step (A4)
-                return self._result(r, wire.ST_DROPPED, wire.R_OUT_OF_ORDER, st), None, []
+                return self._result(r, wire.ST_DROPPED, wire.R_OUT_OF_ORDER), None, []
             missing_steps = d // STEP_S - 1 if d % STEP_S == 0 else self.hold_max + 1  # A4
             if 1 <= missing_steps <= self.hold_max:
                 reason |= wire.R_GAP_HELD
@@ -201,12 +213,15 @@ class Engine:
         if held:
             reason |= wire.R_FIELD_HELD
         if missing:  # A6: nothing to hold -> INVALID, state other than last_valid untouched
+            reason |= wire.R_FIELD_LOST
             for h in range(4):
                 st.persist[h] = 0
             st.gap_run = 0
             return self._result(r, wire.ST_INVALID, reason, st), None, []
         v = {n: (raw[n] if checks[n] else st.last_valid[n]) for n in checks}
         status = wire.ST_HELD if reason & (wire.R_FIELD_HELD | wire.R_GAP_HELD) else wire.ST_VALID
+        if not self.weights.version:
+            reason |= wire.R_NO_MODEL
 
         # S2: channels
         s = self.s
@@ -277,7 +292,7 @@ class Engine:
             rules |= wire.RULE_AT_SHUTDOWN
         if level >= int(c["warning_lvl"]):
             rules |= wire.RULE_AT_WARNING
-        net = v["inflow"] - v["pump_flow"] if self.countdown_variant == "plan_v1" else v["inflow"]
+        net = v["inflow"] - v["pump_flow"] if self.countdown_variant == "plan_v1" else max(v["inflow"], 0)  # D1
         if st.ring is None:
             st.ring = [net] * (1 << self.cd_log2)  # A8: ring starts filled with the first value
         else:
@@ -295,32 +310,39 @@ class Engine:
                 assert -(1 << (ACC_BITS - 1)) <= acc < (1 << (ACC_BITS - 1)), "48-bit accumulator overflow"
                 logits[h] = sat16((acc + (1 << (wts.s_out - 1))) >> wts.s_out)
 
-        # S6: alarms (A10-A12)
-        alerts = []
+        # S6: alarms (A10-A12, A19 / FPGA D8). Order per record: NS_RAISED, ES_RAISED, CLEARED(NS), CLEARED(ES).
         for h in range(4):
             st.persist[h] = st.persist[h] + 1 if logits[h] > self.logit_thr[h] else 0
         model_on = [st.persist[h] >= self.k[h] for h in range(4)]
         classes = sum(1 << h for h in range(4) if model_on[h])
         rule_on = rules & ALARM_RULES
-        night = bool(rule_on) or any(model_on)
         st.gap_run = st.gap_run + 1 if (ch[3] > self.gap_thr and logits[0] > self.logit_thr[0]) else 0
-        src = (1 if rule_on else 0) | (2 if any(model_on) else 0)
+        ns_c = bool(rule_on) or any(model_on)
+        es_c = st.gap_run >= self.k[0]
+        model_src = wire.SRC_MODEL if any(model_on) else 0
         base = {"fac_id": fid, "ts_unix": ts, "result_no": self.result_no, "rules": rules, "classes": classes,
-                "countdown_p10": cd[0], "source": src}
-        if night != st.night_shift:
-            alerts.append({**base, "kind": wire.A_NIGHT_SHIFT if night else wire.A_CLEARED})
-            st.night_shift = night
-        if not st.estop and st.gap_run >= self.k[0]:
-            st.estop = True  # latched; cleared only by an acknowledge (not modelled here)
-            alerts.append({**base, "kind": wire.A_ESTOP})
+                "countdown_p10": cd[0]}
+        alerts = []
+        if ns_c and not st.ns_latch:
+            alerts.append({**base, "kind": wire.A_NIGHT_SHIFT, "source": (wire.SRC_RULE if rule_on else 0) | model_src})
+        if es_c and not st.es_latch:
+            alerts.append({**base, "kind": wire.A_ESTOP, "source": wire.SRC_RULE | model_src | wire.SRC_LATCH_ESTOP})
+        if st.ns_cond and not ns_c:
+            alerts.append({**base, "kind": wire.A_CLEARED, "source": 0})
+        if st.es_cond and not es_c:
+            alerts.append({**base, "kind": wire.A_CLEARED, "source": wire.SRC_LATCH_ESTOP})
+        st.ns_cond, st.es_cond = ns_c, es_c
+        st.ns_latch |= ns_c  # cleared only by an acknowledge (BTN0 / CTRL.server_ack), never modelled
+        st.es_latch |= es_c
 
         res = self._result(r, status, reason, st, logits, rules, cd)
-        stages = {"values": v, "features": feats, "night_shift": st.night_shift, "estop": st.estop}
+        stages = {"values": v, "features": feats, "ns_cond": st.ns_cond, "es_cond": st.es_cond,
+                  "ns_latch": st.ns_latch, "es_latch": st.es_latch}
         st.since_reset += 1
         return res, stages, alerts
 
 
-def run(records, global_config, facility_config, weights=None, countdown="plan_v1", persist_k=None):
+def run(records, global_config, facility_config, weights=None, countdown="review_r1r2", persist_k=None):
     """Process records in order. Returns (results ndarray RESULT_DTYPE, list of stages, list of alerts)."""
     import numpy as np
     eng = Engine(global_config, facility_config, weights, countdown, persist_k)

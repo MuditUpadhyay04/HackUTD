@@ -1,7 +1,7 @@
 """Golden vector sets for the RTL testbench and the board (docs/plan/mudit/ml_plan.md section 4.9).
 
     python -m hutd_ml.golden --data <dataset folder> --out <dir> [--set g0|g1|g2] [--weights v0|<blob>]
-                             [--weights-version N] [--config <global_config.json>] [--countdown plan_v1|review_r1r2]
+                             [--weights-version N] [--config <global_config.json>] [--countdown review_r1r2|plan_v1]
                              [--mem] [--stages]
 
 Writes: global_config.bin (32 B), facility_config.bin (n x 64 B), weights.bin (blob, if any), data.bin (48 B
@@ -19,7 +19,7 @@ import numpy as np
 
 from . import encode, features_int as fi, model_int, wire
 
-ASSUMPTIONS_VERSION = "A1-A19 (ml/README.md), 2026-11-07"
+ASSUMPTIONS_VERSION = "A1-A19 + FPGA response (S=17, review_r1r2, A13 FRAMING, A19 latches, per-class K), 2026-11-08"
 V0_VERSION = 240  # untrained test weights report weights_ver 240; trained weights start at 1
 
 
@@ -58,10 +58,13 @@ def g2_records(enc):
     r = base[23].copy(); r["fac_id"] = 31; seq.append(r)              # disabled slot -> DROPPED
     r = base[23].copy(); r["fac_id"] = 40; seq.append(r)              # id >= 32 -> DROPPED
     seq += list(base[24:30])
+    r = base[30].copy(); r["reserved1"] = 1; seq.append(r)           # non-zero reserved field -> DROPPED FRAMING
+    r = base[30].copy(); r["reserved0"] = 2; r["fac_id"] = 40; seq.append(r)  # framing is checked before the slot
+    seq += list(base[30:33])                         # 30 is then accepted (the framing drops changed nothing)
     return np.array(seq, dtype=wire.DATA_DTYPE)
 
 
-def build(data, out, which="g1", weights="v0", weights_version=None, config=None, countdown="plan_v1",
+def build(data, out, which="g1", weights="v0", weights_version=None, config=None, countdown="review_r1r2",
           mem=False, stages_csv=False):
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
@@ -69,7 +72,7 @@ def build(data, out, which="g1", weights="v0", weights_version=None, config=None
     persist_k = None
     if config:
         cfg = json.loads(Path(config).read_text())
-        gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat") if k in cfg}
+        gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat", "persist_k_per_class") if k in cfg}
         countdown = cfg.get("countdown", countdown)  # wire v1 has one persist_K; per-class K is only a proposal
     enc = encode.encode_dataset(data, **gkw)
     records = {"g0": g0_records, "g1": lambda e: e.records, "g2": g2_records}[which](enc)
@@ -121,7 +124,8 @@ def write_stages_csv(path, records, res, stages):
         w = csv.writer(fh)
         w.writerow(["i", "fac_id", "ts_unix", "status", "reason", "since_reset"] + [f"v_{n}" for n in vnames]
                    + fi.FEATURE_NAMES + ["logit_" + h for h in wire.HEADS] + ["rules", "cd_p10", "cd_p50", "cd_p90",
-                                                                               "night_shift", "estop"])
+                                                                               "ns_cond", "es_cond",
+                                                                               "ns_latch", "es_latch"])
         for i, (r, s) in enumerate(zip(res, stages)):
             row = [i, int(r["fac_id"]), int(r["ts_unix"]), int(r["status"]), int(r["reason"]), int(r["since_reset"])]
             if s is None:
@@ -129,7 +133,7 @@ def write_stages_csv(path, records, res, stages):
             else:
                 row += [s["values"].get(n, "") for n in vnames] + list(s["features"])
             row += [int(x) for x in r["logits"]] + [int(r["rules"])] + [int(x) for x in r["countdown"]]
-            row += ["" if s is None else int(s["night_shift"]), "" if s is None else int(s["estop"])]
+            row += ["" if s is None else int(s[k]) for k in ("ns_cond", "es_cond", "ns_latch", "es_latch")]
             w.writerow(row)
 
 
@@ -141,7 +145,7 @@ def main(argv=None):
     ap.add_argument("--weights", default="v0", help="'v0', 'none', or a weights.bin blob")
     ap.add_argument("--weights-version", type=int, default=None)
     ap.add_argument("--config", default=None, help="global_config.json from training (thresholds, K, gap_thr)")
-    ap.add_argument("--countdown", default="plan_v1", choices=["plan_v1", "review_r1r2"])
+    ap.add_argument("--countdown", default="review_r1r2", choices=["review_r1r2", "plan_v1"])
     ap.add_argument("--mem", action="store_true", help="also write $readmemh files")
     ap.add_argument("--stages", action="store_true", help="also write expected_stages.csv")
     a = ap.parse_args(argv)

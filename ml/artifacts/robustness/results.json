@@ -1,16 +1,16 @@
 {
  "v1 (C 3/3/0.03/0.03)": {
-  "max_abs_weight": 39.1,
+  "max_abs_weight": 38.2,
   "thr": [
    64,
-   384,
+   448,
    0,
    0
   ],
   "by_distortion": {
    "clean": {
     "pipeline_leak": {
-     "ap": 0.962,
+     "ap": 0.963,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
@@ -23,8 +23,8 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
-     "precision": 0.947,
-     "recall": 0.83,
+     "precision": 0.946,
+     "recall": 0.813,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -51,16 +51,16 @@
      "ap": 0.965,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.01,
-     "precision": 0.938,
-     "recall": 0.828,
+     "fa_per_fac_day": 0.019,
+     "precision": 0.939,
+     "recall": 0.824,
      "median_delay_min": 30.0
     },
     "pump_degradation": {
-     "ap": 0.799,
+     "ap": 0.809,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 1.543,
+     "fa_per_fac_day": 1.733,
      "precision": 0.072,
      "recall": 1.0,
      "median_delay_min": 0.0
@@ -89,18 +89,18 @@
      "ap": 0.96,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 4.914,
-     "precision": 0.607,
+     "fa_per_fac_day": 5.095,
+     "precision": 0.599,
      "recall": 0.99,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.843,
+     "ap": 0.848,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.01,
      "precision": 0.972,
-     "recall": 0.513,
+     "recall": 0.508,
      "median_delay_min": 935.0
     },
     "pump_failure": {
@@ -124,7 +124,7 @@
    },
    "p0_+200psi": {
     "pipeline_leak": {
-     "ap": 0.962,
+     "ap": 0.963,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
@@ -137,8 +137,8 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
-     "precision": 0.947,
-     "recall": 0.83,
+     "precision": 0.946,
+     "recall": 0.813,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -162,7 +162,7 @@
    },
    "size_x0.5": {
     "pipeline_leak": {
-     "ap": 0.962,
+     "ap": 0.963,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
@@ -175,8 +175,8 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
-     "precision": 0.947,
-     "recall": 0.83,
+     "precision": 0.946,
+     "recall": 0.813,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -200,7 +200,7 @@
    },
    "size_x2": {
     "pipeline_leak": {
-     "ap": 0.962,
+     "ap": 0.963,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
@@ -213,8 +213,8 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
-     "precision": 0.947,
-     "recall": 0.83,
+     "precision": 0.946,
+     "recall": 0.813,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -242,7 +242,7 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.162,
-     "precision": 0.935,
+     "precision": 0.936,
      "recall": 0.986,
      "median_delay_min": 5.0
     },
@@ -250,10 +250,10 @@
      "ap": 0.915,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.152,
-     "precision": 0.94,
-     "recall": 0.823,
-     "median_delay_min": 170.0
+     "fa_per_fac_day": 0.095,
+     "precision": 0.943,
+     "recall": 0.804,
+     "median_delay_min": 260.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -276,21 +276,21 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.848,
+     "ap": 0.849,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.181,
-     "precision": 0.932,
-     "recall": 0.806,
+     "fa_per_fac_day": 0.2,
+     "precision": 0.93,
+     "recall": 0.808,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.77,
+     "ap": 0.774,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.21,
-     "precision": 0.914,
-     "recall": 0.692,
+     "fa_per_fac_day": 0.19,
+     "precision": 0.926,
+     "recall": 0.679,
      "median_delay_min": 345.0
     },
     "pump_failure": {
@@ -313,8 +313,8 @@
     }
    }
   },
-  "mean_ap_leak_degr": 0.913,
-  "worst_ap_leak_degr": 0.77
+  "mean_ap_leak_degr": 0.914,
+  "worst_ap_leak_degr": 0.774
  },
  "C=0.01": {
   "max_abs_weight": 6.6,
@@ -370,7 +370,7 @@
      "events": 5,
      "fa_per_fac_day": 0.029,
      "precision": 0.884,
-     "recall": 0.973,
+     "recall": 0.974,
      "median_delay_min": 15.0
     },
     "pump_degradation": {
@@ -605,7 +605,7 @@
      "ap": 0.224,
      "detected": 3,
      "events": 5,
-     "fa_per_fac_day": 0.771,
+     "fa_per_fac_day": 0.762,
      "precision": 0.043,
      "recall": 0.023,
      "median_delay_min": 690.0
@@ -653,13 +653,13 @@
      "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.684,
+     "ap": 0.685,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.767,
-     "recall": 0.176,
-     "median_delay_min": 1350.0
+     "precision": 0.769,
+     "recall": 0.178,
+     "median_delay_min": 1335.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -685,7 +685,7 @@
      "ap": 0.933,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 2.924,
+     "fa_per_fac_day": 2.905,
      "precision": 0.739,
      "recall": 0.99,
      "median_delay_min": 0.0
@@ -694,9 +694,9 @@
      "ap": 0.68,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.124,
-     "precision": 0.889,
-     "recall": 0.539,
+     "fa_per_fac_day": 0.133,
+     "precision": 0.892,
+     "recall": 0.538,
      "median_delay_min": 705.0
     },
     "pump_failure": {
@@ -720,21 +720,21 @@
    },
    "pressure_x1.3": {
     "pipeline_leak": {
-     "ap": 0.919,
+     "ap": 0.92,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.067,
+     "fa_per_fac_day": 0.076,
      "precision": 0.895,
-     "recall": 0.913,
+     "recall": 0.914,
      "median_delay_min": 95.0
     },
     "pump_degradation": {
-     "ap": 0.615,
+     "ap": 0.616,
      "detected": 4,
      "events": 5,
-     "fa_per_fac_day": 0.038,
+     "fa_per_fac_day": 0.048,
      "precision": 0.619,
-     "recall": 0.087,
+     "recall": 0.086,
      "median_delay_min": 1837.5
     },
     "pump_failure": {
@@ -767,13 +767,13 @@
      "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.684,
+     "ap": 0.685,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.767,
-     "recall": 0.176,
-     "median_delay_min": 1350.0
+     "precision": 0.769,
+     "recall": 0.178,
+     "median_delay_min": 1335.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -805,13 +805,13 @@
      "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.684,
+     "ap": 0.685,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.767,
-     "recall": 0.176,
-     "median_delay_min": 1350.0
+     "precision": 0.769,
+     "recall": 0.178,
+     "median_delay_min": 1335.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -843,13 +843,13 @@
      "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.684,
+     "ap": 0.685,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.767,
-     "recall": 0.176,
-     "median_delay_min": 1350.0
+     "precision": 0.769,
+     "recall": 0.178,
+     "median_delay_min": 1335.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -876,16 +876,16 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.076,
-     "precision": 0.892,
+     "precision": 0.893,
      "recall": 0.968,
      "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.674,
+     "ap": 0.675,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.77,
+     "precision": 0.772,
      "recall": 0.179,
      "median_delay_min": 1275.0
     },
@@ -910,21 +910,21 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.885,
+     "ap": 0.886,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.143,
-     "precision": 0.893,
+     "fa_per_fac_day": 0.133,
+     "precision": 0.895,
      "recall": 0.853,
      "median_delay_min": 25.0
     },
     "pump_degradation": {
-     "ap": 0.25,
+     "ap": 0.251,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 1.076,
-     "precision": 0.208,
-     "recall": 0.202,
+     "fa_per_fac_day": 1.048,
+     "precision": 0.211,
+     "recall": 0.2,
      "median_delay_min": 85.0
     },
     "pump_failure": {
@@ -947,14 +947,14 @@
     }
    }
   },
-  "mean_ap_leak_degr": 0.77,
-  "worst_ap_leak_degr": 0.25
+  "mean_ap_leak_degr": 0.771,
+  "worst_ap_leak_degr": 0.251
  },
  "C=0.1": {
   "max_abs_weight": 9.0,
   "thr": [
-   256,
-   512,
+   -64,
+   448,
    0,
    0
   ],
@@ -965,18 +965,18 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.942,
-     "recall": 0.961,
-     "median_delay_min": 25.0
+     "precision": 0.908,
+     "recall": 0.987,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.845,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.949,
-     "recall": 0.543,
-     "median_delay_min": 705.0
+     "precision": 0.944,
+     "recall": 0.548,
+     "median_delay_min": 630.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1002,19 +1002,19 @@
      "ap": 0.943,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.171,
-     "precision": 0.917,
-     "recall": 0.988,
-     "median_delay_min": 5.0
+     "fa_per_fac_day": 21.41,
+     "precision": 0.324,
+     "recall": 0.99,
+     "median_delay_min": 0.0
     },
     "pump_degradation": {
-     "ap": 0.838,
+     "ap": 0.835,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 10.752,
-     "precision": 0.1,
-     "recall": 0.96,
-     "median_delay_min": 105.0
+     "fa_per_fac_day": 6.962,
+     "precision": 0.089,
+     "recall": 0.964,
+     "median_delay_min": 25.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1037,21 +1037,21 @@
    },
    "pressure_x1.3": {
     "pipeline_leak": {
-     "ap": 0.936,
+     "ap": 0.935,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.0,
-     "precision": 0.943,
-     "recall": 0.912,
-     "median_delay_min": 75.0
+     "fa_per_fac_day": 0.124,
+     "precision": 0.92,
+     "recall": 0.961,
+     "median_delay_min": 25.0
     },
     "pump_degradation": {
      "ap": 0.741,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.029,
-     "precision": 0.914,
-     "recall": 0.298,
+     "fa_per_fac_day": 0.019,
+     "precision": 0.915,
+     "recall": 0.33,
      "median_delay_min": 1160.0
     },
     "pump_failure": {
@@ -1079,18 +1079,18 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.942,
-     "recall": 0.961,
-     "median_delay_min": 25.0
+     "precision": 0.908,
+     "recall": 0.987,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.845,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.949,
-     "recall": 0.543,
-     "median_delay_min": 705.0
+     "precision": 0.944,
+     "recall": 0.548,
+     "median_delay_min": 630.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1117,18 +1117,18 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.942,
-     "recall": 0.961,
-     "median_delay_min": 25.0
+     "precision": 0.908,
+     "recall": 0.987,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.845,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.949,
-     "recall": 0.543,
-     "median_delay_min": 705.0
+     "precision": 0.944,
+     "recall": 0.548,
+     "median_delay_min": 630.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1155,18 +1155,18 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.942,
-     "recall": 0.961,
-     "median_delay_min": 25.0
+     "precision": 0.908,
+     "recall": 0.987,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.845,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.949,
-     "recall": 0.543,
-     "median_delay_min": 705.0
+     "precision": 0.944,
+     "recall": 0.548,
+     "median_delay_min": 630.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1189,22 +1189,22 @@
    },
    "noise": {
     "pipeline_leak": {
-     "ap": 0.939,
+     "ap": 0.938,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.94,
-     "recall": 0.952,
-     "median_delay_min": 15.0
+     "fa_per_fac_day": 0.124,
+     "precision": 0.904,
+     "recall": 0.983,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.837,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.067,
-     "precision": 0.948,
-     "recall": 0.542,
-     "median_delay_min": 705.0
+     "fa_per_fac_day": 0.048,
+     "precision": 0.944,
+     "recall": 0.556,
+     "median_delay_min": 580.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1227,21 +1227,21 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.884,
+     "ap": 0.883,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.076,
-     "precision": 0.942,
-     "recall": 0.84,
-     "median_delay_min": 25.0
+     "fa_per_fac_day": 0.114,
+     "precision": 0.907,
+     "recall": 0.871,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.614,
+     "ap": 0.61,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.381,
-     "precision": 0.683,
-     "recall": 0.431,
+     "fa_per_fac_day": 0.486,
+     "precision": 0.646,
+     "recall": 0.456,
      "median_delay_min": 835.0
     },
     "pump_failure": {
@@ -1264,8 +1264,8 @@
     }
    }
   },
-  "mean_ap_leak_degr": 0.867,
-  "worst_ap_leak_degr": 0.614
+  "mean_ap_leak_degr": 0.866,
+  "worst_ap_leak_degr": 0.61
  },
  "C=0.3": {
   "max_abs_weight": 14.5,
@@ -1316,21 +1316,21 @@
    },
    "pressure_x0.7": {
     "pipeline_leak": {
-     "ap": 0.947,
+     "ap": 0.948,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 9.4,
-     "precision": 0.535,
+     "fa_per_fac_day": 9.352,
+     "precision": 0.538,
      "recall": 0.99,
      "median_delay_min": 0.0
     },
     "pump_degradation": {
-     "ap": 0.835,
+     "ap": 0.833,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 6.257,
+     "fa_per_fac_day": 6.248,
      "precision": 0.081,
-     "recall": 0.994,
+     "recall": 0.992,
      "median_delay_min": 0.0
     },
     "pump_failure": {
@@ -1363,7 +1363,7 @@
      "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.79,
+     "ap": 0.791,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.01,
@@ -1515,12 +1515,12 @@
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.889,
+     "ap": 0.89,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.972,
-     "recall": 0.568,
+     "fa_per_fac_day": 0.029,
+     "precision": 0.973,
+     "recall": 0.569,
      "median_delay_min": 580.0
     },
     "pump_failure": {
@@ -1544,10 +1544,10 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.869,
+     "ap": 0.868,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.105,
+     "fa_per_fac_day": 0.095,
      "precision": 0.943,
      "recall": 0.871,
      "median_delay_min": 5.0
@@ -1556,9 +1556,9 @@
      "ap": 0.745,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.152,
-     "precision": 0.901,
-     "recall": 0.462,
+     "fa_per_fac_day": 0.181,
+     "precision": 0.907,
+     "recall": 0.464,
      "median_delay_min": 630.0
     },
     "pump_failure": {
@@ -1585,10 +1585,10 @@
   "worst_ap_leak_degr": 0.745
  },
  "C=1.0": {
-  "max_abs_weight": 24.3,
+  "max_abs_weight": 24.1,
   "thr": [
    0,
-   576,
+   1024,
    0,
    0
   ],
@@ -1607,10 +1607,10 @@
      "ap": 0.916,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.94,
-     "recall": 0.702,
-     "median_delay_min": 410.0
+     "fa_per_fac_day": 0.038,
+     "precision": 0.983,
+     "recall": 0.558,
+     "median_delay_min": 605.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1636,18 +1636,18 @@
      "ap": 0.953,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.314,
-     "precision": 0.925,
-     "recall": 0.961,
+     "fa_per_fac_day": 0.276,
+     "precision": 0.927,
+     "recall": 0.962,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.838,
+     "ap": 0.831,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 1.533,
-     "precision": 0.072,
-     "recall": 1.0,
+     "fa_per_fac_day": 6.371,
+     "precision": 0.087,
+     "recall": 0.985,
      "median_delay_min": 0.0
     },
     "pump_failure": {
@@ -1674,19 +1674,19 @@
      "ap": 0.951,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.286,
-     "precision": 0.926,
-     "recall": 0.984,
-     "median_delay_min": 10.0
+     "fa_per_fac_day": 0.276,
+     "precision": 0.927,
+     "recall": 0.985,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.825,
+     "ap": 0.824,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.019,
-     "precision": 0.97,
-     "recall": 0.454,
-     "median_delay_min": 990.0
+     "precision": 0.979,
+     "recall": 0.366,
+     "median_delay_min": 1055.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1721,10 +1721,10 @@
      "ap": 0.916,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.94,
-     "recall": 0.702,
-     "median_delay_min": 410.0
+     "fa_per_fac_day": 0.038,
+     "precision": 0.983,
+     "recall": 0.558,
+     "median_delay_min": 605.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1759,10 +1759,10 @@
      "ap": 0.916,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.94,
-     "recall": 0.702,
-     "median_delay_min": 410.0
+     "fa_per_fac_day": 0.038,
+     "precision": 0.983,
+     "recall": 0.558,
+     "median_delay_min": 605.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1797,10 +1797,10 @@
      "ap": 0.916,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.94,
-     "recall": 0.702,
-     "median_delay_min": 410.0
+     "fa_per_fac_day": 0.038,
+     "precision": 0.983,
+     "recall": 0.558,
+     "median_delay_min": 605.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1835,10 +1835,10 @@
      "ap": 0.906,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.086,
-     "precision": 0.949,
-     "recall": 0.706,
-     "median_delay_min": 370.0
+     "fa_per_fac_day": 0.029,
+     "precision": 0.987,
+     "recall": 0.568,
+     "median_delay_min": 580.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1861,22 +1861,22 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.855,
+     "ap": 0.854,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.152,
-     "precision": 0.938,
-     "recall": 0.859,
+     "precision": 0.939,
+     "recall": 0.863,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.773,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.133,
-     "precision": 0.931,
-     "recall": 0.602,
-     "median_delay_min": 425.0
+     "fa_per_fac_day": 0.105,
+     "precision": 0.966,
+     "recall": 0.463,
+     "median_delay_min": 630.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -1898,35 +1898,35 @@
     }
    }
   },
-  "mean_ap_leak_degr": 0.908,
+  "mean_ap_leak_degr": 0.907,
   "worst_ap_leak_degr": 0.773
  },
  "C=10.0": {
-  "max_abs_weight": 60.5,
+  "max_abs_weight": 62.1,
   "thr": [
    64,
-   512,
+   448,
    0,
    0
   ],
   "by_distortion": {
    "clean": {
     "pipeline_leak": {
-     "ap": 0.975,
+     "ap": 0.976,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
      "precision": 0.944,
-     "recall": 0.988,
-     "median_delay_min": 10.0
+     "recall": 0.989,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.931,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.951,
-     "recall": 0.84,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.95,
+     "recall": 0.851,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -1953,18 +1953,18 @@
      "ap": 0.976,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.971,
-     "recall": 0.683,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.978,
+     "recall": 0.68,
      "median_delay_min": 60.0
     },
     "pump_degradation": {
-     "ap": 0.733,
+     "ap": 0.723,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 6.686,
-     "precision": 0.082,
-     "recall": 0.999,
+     "fa_per_fac_day": 8.619,
+     "precision": 0.083,
+     "recall": 1.0,
      "median_delay_min": 0.0
     },
     "pump_failure": {
@@ -1991,19 +1991,19 @@
      "ap": 0.974,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 10.924,
-     "precision": 0.267,
-     "recall": 0.991,
+     "fa_per_fac_day": 11.324,
+     "precision": 0.257,
+     "recall": 0.992,
      "median_delay_min": 0.0
     },
     "pump_degradation": {
-     "ap": 0.849,
+     "ap": 0.851,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.019,
+     "fa_per_fac_day": 0.01,
      "precision": 0.977,
-     "recall": 0.565,
-     "median_delay_min": 715.0
+     "recall": 0.595,
+     "median_delay_min": 630.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -2026,21 +2026,21 @@
    },
    "p0_+200psi": {
     "pipeline_leak": {
-     "ap": 0.975,
+     "ap": 0.976,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
      "precision": 0.944,
-     "recall": 0.988,
-     "median_delay_min": 10.0
+     "recall": 0.989,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.931,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.951,
-     "recall": 0.84,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.95,
+     "recall": 0.851,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2064,21 +2064,21 @@
    },
    "size_x0.5": {
     "pipeline_leak": {
-     "ap": 0.975,
+     "ap": 0.976,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
      "precision": 0.944,
-     "recall": 0.988,
-     "median_delay_min": 10.0
+     "recall": 0.989,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.931,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.951,
-     "recall": 0.84,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.95,
+     "recall": 0.851,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2102,21 +2102,21 @@
    },
    "size_x2": {
     "pipeline_leak": {
-     "ap": 0.975,
+     "ap": 0.976,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
      "precision": 0.944,
-     "recall": 0.988,
-     "median_delay_min": 10.0
+     "recall": 0.989,
+     "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.931,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.951,
-     "recall": 0.84,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.95,
+     "recall": 0.851,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2144,7 +2144,7 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.19,
-     "precision": 0.934,
+     "precision": 0.933,
      "recall": 0.986,
      "median_delay_min": 10.0
     },
@@ -2152,9 +2152,9 @@
      "ap": 0.921,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.095,
-     "precision": 0.947,
-     "recall": 0.833,
+     "fa_per_fac_day": 0.162,
+     "precision": 0.942,
+     "recall": 0.844,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2178,21 +2178,21 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.811,
+     "ap": 0.809,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.248,
      "precision": 0.937,
-     "recall": 0.736,
+     "recall": 0.738,
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.752,
+     "ap": 0.745,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.171,
-     "precision": 0.934,
-     "recall": 0.679,
+     "fa_per_fac_day": 0.21,
+     "precision": 0.928,
+     "recall": 0.68,
      "median_delay_min": 345.0
     },
     "pump_failure": {
@@ -2216,12 +2216,12 @@
    }
   },
   "mean_ap_leak_degr": 0.913,
-  "worst_ap_leak_degr": 0.733
+  "worst_ap_leak_degr": 0.723
  },
  "augmented C=0.1": {
   "max_abs_weight": 16.7,
   "thr": [
-   -64,
+   0,
    640,
    0,
    0
@@ -2232,18 +2232,18 @@
      "ap": 0.949,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.944,
+     "fa_per_fac_day": 0.01,
+     "precision": 0.947,
      "recall": 0.988,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.914,
+     "ap": 0.915,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.029,
      "precision": 0.976,
-     "recall": 0.591,
+     "recall": 0.594,
      "median_delay_min": 575.0
     },
     "pump_failure": {
@@ -2267,21 +2267,21 @@
    },
    "pressure_x0.7": {
     "pipeline_leak": {
-     "ap": 0.95,
+     "ap": 0.951,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.01,
-     "precision": 0.946,
-     "recall": 0.986,
+     "fa_per_fac_day": 0.0,
+     "precision": 0.947,
+     "recall": 0.983,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.915,
+     "ap": 0.916,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.01,
      "precision": 0.978,
-     "recall": 0.548,
+     "recall": 0.549,
      "median_delay_min": 705.0
     },
     "pump_failure": {
@@ -2308,18 +2308,18 @@
      "ap": 0.948,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.124,
-     "precision": 0.939,
-     "recall": 0.988,
+     "fa_per_fac_day": 0.038,
+     "precision": 0.945,
+     "recall": 0.987,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.893,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.171,
-     "precision": 0.925,
-     "recall": 0.667,
+     "fa_per_fac_day": 0.181,
+     "precision": 0.927,
+     "recall": 0.67,
      "median_delay_min": 490.0
     },
     "pump_failure": {
@@ -2346,18 +2346,18 @@
      "ap": 0.949,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.944,
+     "fa_per_fac_day": 0.01,
+     "precision": 0.947,
      "recall": 0.988,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.914,
+     "ap": 0.915,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.029,
      "precision": 0.976,
-     "recall": 0.591,
+     "recall": 0.594,
      "median_delay_min": 575.0
     },
     "pump_failure": {
@@ -2384,18 +2384,18 @@
      "ap": 0.949,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.944,
+     "fa_per_fac_day": 0.01,
+     "precision": 0.947,
      "recall": 0.988,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.914,
+     "ap": 0.915,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.029,
      "precision": 0.976,
-     "recall": 0.591,
+     "recall": 0.594,
      "median_delay_min": 575.0
     },
     "pump_failure": {
@@ -2422,18 +2422,18 @@
      "ap": 0.949,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.944,
+     "fa_per_fac_day": 0.01,
+     "precision": 0.947,
      "recall": 0.988,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.914,
+     "ap": 0.915,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.029,
      "precision": 0.976,
-     "recall": 0.591,
+     "recall": 0.594,
      "median_delay_min": 575.0
     },
     "pump_failure": {
@@ -2457,11 +2457,11 @@
    },
    "noise": {
     "pipeline_leak": {
-     "ap": 0.948,
+     "ap": 0.949,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.181,
-     "precision": 0.935,
+     "fa_per_fac_day": 0.133,
+     "precision": 0.938,
      "recall": 0.986,
      "median_delay_min": 5.0
     },
@@ -2469,9 +2469,9 @@
      "ap": 0.902,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.029,
-     "precision": 0.98,
-     "recall": 0.623,
+     "fa_per_fac_day": 0.019,
+     "precision": 0.981,
+     "recall": 0.625,
      "median_delay_min": 560.0
     },
     "pump_failure": {
@@ -2495,21 +2495,21 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.857,
+     "ap": 0.859,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.133,
-     "precision": 0.94,
-     "recall": 0.867,
+     "fa_per_fac_day": 0.114,
+     "precision": 0.941,
+     "recall": 0.864,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.761,
+     "ap": 0.762,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.171,
-     "precision": 0.932,
-     "recall": 0.508,
+     "precision": 0.936,
+     "recall": 0.511,
      "median_delay_min": 620.0
     },
     "pump_failure": {
@@ -2532,11 +2532,11 @@
     }
    }
   },
-  "mean_ap_leak_degr": 0.914,
-  "worst_ap_leak_degr": 0.761
+  "mean_ap_leak_degr": 0.915,
+  "worst_ap_leak_degr": 0.762
  },
  "augmented C=0.3": {
-  "max_abs_weight": 26.8,
+  "max_abs_weight": 27.2,
   "thr": [
    0,
    320,
@@ -2549,8 +2549,8 @@
      "ap": 0.956,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.945,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.943,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
@@ -2560,7 +2560,7 @@
      "events": 5,
      "fa_per_fac_day": 0.048,
      "precision": 0.947,
-     "recall": 0.822,
+     "recall": 0.82,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -2588,16 +2588,16 @@
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.01,
-     "precision": 0.947,
-     "recall": 0.988,
+     "precision": 0.946,
+     "recall": 0.986,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
      "ap": 0.925,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.076,
-     "precision": 0.955,
+     "fa_per_fac_day": 0.067,
+     "precision": 0.954,
      "recall": 0.779,
      "median_delay_min": 250.0
     },
@@ -2625,8 +2625,8 @@
      "ap": 0.955,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.095,
-     "precision": 0.94,
+     "fa_per_fac_day": 0.124,
+     "precision": 0.939,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
@@ -2634,9 +2634,9 @@
      "ap": 0.914,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.219,
-     "precision": 0.901,
-     "recall": 0.835,
+     "fa_per_fac_day": 0.238,
+     "precision": 0.898,
+     "recall": 0.837,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2663,8 +2663,8 @@
      "ap": 0.956,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.945,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.943,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
@@ -2674,7 +2674,7 @@
      "events": 5,
      "fa_per_fac_day": 0.048,
      "precision": 0.947,
-     "recall": 0.822,
+     "recall": 0.82,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -2701,8 +2701,8 @@
      "ap": 0.956,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.945,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.943,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
@@ -2712,7 +2712,7 @@
      "events": 5,
      "fa_per_fac_day": 0.048,
      "precision": 0.947,
-     "recall": 0.822,
+     "recall": 0.821,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -2739,8 +2739,8 @@
      "ap": 0.956,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.945,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.943,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
@@ -2750,7 +2750,7 @@
      "events": 5,
      "fa_per_fac_day": 0.048,
      "precision": 0.947,
-     "recall": 0.822,
+     "recall": 0.821,
      "median_delay_min": 190.0
     },
     "pump_failure": {
@@ -2777,8 +2777,8 @@
      "ap": 0.955,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.152,
-     "precision": 0.937,
+     "fa_per_fac_day": 0.162,
+     "precision": 0.936,
      "recall": 0.987,
      "median_delay_min": 5.0
     },
@@ -2786,9 +2786,9 @@
      "ap": 0.914,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.152,
+     "fa_per_fac_day": 0.133,
      "precision": 0.944,
-     "recall": 0.811,
+     "recall": 0.81,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2812,20 +2812,20 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.85,
+     "ap": 0.851,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.171,
-     "precision": 0.935,
-     "recall": 0.844,
+     "fa_per_fac_day": 0.162,
+     "precision": 0.936,
+     "recall": 0.846,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.755,
+     "ap": 0.756,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.257,
-     "precision": 0.908,
+     "fa_per_fac_day": 0.276,
+     "precision": 0.909,
      "recall": 0.668,
      "median_delay_min": 345.0
     },
@@ -2850,20 +2850,20 @@
    }
   },
   "mean_ap_leak_degr": 0.922,
-  "worst_ap_leak_degr": 0.755
+  "worst_ap_leak_degr": 0.756
  },
  "augmented C=1.0": {
-  "max_abs_weight": 43.5,
+  "max_abs_weight": 43.1,
   "thr": [
    0,
-   448,
+   384,
    0,
    0
   ],
   "by_distortion": {
    "clean": {
     "pipeline_leak": {
-     "ap": 0.97,
+     "ap": 0.971,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
@@ -2872,12 +2872,12 @@
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.935,
+     "ap": 0.934,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.029,
-     "precision": 0.952,
-     "recall": 0.836,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.949,
+     "recall": 0.845,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -2901,22 +2901,22 @@
    },
    "pressure_x0.7": {
     "pipeline_leak": {
-     "ap": 0.97,
+     "ap": 0.971,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.057,
-     "precision": 0.943,
-     "recall": 0.987,
+     "fa_per_fac_day": 0.038,
+     "precision": 0.945,
+     "recall": 0.988,
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.934,
+     "ap": 0.933,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.048,
-     "precision": 0.966,
-     "recall": 0.798,
-     "median_delay_min": 200.0
+     "fa_per_fac_day": 0.029,
+     "precision": 0.963,
+     "recall": 0.823,
+     "median_delay_min": 170.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -2939,22 +2939,22 @@
    },
    "pressure_x1.3": {
     "pipeline_leak": {
-     "ap": 0.97,
+     "ap": 0.971,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.945,
+     "fa_per_fac_day": 0.076,
+     "precision": 0.942,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.93,
+     "ap": 0.928,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.2,
-     "precision": 0.933,
-     "recall": 0.852,
-     "median_delay_min": 170.0
+     "fa_per_fac_day": 0.267,
+     "precision": 0.925,
+     "recall": 0.861,
+     "median_delay_min": 165.0
     },
     "pump_failure": {
      "ap": 1.0,
@@ -2977,7 +2977,7 @@
    },
    "p0_+200psi": {
     "pipeline_leak": {
-     "ap": 0.97,
+     "ap": 0.971,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
@@ -2986,12 +2986,12 @@
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.935,
+     "ap": 0.934,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.029,
-     "precision": 0.952,
-     "recall": 0.836,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.949,
+     "recall": 0.845,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -3015,7 +3015,7 @@
    },
    "size_x0.5": {
     "pipeline_leak": {
-     "ap": 0.97,
+     "ap": 0.971,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
@@ -3024,12 +3024,12 @@
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.935,
+     "ap": 0.934,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.029,
-     "precision": 0.952,
-     "recall": 0.836,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.949,
+     "recall": 0.845,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -3053,7 +3053,7 @@
    },
    "size_x2": {
     "pipeline_leak": {
-     "ap": 0.97,
+     "ap": 0.971,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.048,
@@ -3062,12 +3062,12 @@
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.935,
+     "ap": 0.934,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.029,
-     "precision": 0.952,
-     "recall": 0.836,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.949,
+     "recall": 0.845,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -3091,21 +3091,21 @@
    },
    "noise": {
     "pipeline_leak": {
-     "ap": 0.969,
+     "ap": 0.97,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.181,
-     "precision": 0.934,
-     "recall": 0.986,
+     "fa_per_fac_day": 0.19,
+     "precision": 0.933,
+     "recall": 0.987,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.923,
+     "ap": 0.922,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.124,
-     "precision": 0.948,
-     "recall": 0.823,
+     "fa_per_fac_day": 0.171,
+     "precision": 0.942,
+     "recall": 0.838,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -3132,18 +3132,18 @@
      "ap": 0.833,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.352,
-     "precision": 0.927,
+     "fa_per_fac_day": 0.333,
+     "precision": 0.928,
      "recall": 0.774,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.733,
+     "ap": 0.731,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.2,
-     "precision": 0.929,
-     "recall": 0.659,
+     "fa_per_fac_day": 0.257,
+     "precision": 0.921,
+     "recall": 0.67,
      "median_delay_min": 345.0
     },
     "pump_failure": {
@@ -3167,10 +3167,10 @@
    }
   },
   "mean_ap_leak_degr": 0.93,
-  "worst_ap_leak_degr": 0.733
+  "worst_ap_leak_degr": 0.731
  },
  "augmented C=3.0": {
-  "max_abs_weight": 64.5,
+  "max_abs_weight": 65.4,
   "thr": [
    64,
    448,
@@ -3189,12 +3189,12 @@
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.94,
+     "ap": 0.939,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.952,
-     "recall": 0.865,
+     "precision": 0.951,
+     "recall": 0.862,
      "median_delay_min": 165.0
     },
     "pump_failure": {
@@ -3221,18 +3221,18 @@
      "ap": 0.977,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
+     "fa_per_fac_day": 0.048,
      "precision": 0.944,
-     "recall": 0.983,
-     "median_delay_min": 10.0
+     "recall": 0.982,
+     "median_delay_min": 15.0
     },
     "pump_degradation": {
-     "ap": 0.939,
+     "ap": 0.937,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.029,
-     "precision": 0.957,
-     "recall": 0.846,
+     "precision": 0.956,
+     "recall": 0.844,
      "median_delay_min": 170.0
     },
     "pump_failure": {
@@ -3259,18 +3259,18 @@
      "ap": 0.978,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.086,
-     "precision": 0.941,
+     "fa_per_fac_day": 0.067,
+     "precision": 0.943,
      "recall": 0.989,
      "median_delay_min": 5.0
     },
     "pump_degradation": {
-     "ap": 0.938,
+     "ap": 0.937,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.171,
-     "precision": 0.944,
-     "recall": 0.878,
+     "fa_per_fac_day": 0.124,
+     "precision": 0.946,
+     "recall": 0.876,
      "median_delay_min": 165.0
     },
     "pump_failure": {
@@ -3303,12 +3303,12 @@
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.94,
+     "ap": 0.939,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.952,
-     "recall": 0.865,
+     "precision": 0.951,
+     "recall": 0.862,
      "median_delay_min": 165.0
     },
     "pump_failure": {
@@ -3341,12 +3341,12 @@
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.94,
+     "ap": 0.939,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.038,
-     "precision": 0.952,
-     "recall": 0.865,
+     "precision": 0.951,
+     "recall": 0.862,
      "median_delay_min": 165.0
     },
     "pump_failure": {
@@ -3379,12 +3379,12 @@
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.94,
+     "ap": 0.939,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.038,
-     "precision": 0.952,
-     "recall": 0.865,
+     "fa_per_fac_day": 0.048,
+     "precision": 0.951,
+     "recall": 0.862,
      "median_delay_min": 165.0
     },
     "pump_failure": {
@@ -3411,18 +3411,18 @@
      "ap": 0.978,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.181,
-     "precision": 0.934,
+     "fa_per_fac_day": 0.152,
+     "precision": 0.936,
      "recall": 0.987,
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.928,
+     "ap": 0.927,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.2,
-     "precision": 0.939,
-     "recall": 0.854,
+     "fa_per_fac_day": 0.219,
+     "precision": 0.938,
+     "recall": 0.852,
      "median_delay_min": 165.0
     },
     "pump_failure": {
@@ -3446,21 +3446,21 @@
    },
    "drop_2pct": {
     "pipeline_leak": {
-     "ap": 0.793,
+     "ap": 0.797,
      "detected": 5,
      "events": 5,
-     "fa_per_fac_day": 0.295,
-     "precision": 0.929,
-     "recall": 0.728,
+     "fa_per_fac_day": 0.286,
+     "precision": 0.931,
+     "recall": 0.731,
      "median_delay_min": 10.0
     },
     "pump_degradation": {
-     "ap": 0.707,
+     "ap": 0.698,
      "detected": 5,
      "events": 5,
      "fa_per_fac_day": 0.257,
-     "precision": 0.933,
-     "recall": 0.649,
+     "precision": 0.92,
+     "recall": 0.638,
      "median_delay_min": 330.0
     },
     "pump_failure": {
@@ -3483,7 +3483,7 @@
     }
    }
   },
-  "mean_ap_leak_degr": 0.932,
-  "worst_ap_leak_degr": 0.707
+  "mean_ap_leak_degr": 0.931,
+  "worst_ap_leak_degr": 0.698
  }
 }

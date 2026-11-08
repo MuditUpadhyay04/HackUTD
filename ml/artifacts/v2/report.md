@@ -5,7 +5,7 @@ Validation: train on 4 systems, score the 5th, for each of S1–S5 (out-of-fold,
 
 Training data: the clean practice week **plus augmented copies** (healthy pressure offsets x0.8 / x1.2, sizes x0.7 / x1.5, extra sensor noise; see `augment.TRAIN`). Validation scores are always on the clean held-out system.
 
-Blob: 980 B, CRC32 0x3FF07B63, model hash 0xB33A6955, S_out 15, Fw 9, logits in 1/256 units.
+Blob: 980 B, CRC32 0x72007275, model hash 0x333352A4, S_out 15, Fw 9, logits in 1/256 units.
 
 ## Regularization (pooled out-of-fold average precision by C)
 
@@ -14,23 +14,23 @@ Blob: 980 B, CRC32 0x3FF07B63, model hash 0xB33A6955, S_out 15, Fw 9, logits in 
 - pump_failure: {'fixed': 0.03} → **C = 0.03**
 - facility_shut_in: {'fixed': 0.03} → **C = 0.03**
 
-## Wire v1 settings (single persist_K = 1)
-
-| Head | logit_thr (1/256) | Precision / recall | False alerts per facility-day | Events | Delay median / max (min) |
-| --- | --- | --- | --- | --- | --- |
-| pipeline_leak | 0 (+0.00) | 0.94 / 0.99 | 0.048 | 5/5 | 5.0 / 60 |
-| pump_degradation | 448 (+1.75) | 0.95 / 0.84 | 0.029 | 5/5 | 170.0 / 350 |
-| pump_failure | 0 (+0.00) | 1.00 / 1.00 | 0.000 | 13/13 | 0.0 / 0 |
-| facility_shut_in | 0 (+0.00) | 1.00 / 1.00 | 0.000 | — | — |
-
-## Proposed per-class K (not in wire v1)
+## Shipped settings: per-class K (GLOBAL bytes 20-23, FPGA D10)
 
 | Head | logit_thr | K | Precision / recall | False alerts per facility-day | Events | Delay median / max (min) |
 | --- | --- | --- | --- | --- | --- | --- |
 | pipeline_leak | 0 (+0.00) | 1 | 0.94 / 0.99 | 0.048 | 5/5 | 5.0 / 60 |
-| pump_degradation | 256 (+1.00) | 2 | 0.95 / 0.85 | 0.029 | 5/5 | 200.0 / 275 |
+| pump_degradation | 384 (+1.50) | 1 | 0.95 / 0.84 | 0.048 | 5/5 | 170.0 / 275 |
 | pump_failure | 0 (+0.00) | 1 | 1.00 / 1.00 | 0.000 | 13/13 | 0.0 / 0 |
 | facility_shut_in | 0 (+0.00) | 1 | 1.00 / 1.00 | 0.000 | — | — |
+
+## Alternative: one K for all classes (persist_K = 1)
+
+| Head | logit_thr (1/256) | Precision / recall | False alerts per facility-day | Events | Delay median / max (min) |
+| --- | --- | --- | --- | --- | --- |
+| pipeline_leak | 0 (+0.00) | 0.94 / 0.99 | 0.048 | 5/5 | 5.0 / 60 |
+| pump_degradation | 384 (+1.50) | 0.95 / 0.84 | 0.048 | 5/5 | 170.0 / 275 |
+| pump_failure | 0 (+0.00) | 1.00 / 1.00 | 0.000 | 13/13 | 0.0 / 0 |
+| facility_shut_in | 0 (+0.00) | 1.00 / 1.00 | 0.000 | — | — |
 
 ## E-STOP rule (flow gap AND leak logit, K steps)
 
@@ -55,8 +55,8 @@ Blob: 980 B, CRC32 0x3FF07B63, model hash 0xB33A6955, S_out 15, Fw 9, logits in 
 
 ```
 {
- "decision_agreement": 1.0,
- "max_abs_logit_error_unsaturated": 0.007326926907067488
+ "decision_agreement": 0.9999917328042328,
+ "max_abs_logit_error_unsaturated": 0.006693237496188331
 }
 ```
 
@@ -75,7 +75,7 @@ Blob: 980 B, CRC32 0x3FF07B63, model hash 0xB33A6955, S_out 15, Fw 9, logits in 
    "rules": [
     "pump_fault"
    ],
-   "countdown_p50_min": 285
+   "countdown_p50_min": 205
   },
   {
    "facility": "S5_FACILITY_C",

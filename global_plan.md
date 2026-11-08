@@ -187,12 +187,12 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 | --- | --- | --- | --- |
 | O1 | Should ALERT be ACKed and retried? (FPGA Q7) | Lucas + Jason | C2 |
 | O2 | Persistence K, the logit thresholds and the flow-gap threshold (FPGA Q10) | Mudit | C8 |
-| O3 | Weight blob byte order and the number of self-test vectors (FPGA Q11; [review R5](docs/plan/lucas/review_notes.md)) | Mudit + Lucas | C7 |
+| O3 | ~~Weight blob byte order and self-test vectors~~ **Resolved (FPGA D11):** the FPGA weight window holds blob bytes 0–279 (70 words) plus a version word; the self-test vectors stay on the ARM | Mudit + Lucas | C7 |
 | O4 | Pin map for LEDs, buttons and Pmods (FPGA Q12) | Lucas | — |
 | O5 | Validate memory feature set v1; its averaging windows span about 1 h / 8 h of wall-clock time, not 40 min / 5.3 h (FPGA Q14; review R6) | Mudit | C4 |
 | O6 | E-STOP on a confirmed leak vs. the challenge's leak → inspection rule and hard rule 8 (review R4) | Lucas + Jason | C8 |
-| O7 | **Countdown fix:** build the band from facility inflow (a failed pump moves 0 bpd), not from inflow − pump flow, and report 0 for a tripped tank (review R1, R2). In practice data the current method shows "not filling" at 13/13 failure onsets. | Lucas; Jason for the fallback band | RESULT countdown, dashboard |
-| O8 | Global feature shift S vs. the S2 multiplier width; ingest checks every CONFIG multiplier (review R3) | Lucas + Mudit | C2, C6 |
+| O7 | ~~Countdown fix~~ **Resolved (FPGA D1/D2/D6):** ring of facility inflow, prefilled 16 entries, mean = sum >> 4; a tripped tank reads 0 | Lucas | — |
+| O8 | ~~Feature shift vs. multiplier width~~ **Resolved (FPGA D3):** `S_feat` = 17 fixed; signed 20-bit × unsigned 32-bit; ingest refuses M ≥ 2^32 | Lucas + Mudit | — |
 | O9 | ~~Who owns ingest?~~ Decided: CSV → binary runs on Lucas's PC (`hutd_ml.replay`). Still open: does the server run on Lucas's PC, or does `hutd_ml.listen --post` forward JSON to it? | Jason | Step 1 |
 | O10 | Who owns the replay / throughput demo? | Team | Step 5 |
 | O11 | Server → web app API | Jason + Gurneal | C10 |
@@ -202,6 +202,7 @@ Lucas's live FPGA doc is **never edited by automation**; update the repo copy an
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 01:10 | Lucas reviewed A1–A19: `features_int.py` is the normative reference for the RTL. Applied his changes: `S_feat` = 17, inflow countdown, FRAMING → DROPPED, latched Night Shift with CLEARED alerts, per-class K in GLOBAL bytes 20–23. Weights v2 were retrained under this spec (`logit_thr` [0, 384, 0, 0], K 1, `gap_thr` 504; leak 0.94/0.99, degradation 0.95/0.84). O3, O7 and O8 are resolved. Cross-check vs `FPGA/model/eog_ref.py`: the remaining differences are FPGA-side updates still pending (D6, D7, A10, A14). |
 | Sun Nov 8 00:45 | Weights **v2** (augmented training) become the default: robust to different healthy pressure offsets, where v1 produced up to 4.9 false alerts per facility-day. Proposed O2 values are now `persist_K` = 1, `logit_thr` = [0, 448, 0, 0] (1/256), `gap_thr` = 504. New review item R7 for Lucas: the hold/reset policy wipes memory too often when readings are missing. |
 | Sun Nov 8 00:20 | Ingest decided: CSV → binary on Lucas's PC (`ml/hutd_ml/replay.py`). Added `listen.py` (board output → JSON + heartbeat, optional HTTP bridge) and `ml/INTEGRATION.md` for the server and dashboard; they can develop now against `fakeboard.py`. |
 | Sat Nov 7 23:15 | ML pipeline in `ml/`: encoder, bit-exact engine reference, trained weights v1, golden sets, UDP board harness and software board stand-in. Proposed values for O2: `persist_K` = 1, `logit_thr` = [64, 384, 0, 0] (1/256), `gap_thr` = 504. Assumptions A1–A19 in `ml/README.md` need Lucas's confirmation. No contract changes. |

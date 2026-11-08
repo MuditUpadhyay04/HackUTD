@@ -7,6 +7,24 @@ Builds on Lucas's [FPGA plan](../lucas/fpga_hardware_plan.md), the source of tru
 feature rules, and on [`global_plan.md`](../../../global_plan.md) (hard rules §2, contracts §5). Dataset:
 [nihaal419/HackUTD-ZeroDay](https://github.com/nihaal419/HackUTD-ZeroDay) at commit `135ba4c`.
 
+## Progress update (Sun 01:10 CST): Lucas's review applied (FPGA task T0.0)
+
+- **`features_int.py` is now the normative reference for the RTL.**
+- **Applied:**
+  - `S_feat` = 17;
+  - inflow countdown only (`review_r1r2`);
+  - FRAMING → DROPPED, checked before the facility lookup;
+  - latched Night Shift / E-STOP with CLEARED alerts in the agreed order;
+  - per-class K in GLOBAL bytes 20–23.
+- **Also aligned with the FPGA spec:** first-record history reset; DROPPED → `since_reset` 0 / `weights_ver` 0;
+  reason bits 11 / 13 / 14 (README A20–A22).
+- **Weights v2 retrained** under this spec: `logit_thr` [0, 384, 0, 0], K 1, `gap_thr` 504. Leak 0.94 / 0.99,
+  degradation 0.95 / 0.84, median 170 min. Golden sets regenerated (v0, v2; v1 removed). G0 / G1 / G2 plus all
+  130 alerts pass over UDP against the stand-in.
+- **Cross-check vs `FPGA/model/eog_ref.py`** (`python -m hutd_ml.xcheck`): the remaining differences are FPGA-side
+  updates still pending (D6 countdown mean, D7 hold policy, A10 strict `>`, A14 `lo/hi` order). There is also one
+  layout conflict: SHUTIN_WATER_MAX vs `persist_K4` in GLOBAL bytes 20–21.
+
 ## Progress update (Sun 00:45 CST)
 
 - **Robustness pass done** (`ml/README.md` → Robustness pass; `ml/artifacts/robustness/report.md`):

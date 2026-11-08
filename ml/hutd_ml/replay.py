@@ -40,7 +40,7 @@ def main(argv=None):
     gkw = {}
     if a.config:
         cfg = json.loads(Path(a.config).read_text())
-        gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat") if k in cfg}
+        gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat", "persist_k_per_class") if k in cfg}
     enc = encode.encode_dataset(a.data, **gkw)
     n_f = len(enc.facilities)
     steps = enc.records.reshape(len(enc.timestamps), n_f)

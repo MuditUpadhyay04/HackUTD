@@ -1,30 +1,30 @@
 {
  "set": "g2",
  "dataset": "full_week",
- "records": 29,
+ "records": 34,
  "wire_version": 1,
  "feature_set_id": 1,
- "countdown": "plan_v1",
+ "countdown": "review_r1r2",
  "weights": "v0",
  "weights_version": 240,
  "weights_crc32": "0x1B65A7EB",
- "assumptions": "A1-A19 (ml/README.md), 2026-11-07",
+ "assumptions": "A1-A19 + FPGA response (S=17, review_r1r2, A13 FRAMING, A19 latches, per-class K), 2026-11-08",
  "status_counts": {
-  "0": 16,
+  "0": 19,
   "1": 7,
   "3": 2,
-  "4": 4
+  "4": 6
  },
  "sha256": {
-  "data.bin": "7b90df1751407528c9bc699d9c23fc12df67d92cb24b6b53000a980b5a9fe553",
-  "data.mem": "17669117586420db2f609d5f6e13b4dd9c55999056dd47acc0d1f328a163dc36",
-  "expected_alerts.json": "220249d0917d5e68b97c95ee8e481a1da1d2d4bec4bf588fcc9a0c5d8b8e1bee",
-  "expected_results.bin": "016a2d0dedf7c9c537ea205ce68abdb0185d65758123d4bea7d2e76178727f74",
-  "expected_results.mem": "20e16f3b9fbfb2c50958418f52e443abebe420f2c54ac28dfcd98836a6384a1b",
-  "expected_stages.csv": "8cdcf943252fc3d61c985d7b8e6d469e4c636bfcadb66bda0f0049f3cb4c1e27",
+  "data.bin": "7e3faf90d8bf416612be3ed0f107c017a9106c9e7ddd37a4180081405885712d",
+  "data.mem": "66152b8d13a3ec957c18280db7d26bff630d89f8cf4ddf88cb0156b4c4ef5dc4",
+  "expected_alerts.json": "83a66f48158a9e39436f8fe5d4e9f785ae5ca577a3954c3adce798f8335c3d6f",
+  "expected_results.bin": "ee547077da316f69a90f3268f86124cc69dbc0880e2ebf7d4addfa86f9b48643",
+  "expected_results.mem": "ca23b010b1888368595ec656a4ff0ac6301edeb4da691fdc8a74fbca75b27568",
+  "expected_stages.csv": "15ebe9f200c3bb32bbc3eca112d05153ee95433fde96a77099dacf643f9c6dbe",
   "facilities.json": "759e37c97ca463417bb0490048118862b99cf1513ffe8705663d8e8d8e9eff75",
-  "facility_config.bin": "6ce518d866253dab98958bb566b531922f20e5a7157c2691d51eadfe648d5372",
-  "global_config.bin": "bc2668089f3922500cc90b0c0a07ada97437f3e3292b19d69cbbd4c7e8081e99",
+  "facility_config.bin": "3b8adc7cd25eb54425889bc140bd0facf36baa28bb451d9b9d008b24937a32c7",
+  "global_config.bin": "545dd83b6cec6d46f47c395b8b9372626f8a5dfff9a671ac3a14592599ee3606",
   "weights.bin": "644af8fa383457f8265f0b1879a4883a87c6395e153e96021ea4a9df3bb8fb59"
  }
 }

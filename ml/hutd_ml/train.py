@@ -71,8 +71,9 @@ def choose(logit_q, y, fac, event_id, ts, ks=K_GRID):
         for thr in THR_GRID:
             pred = runs(logit_q > thr, fac) >= k
             m = metrics(pred, y, fac, event_id, ts)
-            key = (m["false_alerts_per_fac_day"] <= FA_BUDGET, m.get("detected", 0), round(m["recall"], 3),
-                   -(m.get("median_delay_min") or 0), -k, -abs(int(thr)))
+            # within the false-alert budget: most events caught, then FASTEST median detection, then recall
+            key = (m["false_alerts_per_fac_day"] <= FA_BUDGET, m.get("detected", 0),
+                   -(m.get("median_delay_min") or 0), round(m["recall"], 3), -k, -abs(int(thr)))
             if best is None or key > best[0]:
                 best = (key, int(thr), k, m)
     return best[1], best[2], best[3]
@@ -175,8 +176,8 @@ def main(argv=None):
     healthy_gap = X[running & (Y[:, 0] == 0), 3]
     p999 = float(np.percentile(healthy_gap, 99.9))
     gap_thr = int(max(encode.DEFAULT_GAP_THR, np.ceil(p999 * 1.25)))
-    thr0 = single_picks[0]["thr"]
-    gap_hit = runs((X[:, 3] > gap_thr) & (oof_q[:, 0] > thr0), fac) >= k_single
+    thr0, k0 = per_class[0]["thr"], per_class[0]["k"]  # shipped settings are per class (FPGA D10)
+    gap_hit = runs((X[:, 3] > gap_thr) & (oof_q[:, 0] > thr0), fac) >= k0
     estop = {"gap_thr": gap_thr, "healthy_running_gap_p99_9": round(p999, 1),
              "leak_events_with_estop": int(sum(gap_hit[event_id[:, 0] == e].any() for e in np.unique(event_id[:, 0]) if e)),
              "leak_events": int(len([e for e in np.unique(event_id[:, 0]) if e])),
@@ -224,11 +225,10 @@ def main(argv=None):
     assert model_int.self_test(blob)
     data_sha = hashlib.sha256(enc.records.tobytes()).hexdigest()
 
-    thr_int = [p["thr"] for p in single_picks]
-    gcfg = {"s_feat": encode.DEFAULT_S_FEAT, "persist_k": k_single, "logit_thr": thr_int, "gap_thr": gap_thr,
-            "countdown": "plan_v1", "hold_max": 2, "cd_log2": 4,
-            "proposed_per_class": {"persist_k": [p["k"] for p in per_class], "logit_thr": [p["thr"] for p in per_class]},
-            "logit_units": "1/256"}
+    gcfg = {"s_feat": encode.DEFAULT_S_FEAT, "persist_k": 1, "persist_k_per_class": [p["k"] for p in per_class],
+            "logit_thr": [p["thr"] for p in per_class], "gap_thr": gap_thr, "countdown": "review_r1r2",
+            "hold_max": 2, "cd_log2": 4, "logit_units": "1/256",
+            "single_k_alternative": {"persist_k": k_single, "logit_thr": [p["thr"] for p in single_picks]}}
     wjson = {**meta, "heads": wire.HEADS, "feature_names": fi.FEATURE_NAMES, "w_q": w_q.tolist(),
              "b_q": b_q.tolist(), "S_out": s_out, "Fw": fw, "L_out": model_int.L_OUT, "model_hash": f"0x{mh:08X}",
              "blob_crc32": f"0x{model_int.crc32(blob):08X}", "blob_bytes": len(blob),
@@ -249,7 +249,7 @@ def main(argv=None):
 
 def mock_dry_run(folder, blob, version, gcfg):
     enc = encode.encode_dataset(folder, persist_k=gcfg["persist_k"], logit_thr=gcfg["logit_thr"],
-                                gap_thr=gcfg["gap_thr"])
+                                gap_thr=gcfg["gap_thr"], persist_k_per_class=gcfg["persist_k_per_class"])
     wts = model_int.to_weights(blob, version)
     res, stages, alerts = fi.run(enc.records, enc.global_config, enc.facility_config, wts, gcfg["countdown"])
     n = len(enc.facilities)
@@ -289,15 +289,15 @@ def render_report(a, cv, chosen_C, per_class, single, k_single, estop, ablation,
          f"S_out {wjson['S_out']}, Fw {wjson['Fw']}, logits in 1/256 units.", "",
          "## Regularization (pooled out-of-fold average precision by C)", ""]
     L += [f"- {h}: {cv[h]} → **C = {c}**" for h, c in zip(wire.HEADS, chosen_C)]
-    L += ["", f"## Wire v1 settings (single persist_K = {k_single})", "",
-          "| Head | logit_thr (1/256) | Precision / recall | False alerts per facility-day | Events | Delay median / max (min) |",
-          "| --- | --- | --- | --- | --- | --- |"]
-    L += [f"| {h} | {p['thr']} ({p['thr'] / 256:+.2f}) | {_fmt(p['metrics'])} |" for h, p in zip(wire.HEADS, single)]
-    L += ["", "## Proposed per-class K (not in wire v1)", "",
+    L += ["", "## Shipped settings: per-class K (GLOBAL bytes 20-23, FPGA D10)", "",
           "| Head | logit_thr | K | Precision / recall | False alerts per facility-day | Events | Delay median / max (min) |",
           "| --- | --- | --- | --- | --- | --- | --- |"]
     L += [f"| {h} | {p['thr']} ({p['thr'] / 256:+.2f}) | {p['k']} | {_fmt(p['metrics'])} |"
           for h, p in zip(wire.HEADS, per_class)]
+    L += ["", f"## Alternative: one K for all classes (persist_K = {k_single})", "",
+          "| Head | logit_thr (1/256) | Precision / recall | False alerts per facility-day | Events | Delay median / max (min) |",
+          "| --- | --- | --- | --- | --- | --- |"]
+    L += [f"| {h} | {p['thr']} ({p['thr'] / 256:+.2f}) | {_fmt(p['metrics'])} |" for h, p in zip(wire.HEADS, single)]
     L += ["", "## E-STOP rule (flow gap AND leak logit, K steps)", "", "```", json.dumps(estop, indent=1), "```", "",
           "## Ablation (frame precision / recall at logit 0, out-of-fold)", "",
           "| Features | " + " | ".join(wire.HEADS) + " |", "| --- | --- | --- | --- | --- |"]

@@ -3,40 +3,10 @@
   "fac_id": 0,
   "ts_unix": 1791158400,
   "result_no": 0,
-  "rules": 16,
+  "rules": 0,
   "classes": 13,
-  "countdown_p10": 65535,
-  "source": 2,
-  "kind": 1
- },
- {
-  "fac_id": 0,
-  "ts_unix": 1791162000,
-  "result_no": 10,
-  "rules": 16,
-  "classes": 13,
-  "countdown_p10": 65535,
-  "source": 2,
-  "kind": 1
- },
- {
-  "fac_id": 0,
-  "ts_unix": 1791163500,
-  "result_no": 15,
-  "rules": 16,
-  "classes": 13,
-  "countdown_p10": 65535,
-  "source": 2,
-  "kind": 1
- },
- {
-  "fac_id": 0,
-  "ts_unix": 1791165000,
-  "result_no": 20,
-  "rules": 16,
-  "classes": 5,
-  "countdown_p10": 65535,
-  "source": 2,
-  "kind": 1
+  "countdown_p10": 262,
+  "kind": 1,
+  "source": 2
  }
 ]

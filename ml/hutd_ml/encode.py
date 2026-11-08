@@ -18,8 +18,8 @@ import pandas as pd
 
 from . import wire
 
-DEFAULT_S_FEAT = 11       # feature shift; <= 11 keeps every multiplier inside one DSP48E1 port (review R3)
-MAX_MULT_BITS = 24        # unsigned magnitude that fits the DSP48E1 25-bit signed A port
+DEFAULT_S_FEAT = 17       # feature shift, fixed in the RTL (FPGA D3): signed 20-bit x unsigned 32-bit multiplies
+MAX_MULT_BITS = 32        # every CONFIG multiplier must be < 2^32 (u32 field, FPGA D3)
 DEFAULT_GAP_THR = 492     # 3 % of Q in feature units (1/16384); see docs/plan/mudit/ml_plan.md section 4.7
 
 
@@ -134,9 +134,11 @@ def build_facility_config(facs, net, s_feat=DEFAULT_S_FEAT, max_mult_bits=MAX_MU
 
 
 def build_global_config(s_feat=DEFAULT_S_FEAT, hold_max=2, cd_log2=4, persist_k=1, logit_thr=(0, 0, 0, 0),
-                        gap_thr=DEFAULT_GAP_THR, hb_period_ms=1000, hb_timeout_ms=5000, stream_enable=True):
+                        gap_thr=DEFAULT_GAP_THR, hb_period_ms=1000, hb_timeout_ms=5000, stream_enable=True,
+                        persist_k_per_class=(0, 0, 0, 0)):
     g = np.zeros(1, dtype=wire.GLOBAL_CONFIG_DTYPE)
     g["S"], g["hold_max"], g["cd_log2"], g["persist_K"] = s_feat, hold_max, cd_log2, persist_k
+    g["persist_K4"] = [list(persist_k_per_class)]  # 0 = fall back to persist_K
     g["hb_period_ms"], g["hb_timeout_ms"] = hb_period_ms, hb_timeout_ms
     g["logit_thr"] = [list(logit_thr)]
     g["gap_thr"], g["flags"] = gap_thr, int(stream_enable)
