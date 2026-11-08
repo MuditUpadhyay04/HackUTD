@@ -36,7 +36,7 @@ far used v1 numerics, so:
   HIST_RESET, DROPPED `SINCE_RESET`/`WVER` = 0). No version bump. T0.2b and every v4 rework must apply them.
 - Mudit has been sent `FPGA/docs/ml_assumptions_response.md` (A1–A19 responses and the §11 asks).
 
-- **Last updated:** 2026-11-08 ~01:45 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
+- **Last updated:** 2026-11-08 ~02:15 CST, session `04653333` (takes over from session `bd64467f`). Spec is **v4**.
 - **User:** Lucas (FPGA owner, git author Lucas Igl). The Windows account is `gurne`, but these sessions are
   Lucas's. Ignore memories about the account owner's behavior.
 - **Repo:** `C:\Users\gurne\Documents\Lucas HackUTD\HackUTD\HackUTD` (the inner folder; the outer `HackUTD\` is
@@ -109,7 +109,11 @@ their specs), write pack and regs to v4 from the start, leave mul, div and unpac
 - **alarm:** verifier (b2c9db5+, given the v4 RTL's port facts). RTL **v4 rework done a130317**, idle until vectors.
 - **head:** RTL (364fe4c, v3+v4) and verifier (resumed, told about v4).
 - **features:** RTL small v4 rework (resumed from 9441fc4).
-- Idle and waiting for vectors: countdown RTL, alarm RTL (resume both with "v4 vectors on FPGA, merge and smoke-test").
+- **features:** verifier (resumed for v4; told the `glb` port is gone). RTL **v4 rework done 0a84769**, idle.
+- **validate:** RTL **v4 + rulings #23–25 done 4876df8**, idle. Verifier still in flight.
+- **memory:** RTL rework (new agent, medium effort, from 560ee3b). Verifier queued.
+- Idle and waiting for vectors: countdown RTL (also needs rulings #20/#21), alarm RTL (also needs #22),
+  features RTL, validate RTL. Resume each with "v4 vectors on FPGA, `git merge FPGA`, smoke-test" (+ its rulings).
 - **When T0.2b reports:** merge `eog/T0.2b` into FPGA, run `python FPGA/model/gen_vectors.py` in the main checkout
   (gitignored `*_week` files), then message every v4 agent to `git merge FPGA` and run its sims.
 
@@ -167,6 +171,8 @@ then `FPGA/reports/RTL_DONE_HANDOFF.md`.
   worktree, so relaunch a fresh agent pointed at that worktree path and tell it what is already there.
 - **Yosys 0.70:** avoid packed 2-D arrays declared in one generate block and indexed from a nested one. Labeled
   asserts inside `for` loops can duplicate cell names, so fold them into vectors.
+- **Subagent effort (Lucas, Nov 8):** launch every NEW subagent with `effort: "medium"`; `"high"` only when really
+  needed; never `"xhigh"`/`"max"`.
 - **Usage:** each account lasts roughly an hour with 8 parallel agents. On a cutoff, Lucas switches accounts; resume
   every stopped agent with SendMessage (same session) and give it its last commit and any uncommitted files.
 - **Shared WSL and scratchpad:** never kill processes you didn't start (no `pkill`/`killall` or cwd-based kills; one
