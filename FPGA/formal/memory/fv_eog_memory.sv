@@ -189,7 +189,7 @@ module fv_eog_memory (
             // M4 (SINCE_RESET part): FEAT[30] = min(SINCE_RESET, 64) << 8
             M4_since: assert (fout(out_data, 30) == cap64(h[EOG_BF_SINCE_RESET +: 8]));
             // M4 (port-visible shape of FEAT[28] = min(nsr, 64) << 8)
-            M4_shape: assert (fout(out_data, 28)[7:0] == 8'h00 && fout(out_data, 28) <= 16'd16384);
+            M4_shape: assert (out_data[EOG_BM_FEAT + 16*28 +: 8] == 8'h00 && fout(out_data, 28) <= 16'd16384);
             // FEAT[29] = has_run ? 16384 : 0
             M3_hasfmt: assert (fout(out_data, 29) == 16'd0 || fout(out_data, 29) == 16'd16384);
             if (h_run) begin
@@ -201,10 +201,6 @@ module fv_eog_memory (
                 // a non-running record: nsr >= 1
                 M4_norun: assert (fout(out_data, 28) >= 16'd256);
             end
-            // M2 (port-only part): no running record since the last reset (FEAT[29] = 0) -> the gated state is
-            // still the cleared value: FEAT[12..26] = 0
-            if (fout(out_data, 29) == 16'd0)
-                M2_norun: assert (out_data[EOG_BM_FEAT + 16*12 +: 16*15] == '0);
             if (h_hr) begin
                 // record that starts a new history: state cleared before the update
                 // net_ema = (FEAT[11] << 8) >>> 3, so FEAT[27] = FEAT[11] >>> 3
@@ -240,6 +236,7 @@ module fv_eog_memory (
     logic [31:0]     n_net;
     logic [7:0]      n_nsr;
     logic            n_has;
+    logic            n_first;     // the record is the slot's first running record since the last reset
     logic [15:0]     n_mn, n_mx, n_nmn, n_nmx;
     logic [19*16-1:0] n_exp;      // expected FEAT[12..30] of the record being accepted (if it is in_f)
 
@@ -250,12 +247,14 @@ module fv_eog_memory (
         logic        hr, run;
         hr  = in_data[EOG_BF_HIST_RESET];
         run = in_data[EOG_BF_PUMP_RUN];
+        d = '0; q = '0; xs = '0; e = '0; x = '0; x11 = '0; xj = '0;   // no latches for the block temporaries
         n_last = sh_last; n_ef = sh_ef; n_es = sh_es; n_net = sh_net; n_nsr = sh_nsr; n_has = sh_has;
         n_mn = tr_mn; n_mx = tr_mx; n_nmn = tr_nmn; n_nmx = tr_nmx;
         if (hr) begin   // HIST_RESET clears the slot before the update
             n_last = '0; n_ef = '0; n_es = '0; n_net = '0; n_nsr = '0; n_has = 1'b0;
             n_mn = '0; n_mx = '0; n_nmn = '0; n_nmx = '0;
         end
+        n_first = run && !n_has;
         if (run) begin
             for (int i = 0; i < 5; i++) begin
                 x  = fin(in_data, gch(i));
@@ -318,17 +317,21 @@ module fv_eog_memory (
     // expected values and bounds travel with the record through the same 2-entry queue
     logic [19*16-1:0] q_exp0, q_exp1;
     logic [63:0]      q_bnd0, q_bnd1;
-    logic             q_has0, q_has1;
+    logic             q_has0, q_has1, q_fst0, q_fst1;
     always_ff @(posedge clk) if (in_fire) begin
-        if (f_in_cnt[0]) begin q_exp1 <= n_exp; q_bnd1 <= {n_mn, n_mx, n_nmn, n_nmx}; q_has1 <= n_has; end
-        else             begin q_exp0 <= n_exp; q_bnd0 <= {n_mn, n_mx, n_nmn, n_nmx}; q_has0 <= n_has; end
+        if (f_in_cnt[0]) begin
+            q_exp1 <= n_exp; q_bnd1 <= {n_mn, n_mx, n_nmn, n_nmx}; q_has1 <= n_has; q_fst1 <= n_first;
+        end else begin
+            q_exp0 <= n_exp; q_bnd0 <= {n_mn, n_mx, n_nmn, n_nmx}; q_has0 <= n_has; q_fst0 <= n_first;
+        end
     end
     logic [19*16-1:0] h_exp;
     logic [63:0]      h_bnd;
-    logic             h_has;
-    assign h_exp = (f_in_flight == 8'd0) ? n_exp : (f_out_cnt[0] ? q_exp1 : q_exp0);
-    assign h_bnd = (f_in_flight == 8'd0) ? {n_mn, n_mx, n_nmn, n_nmx} : (f_out_cnt[0] ? q_bnd1 : q_bnd0);
-    assign h_has = (f_in_flight == 8'd0) ? n_has : (f_out_cnt[0] ? q_has1 : q_has0);
+    logic             h_has, h_first;
+    assign h_exp   = (f_in_flight == 8'd0) ? n_exp : (f_out_cnt[0] ? q_exp1 : q_exp0);
+    assign h_bnd   = (f_in_flight == 8'd0) ? {n_mn, n_mx, n_nmn, n_nmx} : (f_out_cnt[0] ? q_bnd1 : q_bnd0);
+    assign h_has   = (f_in_flight == 8'd0) ? n_has : (f_out_cnt[0] ? q_has1 : q_has0);
+    assign h_first = (f_in_flight == 8'd0) ? n_first : (f_out_cnt[0] ? q_fst1 : q_fst0);
 
     logic h_f;
     assign h_f = h_upd && (h_fac == f_slot);
@@ -343,7 +346,16 @@ module fv_eog_memory (
     end
 
     always_comb if (chk && h_f) begin
-        // M5: exact update equations (and so M3, M4 nsr part, M1 no-state-change, M6) for slot f_slot
+        // M2 (cleared state): no running record since the last reset -> FEAT[12..26] still 0
+        if (!h_has)
+            M2_norun: assert (out_data[EOG_BM_FEAT + 16*12 +: 16*15] == '0);
+        // M3: first running record after a reset (rst_n or HIST_RESET), after any number of idle records:
+        // FEAT[17+i] == FEAT[22+i] == FEAT[g_i] (ok_hr_* compare with x_g[i]) and FEAT[29] = 16384
+        if (h_first)
+            M3_first: assert (ok_hr_f == 5'b11111 && ok_hr_s == 5'b11111 && fout(out_data, 29) == 16'd16384);
+        // M5: exact update equations of numerics.md §5 for slot f_slot. Because the shadow absorbs only the
+        // VALID/HELD records of f_slot (anyconst, so every slot), these also prove M1 "no state change for any
+        // slot" on INVALID/DROPPED/FAC >= N_FAC records and M6 slot independence.
         M5_last:  assert (ok5_last == 5'b11111);
         M5_emaf:  assert (ok5_ef   == 5'b11111);
         M5_emas:  assert (ok5_es   == 5'b11111);
