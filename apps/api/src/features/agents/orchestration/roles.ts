@@ -206,8 +206,8 @@ export const ROLES: Record<Exclude<Role, "critic">, RoleSpec> = {
       const ev = input.evidenceIds as unknown[], raw = input.planIds as unknown[];
       if (!Array.isArray(ev) || ev.some((e) => !evidence.has(String(e)))) throw new Error(`evidenceIds must be evidence IDs from the tools; not found: ${(Array.isArray(ev) ? ev : []).filter((e) => !evidence.has(String(e))).slice(0, 3).join(", ")}`);
       if (!Array.isArray(raw)) throw new Error("planIds must be an array of plan IDs from the tools (P1, P2, ...)");
-      const pl = raw.map((p) => resolvePlanRef(allPlans, p));
-      if (pl.some((p) => !p)) throw new Error(`planIds must be plan IDs from the tools; not found: ${raw.filter((_, k) => !pl[k]).slice(0, 3).join(", ")}; valid: ${allPlans.map((p) => p.ref).join(", ") || "(none)"}`);
+      // Plan citations sit beside the prose (which is checked in full below): an unknown ref is dropped, not fatal.
+      const pl = raw.map((p) => resolvePlanRef(allPlans, p)).filter((p): p is string => !!p);
       if (ongoing(ctx.facts).length && !ev.length) throw new Error("Cite at least one evidence ID");
       const handoff = checkProse(groundingForRun(ctx.facts, this.data(ctx)), input.handoff, { field: "handoff", maxLength: 900 });
       return { handoff, evidenceIds: [...new Set(ev.map(String))], planIds: [...new Set(pl.map(String))] } satisfies HandoffOutput;

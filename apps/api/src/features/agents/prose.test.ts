@@ -39,3 +39,15 @@ describe("tidyProse: formatting is fixed, not rejected", () => {
     expect(() => checkProse(ground, s.repeat(10), { maxLength: 120 })).toThrow("limit 120");
   });
 });
+
+describe("prose the models write that is not a hallucination", () => {
+  const ground: Grounding = { entities: ["S4_FACILITY_C"], labels: ["pump_failure"], categories: ["pump_failure"], data: { level: 92, hours: 3 } };
+  test("arrows and comparisons become words; HTML tags are still rejected", () => {
+    expect(checkProse(ground, "S4_FACILITY_C pump failure -> tank 92% full, < 3 hours left.")).toBe("S4_FACILITY_C pump failure to tank 92% full, under 3 hours left.");
+    expect(() => checkProse(ground, "S4_FACILITY_C <b>urgent</b>.")).toThrow("angle brackets");
+  });
+  test("domain words capitalised mid-sentence pass; invented names still fail", () => {
+    expect(checkProse(ground, "The Incident at S4_FACILITY_C needs the Shift Handoff to name the Pump failure.")).toContain("Incident");
+    expect(() => checkProse(ground, "Call the Midland office about S4_FACILITY_C.")).toThrow('Ungrounded name "Midland"');
+  });
+});

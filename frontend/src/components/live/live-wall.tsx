@@ -77,8 +77,9 @@ export function LiveWall() {
           <Panel><p className="px-6 py-10 text-[20px]" style={{ color: C.dim }}>{sim.error ? `Couldn't build the week: ${sim.error}` : dataset ? "Loading the week…" : "No dataset yet: upload one in the full console, or point the API at a data folder."}</p></Panel>
         ) : view === "operator" ? (
           <div key="operator" className="wall-fade flex flex-col gap-4">
+            {!live && dataset && <Showcase datasetId={dataset.id} tl={sim.tl} setT={sim.setT} setPlaying={sim.setPlaying} />}
             <Operator story={story(sim.tl, sim.t, live ? feed?.flagged ?? [] : [])} tl={sim.tl} at={sim.t} />
-            {dataset && <Nemotron datasetId={dataset.id} tl={sim.tl} at={sim.t} />}
+            {live && dataset && <Nemotron datasetId={dataset.id} tl={sim.tl} at={sim.t} />}
           </div>
         ) : (
           <div key="hood" className="wall-fade flex flex-col gap-4">
@@ -367,17 +368,185 @@ function Transport({ tl, t, setT, playing, setPlaying, speed, setSpeed, liveHere
   );
 }
 
+/** A number that counts up to `target` over `ms` once `run` is true. */
+function useCountUp(target: number, ms: number, run: boolean) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    if (!run) return;
+    let raf = 0; const t0 = performance.now();
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - t0) / ms);
+      setV(Math.round(target * (1 - Math.pow(1 - k, 3))));
+      if (k < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, ms, run]);
+  return run ? v : 0;
+}
+
+/** The moment with the most pump failures at once (the hard case), 30 minutes in. */
+function worstMoment(tl: SimulationTimeline) {
+  const f = tl.incidents.filter((i) => i.category === "pump_failure");
+  let best = tl.nowUnix, most = 0;
+  for (const a of f) {
+    const n = f.filter((b) => b.onsetUnix <= a.onsetUnix && (b.endUnix == null || b.endUnix > a.onsetUnix)).length;
+    if (n > most) { most = n; best = a.onsetUnix; }
+  }
+  const at = Math.min(tl.nowUnix, best + 1800);
+  return tl.startUnix + Math.floor((at - tl.startUnix) / tl.stepSeconds) * tl.stepSeconds;
+}
+
+type ShowNode = { role: string; status: string; incidentId?: string | null };
+const ROLE_LINE: Record<string, (inc: string) => string> = {
+  orchestrator: () => "Orchestrator: splitting the shift into tasks",
+  triage: () => "Triage: ranking every open incident",
+  plan_explainer: (inc) => `Weighing the options for ${inc}`,
+  evidence_reviewer: (inc) => `Checking the evidence for ${inc}`,
+  handoff: () => "Writing the shift handoff",
+};
+
+/**
+ * The presentation flow, when the board is idle: 1. read the week (the chip's decisions, the incidents), 2. Nemotron
+ * plans the hardest moment of the week (each agent step appears as it finishes), 3. the money kept, counted up.
+ */
+function Showcase({ datasetId, tl, setT, setPlaying }: { datasetId: string; tl: SimulationTimeline; setT: (t: number) => void; setPlaying: (p: boolean) => void }) {
+  const [stage, setStage] = useState<"ready" | "reading" | "planning" | "saved" | "error">("ready");
+  const [nodes, setNodes] = useState<ShowNode[]>([]);
+  const [handoff, setHandoff] = useState<{ text: string; byModel: boolean } | null>(null);
+  const [err, setErr] = useState("");
+  const facilities = tl.systems.reduce((n, s) => n + s.facilities.length, 0);
+  const steps = Math.round((tl.nowUnix - tl.startUnix) / tl.stepSeconds) + 1;
+  const failures = tl.incidents.filter((i) => i.category === "pump_failure").length;
+  const inspections = tl.incidents.filter((i) => i.category === "pipeline_leak" || i.category === "pump_degradation").length;
+  const reading = stage !== "ready";
+  const recs = useCountUp(steps * facilities, 1600, reading);
+  const incs = useCountUp(tl.incidents.length, 1600, reading);
+  const kept = useCountUp(tl.totals.kept, 1800, stage === "saved");
+  const when = worstMoment(tl);
+  const cancel = useRef(false);
+  useEffect(() => () => { cancel.current = true; }, []);
+  // While the agents work: the tasks they have at that moment (from the facts), and how long they've been at it.
+  const [startedAt, setStartedAt] = useState(0);
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    if (stage !== "planning") return;
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [stage]);
+  const openAt = tl.incidents.filter((i) => i.onsetUnix <= when && (i.endUnix == null || i.endUnix > when));
+  const expected: ShowNode[] = [{ role: "triage", status: "running" },
+    ...openAt.filter((i) => i.category === "pump_failure").map((i) => ({ role: "plan_explainer", status: "running", incidentId: `run-0:${i.category}:${i.facilityId}:0` })),
+    { role: "handoff", status: "running" }];
+
+  const run = async () => {
+    const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    cancel.current = false; setErr(""); setNodes([]); setHandoff(null);
+    setPlaying(false); setStage("reading");
+    await wait(1900);
+    setT(when); setStartedAt(Date.now()); setNow(Date.now()); setStage("planning");
+    try {
+      let r = unwrap(await api.api.runs.post({ datasetId, at: when, runtime: "auto" }, { headers: { "idempotency-key": crypto.randomUUID() } })) as unknown as { id: string; status: string; error?: string | null };
+      while (!["ready", "failed", "cancelled"].includes(r.status) && !cancel.current) { await wait(600); r = unwrap(await api.api.runs({ id: r.id }).get()) as unknown as typeof r; }
+      if (r.status !== "ready") throw new Error(r.error ?? `run ${r.status}`);
+      let a = unwrap(await api.api.runs({ id: r.id }).agents.post()) as unknown as AgentRunLite;
+      while (a.status === "running" && !cancel.current) {
+        setNodes((a.nodes ?? []) as ShowNode[]);
+        await wait(900);
+        a = unwrap(await api.api["agent-runs"]({ id: a.id }).get()) as unknown as AgentRunLite;
+      }
+      setNodes((a.nodes ?? []) as ShowNode[]);
+      if (a.status !== "done") throw new Error(a.error ?? `agents ${a.status}`);
+      const model = a.trace?.outputs?.handoff?.handoff;
+      const fallback = [...(a.nodes ?? [])].reverse().find((n) => n.role === "handoff" && n.output?.handoff)?.output?.handoff;
+      setHandoff({ text: readable(model ?? fallback ?? ""), byModel: !!model });
+      await wait(600);
+      setStage("saved");
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); setStage("error"); }
+  };
+
+  const icon = (st: string) => st === "accepted" || st === "done" ? { t: "✓", c: C.ok } : st === "deterministic" ? { t: "✓", c: C.warn } : st === "rejected" || st === "failed" ? { t: "↺", c: C.warn } : { t: "…", c: C.dim };
+  const real = nodes.filter((n) => ROLE_LINE[n.role]);
+  const shown = (real.length ? real : expected).slice(-7);
+  return (
+    <Panel className="overflow-hidden">
+      <div className="grid gap-6 px-6 py-6 lg:grid-cols-[1fr_1.2fr]">
+        <div className="flex flex-col justify-center gap-4">
+          {stage === "ready" && (
+            <>
+              <p className="text-[28px] leading-tight font-bold">One week of the field, in under a minute.</p>
+              <p className="text-[17px]" style={{ color: C.dim }}>The chip reads every sensor, Nemotron plans the hardest moment, and we count what acting saved.</p>
+              <button type="button" onClick={() => void run()} className="self-start rounded-xl px-7 py-3.5 text-[19px] font-bold" style={{ background: C.chip, color: C.bg }}>Run the week</button>
+            </>
+          )}
+          {stage !== "ready" && (
+            <ol className="grid gap-3 text-[18px]">
+              <li className="flex items-baseline gap-3"><Step on={reading} done={stage !== "reading"} n={1} /><span><b className="tabular-nums">{recs.toLocaleString()}</b> decisions from the chip · <b className="tabular-nums">{incs}</b> incidents found</span></li>
+              <li className="flex items-baseline gap-3"><Step on={stage !== "reading"} done={stage === "saved"} n={2} /><span>Nemotron plans {dayClock(when)}, the hardest moment of the week</span></li>
+              <li className="flex items-baseline gap-3"><Step on={stage === "saved"} done={stage === "saved"} n={3} /><span>What acting saved</span></li>
+            </ol>
+          )}
+          {(stage === "saved" || stage === "error") && <button type="button" onClick={() => void run()} className="self-start rounded-lg px-4 py-2 text-[15px] font-semibold" style={{ boxShadow: `0 0 0 1px ${C.line}` }}>Run it again</button>}
+        </div>
+        <div className="min-h-[220px] rounded-xl px-5 py-4" style={{ background: "rgba(255,255,255,0.04)" }}>
+          {stage === "ready" && <p className="text-[16px]" style={{ color: C.dim }}>{tl.totals.failures} pump failures and {tl.totals.inspections} inspections this week, on {facilities} facilities.</p>}
+          {stage === "reading" && <p className="animate-pulse text-[18px]" style={{ color: C.dim }}>Reading the week…</p>}
+          {stage === "planning" && (
+            <>
+              <p className="mb-2 flex items-center gap-2 text-[14px] font-semibold tracking-[0.1em] uppercase" style={{ color: C.chip }}>
+                <span className="size-2 animate-pulse rounded-full" style={{ background: C.chip }} />Nemotron agents at work
+                <span className="ml-auto font-mono tabular-nums normal-case" style={{ color: C.dim }}>{Math.max(0, Math.round((now - startedAt) / 1000))} s</span>
+              </p>
+              <p className="mb-2 text-[14px]" style={{ color: C.dim }}>{openAt.length} open incidents at {dayClock(when)}. Every answer is checked against the facts before it is shown.</p>
+              <ol className="grid gap-1.5 text-[16px]">
+                {shown.map((n, k) => { const ic = icon(n.status); return (
+                  <li key={k} className="wall-fade flex items-baseline gap-2.5"><span className={cn("w-4 font-bold", ic.t === "…" && "animate-pulse")} style={{ color: ic.c }}>{ic.t}</span><span>{ROLE_LINE[n.role]!(readable(n.incidentId ?? ""))}</span></li>
+                ); })}
+              </ol>
+            </>
+          )}
+          {stage === "saved" && (
+            <div className="wall-fade">
+              <p className="text-[14px] font-semibold tracking-[0.1em] uppercase" style={{ color: C.dim }}>Kept this week</p>
+              <p className="text-[64px] leading-none font-bold tabular-nums" style={{ color: C.ok }}>{money(kept)}</p>
+              <p className="mt-2 text-[16px]" style={{ color: C.dim }}>If nobody acted: <b style={{ color: C.crit }}>{money(tl.totals.doNothing)}</b> · our plans: <b style={{ color: C.text }}>{money(tl.totals.plan)}</b> · {failures} pump failures, {inspections} inspections</p>
+              {handoff?.text && (
+                <div className="mt-4 rounded-lg px-4 py-3" style={{ background: "rgba(118,185,0,0.08)", boxShadow: `inset 3px 0 0 ${C.chip}` }}>
+                  <p className="text-[16px] leading-relaxed">{handoff.text}</p>
+                  <p className="mt-1 text-[12.5px]" style={{ color: handoff.byModel ? C.chip : C.warn }}>{handoff.byModel ? "Nemotron’s handoff, checked against the facts" : "Written from the facts: Nemotron’s draft didn’t pass the checks"}</p>
+                </div>
+              )}
+            </div>
+          )}
+          {stage === "error" && <p className="text-[16px]" style={{ color: C.crit }}>Couldn’t finish: {err}</p>}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function Step({ on, done, n }: { on: boolean; done: boolean; n: number }) {
+  return <span className="grid size-7 shrink-0 place-items-center rounded-full text-[14px] font-bold" style={{ background: done ? C.ok : on ? C.chip : "rgba(255,255,255,0.08)", color: on || done ? C.bg : C.dim }}>{done ? "✓" : n}</span>;
+}
+
 /** Operator-facing cleanup of agent prose: run-scoped incident IDs become "S3 A pump failure", plan refs drop. */
 function readable(text: string) {
+  const id = /\brun-[0-9a-f]+:(pump_failure|pipeline_leak|pump_degradation|facility_shut_in):([A-Za-z0-9_]+):\d+(?::evidence:\d+)?/g;
   return text
-    .replace(/\brun-[0-9a-f]+:(pump_failure|pipeline_leak|pump_degradation|facility_shut_in):([A-Za-z0-9_]+):\d+/g, (_m, cat: string, fac: string) =>
-      `${facilityTitle(fac)} ${(categoryLabel[cat as keyof typeof categoryLabel] ?? cat).toLowerCase()}`)
+    // "Evidence ID: run-...:evidence:0." citations belong in the ID fields: drop them from the prose
+    .replace(/\s*\(?Evidence(?: IDs?)?:\s*(?:run-[0-9a-f]+:[A-Za-z_]+:[A-Za-z0-9_]+:\d+(?::evidence:\d+)?[\s,;]*)+\)?\.?/gi, " ")
+    .replace(id, (_m, cat: string, fac: string) => `${facilityTitle(fac)} ${(categoryLabel[cat as keyof typeof categoryLabel] ?? cat).toLowerCase()}`)
     .replace(/\s*\(written by the orchestrator from the facts\)/g, "")
-    .replace(/\b(plan|option)\s+P\d+\b/gi, "$1").replace(/\bP\d+\b\s*/g, "");
+    // plan refs: "P2 (do nothing)" -> "doing nothing", "Plan P1 (1 truck, 1 trip)" -> "1 truck, 1 trip"
+    .replace(/\b(?:plan|option)?\s*P\d+\s*\((?:do nothing)\)/gi, " doing nothing").replace(/\b(?:plan|option)\s+P\d+\s*\(([^)]*)\)/gi, "$1")
+    .replace(/\bP\d+\s*\(([^)]*)\)/g, "$1").replace(/\b(plan|option)\s+P\d+\b/gi, "$1").replace(/\bP\d+\b\s*/g, "")
+    .replace(/\(\s*1 truck\(s\), 1 trip\(s\)\s*\)/g, "1 truck, 1 trip").replace(/(\d+) (\w+)\(s\)/g, (_m, k: string, w: string) => `${k} ${w}${k === "1" ? "" : "s"}`)
+    .replace(/doing nothing recommended over doing nothing/gi, "No truck can help in time; it waits for the repair")
+    .replace(/\s+([.,;])/g, "$1").replace(/([.;])(?=[A-Z])/g, "$1 ").replace(/\s{2,}/g, " ").trim();
 }
 
 type AgentRunLite = { id: string; status: string; error: string | null; trace?: { outputs?: { handoff?: { handoff: string } | null }; fallbacks?: string[] };
-  nodes?: { role: string; status: string; output?: { handoff?: string } | null }[] };
+  nodes?: { role: string; status: string; incidentId?: string | null; output?: { handoff?: string } | null }[] };
 type Lane = { next?: { lane: string; model: string | null } };
 
 /** Nemotron writes the shift handoff for the moment on screen: a run at that time, then the agents. Advice only. */
