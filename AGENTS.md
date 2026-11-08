@@ -19,17 +19,24 @@ Always read this file before working here and use the key resources below as ref
 - **Gurneal (also called Jimmy):** web interface and full stack, with Jason helping.
 - **Jason:** primary owner of agents; additional contributors may join.
 - Coordinate model/tensor/weight-format changes with Mudit and Lucas, and agent/dashboard API changes with Jason and Gurneal.
+- **The FPGA is the fixed point:** FPGA spec v4 and the RTL are done and stay as they are. Make every other part (ingest, ML, server, agents, console) adapt to them; never propose an FPGA/RTL change unless something is broken, and then Lucas decides (`global_plan.md`, "How this file works").
+- **Final say when owners disagree:** spec, FPGA and RTL → **Lucas**; ML (model, features, weights, ingest, board tooling) → **Mudit**; server, agents and Nemotron → **Jason** (`global_plan.md`, "How this file works").
 
 ## Working architecture
 
-Current architecture and contracts: `global_plan.md` §3–§6 (as of Sat Nov 7, 21:45 CST). The bullets below are the November 7 whiteboard, kept for history, with updates noted.
+Current architecture, contracts and open items: `global_plan.md` §3–§9 (integrated Sun Nov 8, 02:55 CST). In short:
 
+1. `ml/hutd_ml/replay.py` (CSV → 48 B binary, on the board PC) sends records to the Eclypse Z7 (spec v4, locked),
+   or to `ml/hutd_ml/fakeboard.py` when there's no board.
+2. `ml/hutd_ml/listen.py` turns the results into JSON (contract C11).
+3. The operator API (`apps/api/`) owns runs, incidents, the shared-fleet planner and the Nemotron coordinator.
+4. The web console (`frontend/`) is presentation only.
 
-- Sensor data feeds both the FPGA inference path and the server/agent/dashboard path.
-- FPGA → server: alerts. Server/training side → FPGA: retrained weights. Training and deployment are separate from on-device inference. *Update:* the FPGA plan now defines UDP RESULT/ALERT/STATS from the board and a chunked, ACKed WEIGHTS path (UDP 7004) into an inactive bank. The blob byte order is still open.
-- The server hosts the agent and dashboard for operator-facing analysis and response recommendations.
-- The whiteboard also sketches FPGA → shutdown. This is an architectural intent, **not evidence of implemented or validated industrial safety control**; confirm scope with Lucas and Jason before adding actuation. *Update:* the FPGA plan has a latched E-STOP on LEDs/Pmod for a confirmed leak. Treat it as a local alarm signal only; how it squares with the challenge's leak → inspection rule is open (`global_plan.md` O6).
-- `docs/research/FPGA_CLASSIFIER_HANDOFF.md` and `docs/research/model-input-v1.json` are **superseded in part** (Sat Nov 7, 21:10). The CNN, the 96-step window, host-side windowing and the 2,304 B full-window transport were replaced by four logistic regressions on streaming memory features computed on the FPGA from raw 48 B records. Still valid: the 12 channel formulas, the output order, the int16 scale 1/16384, server-side sigmoid/events/planning, and the training/validation rules. Four independent outputs allow failure and observed shut-in together; shut-in is not a fourth independent equipment fault.
+`ml/hutd_ml/features_int.py` is the normative integer reference for the board (hard rule 11).
+
+`docs/research/FPGA_CLASSIFIER_HANDOFF.md` and `model-input-v1.json` are superseded in part: the CNN, the window
+and the full-window transport. Its 12 channel formulas and four independent outputs still hold; shut-in is not a
+fourth independent equipment fault.
 
 ## Challenge constraints that affect implementation
 
@@ -41,5 +48,18 @@ Current architecture and contracts: `global_plan.md` §3–§6 (as of Sat Nov 7,
 
 ## Checkout/tooling
 
-- As of November 7, this checkout has research artifacts but no application manifest or established build/lint/test commands. Inspect new executable configuration before choosing a toolchain; do not copy organizer-only commands from the external reference as if they run here.
-- FPGA work lives in `FPGA/` (RTL, proofs, testbenches, specs, scripts, plus the Vivado/deploy scripts copied from Lucas's PC). Read `FPGA/AGENTS.md` before working there; its task board is `FPGA/TASKS.md`. The Vitis workspace, Vivado outputs and the board itself are still only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the review checks behind `docs/plan/lucas/review_notes.md`.
+| Area | Toolchain | Start here |
+| --- | --- | --- |
+| Operator API, contracts, web console (`apps/`, `packages/`, `frontend/`, `db/`) | Bun workspace (root `package.json`, `bun.lock`), Next.js | root `README.md`; `docs/plan/jason/backend-demo-runbook.md` |
+| FPGA (`FPGA/`) | Vivado / Vitis on Lucas's PC; Icarus + SymbiYosys; Python model | `FPGA/AGENTS.md`, `FPGA/TASKS.md`, `HANDOFF.md`. `main` has the FPGA docs and spec; RTL, proofs, testbenches, model and scripts are on branch `FPGA` until Lucas merges them after T2.top. The board and Vitis workspace are only on Lucas's PC. `docs/research/check_fpga_plan.py <reference-repo>` re-runs the checks behind `docs/plan/lucas/review_notes.md`. |
+| ML, ingest, board tooling (`ml/`) | Python 3.10+, `ml/requirements.txt` | `ml/README.md`, `ml/INTEGRATION.md`; tests: `cd ml && HUTD_DATA=<full_week> python -m pytest -q tests` |
+
+**Branches:**
+
+- `FPGA` is Lucas's (his agents push there);
+- `ml` is Mudit's integration branch;
+- `main` receives merges from both;
+- feature branches (`feature/*`, `frontend-*`) merge into `main` through PRs reviewed against `global_plan.md`.
+
+Run `python -m hutd_ml.fpga_sync` (in `ml/`) to see what changed on `FPGA` and whether the two references still
+agree. Don't copy organizer-only commands from the external reference as if they run here.

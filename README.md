@@ -1,6 +1,29 @@
 # Beat the Shutdown
 
-Operator console for the HackUTD produced-water challenge. The feature-based Elysia backend owns uploaded datasets, causal replay, incidents, shared-fleet planning, scenarios and agent analysis. The Next.js/React application is a presentation layer; it does not run its own detector or planner.
+HackUTD 2026: Zero Day. One repository, three parts that meet at documented contracts. **Read `global_plan.md`
+first**: it is the single source of truth for the architecture, hard rules, contracts and open items.
+
+| Part | Path | Owner | Start here |
+| --- | --- | --- | --- |
+| Operator API, agents (Nemotron), web console | `apps/`, `packages/`, `db/`, `frontend/` | Jason, Gurneal | this README, below |
+| FPGA engine (Eclypse Z7): spec v4 and task board here; RTL and proofs on branch `FPGA` until after T2.top | `FPGA/` | Lucas | `FPGA/AGENTS.md`, `FPGA/TASKS.md` |
+| Model, CSV → binary ingest, board tooling | `ml/` | Mudit | `ml/README.md`, `ml/INTEGRATION.md`, `docs/plan/mudit/ml_architecture.md` |
+
+Data path:
+
+1. `ml/hutd_ml/replay.py` turns the CSV into binary records and sends them to the board (or to
+   `ml/hutd_ml/fakeboard.py`).
+2. `ml/hutd_ml/listen.py` turns the board's output into JSON.
+3. The operator API turns that into incidents, plans and agent explanations.
+4. The web console shows them.
+
+Owner plans are in `docs/plan/<owner>/`.
+
+---
+
+## Operator console (apps/, packages/, frontend/)
+
+The operator console for the HackUTD produced-water challenge. The feature-based Elysia backend owns uploaded datasets, causal replay, incidents, shared-fleet planning, scenarios and agent analysis. The Next.js/React application is a presentation layer; it does not run its own detector or planner.
 
 ## Start locally
 

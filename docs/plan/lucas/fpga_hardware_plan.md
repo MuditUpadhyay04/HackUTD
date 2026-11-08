@@ -30,6 +30,7 @@ The end-to-end link works today: browser → PC web server → UDP → board ARM
 
 | When (CST) | Change |
 | --- | --- |
+| Sun 02:50 | Repo copy only: GLOBAL CONFIG table updated to spec v4 (`persist_K4` in bytes 20–23, R7 option C hold rule), as FPGA spec question 73 asked. |
 | Sat 21:20 | Measured the ARM's UDP receive ceiling on the board.<br>- With 1472 B packets: 1 GbE line rate, 0% loss, about 2.45M records/s.<br>- Only if the ARM never copies the payload. Copy, or copy + cache flush, collapses delivery to about 1–4k packets/s.<br><br>Design change: zero-copy PS→PL path. DMA reads straight from the received buffers, and the ARM drops excess packets itself before the Ethernet receive ring can starve. |
 | Sat 21:06 | Decided: single 100 MHz clock for the whole PL engine. Started the ARM UDP receive-ceiling measurement on the board. |
 | Sat 21:10 | Model switched from CNN to four logistic regressions on causal-memory features; the CNN is dropped. Reason: the CNN's 96-step window meant 7 h 55 min without valid output after every start or reset.<br><br>Engine redone as v2:<br>- 7 stages, 16 cycles per record<br>- proposed single 100 MHz clock<br>- about 10 DSPs<br>- instant weight swap, no warm-up<br><br>RESULT field `warmup_left` renamed `since_reset`; status 2 is now reserved. Memory feature set v1 proposed for Mudit to validate. |
@@ -268,15 +269,19 @@ A Facility CONFIG packet uses header `aux` = 1.
 | Off | Type | Field | Meaning |
 | --- | --- | --- | --- |
 | 0 | u8 | S | feature shift for every `M` multiplier |
-| 1 | u8 | hold_max | longest hold before history resets (2) |
-| 2 | u8 | cd_log2 | countdown window = 2^cd_log2 steps (4 → 16) |
-| 3 | u8 | persist_K | consecutive steps needed to raise an alarm |
+| 1 | u8 | hold_max | longest hold (0–2, the RTL clamps to 2); one step longer makes the record INVALID with `FIELD_LOST`, no history reset (R7 option C, FPGA spec question 70) |
+| 2 | u8 | cd_log2 | countdown window = 2^cd_log2 steps; must be 4 (16 steps) |
+| 3 | u8 | persist_K | fallback K for any class whose `persist_K4` byte is 0 |
 | 4 | u16 | hb_period_ms | 1000 |
-| 6 | u16 | hb_timeout_ms | 5000 |
-| 8 | i16×4 | logit_thr | per-class thresholds in logit units, in handoff order |
+| 6 | u16 | hb_timeout_ms | 5000 (golden sets use 0 = never AUTONOMOUS, numerics v4 §9) |
+| 8 | i16×4 | logit_thr | per-class thresholds in logit units (1/256), order leak, degradation, failure, shut-in |
 | 16 | i16 | gap_thr | leak flow-gap threshold, feature units (1/16384) |
 | 18 | u8 | flags | bit 0 = stream enable |
-| 19 | u8×13 | reserved | 0 |
+| 19 | u8 | reserved | 0 |
+| 20 | u8×4 | persist_K4 | per-class K (consecutive hits to raise an alarm); 0 = use `persist_K` (spec v4, D10) |
+| 24 | u8×8 | reserved | 0 |
+
+Updated by integration (FPGA spec question 73) to match `FPGA/spec/numerics.md` §10 and `ml/hutd_ml/wire.py`.
 
 #### CONFIG_ACK record, 8 B (FPGA → host, UDP 7003)
 
