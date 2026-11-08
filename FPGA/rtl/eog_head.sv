@@ -1,12 +1,12 @@
 // eog_head.sv -- four logistic regressions over the 31 features + double-buffered weight banks
-// (spec v2: modules/eog_head.md, numerics.md section 8, conventions section 7 formal observation ports).
+// (spec v3: modules/eog_head.md, numerics.md section 8, conventions sections 1 and 7).
 //
 // Bus C in, bus L out. One record at a time:
 //   S_IDLE  in_ready = !swap_pending. A pending swap happens here (in_ready = 0 that cycle), so it always falls
 //           between an output transfer and the next accept. On accept: in_r <= bus C, acc[k] <= B[k] of the active
-//           bank, ver_r / sout_r <= VER / S_OUT of the active bank.
+//           bank, bank_r / ver_r / sout_r <= the active bank and its VER / S_OUT (the record's snapshot).
 //   S_MAC   cnt = 0..NC+MLAT-1. Issue cycle c = cnt (< NC) feeds FEAT[4c..4c+3] and W[k][4c..4c+3] (image words
-//           16k+2c, 16k+2c+1 of the active bank) into 4 multipliers per class; their products arrive MLAT cycles
+//           16k+2c, 16k+2c+1 of bank bank_r) into 4 multipliers per class; their products arrive MLAT cycles
 //           later and acc[k] += p0 + p1 + p2 + p3 (cnt >= MLAT).
 //   S_FIN   logit[k] <= sat16((acc[k] + rnd) >>> S_OUT), or 0 when the record gets no logits.
 //   S_OUT   out_valid = 1 until out_ready.
@@ -23,14 +23,20 @@
 //   words 16k+j (k < N_CLS, j < 2*NC): per class, even words in mem_e, odd words in mem_o (index {bank, j >> 1});
 //   words 64+k (k < N_CLS): bias_q; word 68 ([4:0] S_OUT, [15:8] VER; all 32 bits stored): w68_q.
 //   Other addresses: writes ignored, read back 0. Writes (wb_we) go to the bank that is inactive in the cycle of
-//   the write (also in the cycle a swap happens), never to the active bank; writes while rst_n = 0 are ignored.
-//   wb_rdata = the inactive bank's word wb_raddr, registered (1 cycle; read-first: a write to the same word in the
-//   same cycle is not visible yet).
-//   rst_n clears word 68 of both banks (VER = 0, no model), selects bank 0 and drops a pending swap; the other
-//   words are not reset (undefined until written). eog_top drives rst_n with the engine reset, which includes
-//   CTRL.soft_reset (see the spec question in the task report).
-// Swap: swap_req sets swap_pending from the next cycle; requests while swap_pending = 1 coalesce. The swap happens
-// in the first S_IDLE cycle with swap_pending = 1: active_bank toggles and swap_pending falls at the same edge.
+//   the write (also in the cycle a swap happens), never to the active bank; writes while rst_n = 0 or
+//   wb_rst_n = 0 are ignored. wb_rdata = the inactive bank's word wb_raddr, registered (1 cycle; read-first: a
+//   write to the same word in the same cycle is not visible yet).
+// Resets (spec v3):
+//   rst_n = 0 (engine reset, includes the soft reset): flushes the record in flight (state machine only). Banks,
+//     active_bank and swap_pending survive; a pending swap waits until rst_n = 1 (swap_req is still taken).
+//   wb_rst_n = 0 (hard reset only): word 68 of both banks = 0 (VER = 0, no model), active_bank = 0,
+//     swap_pending = 0. Words 0-67 and the biases are never reset (undefined until written).
+//   In eog_top wb_rst_n = 0 implies rst_n = 0. If wb_rst_n alone pulses while a record is held, the record still
+//   completes from its snapshot (bank_r, ver_r, sout_r, bias in acc), so it never mixes banks unless the
+//   ARM also writes bank_r (now inactive) before it completes.
+// Swap: swap_req sets swap_pending from the next cycle; requests while swap_pending = 1 coalesce (TASKS.md spec
+// question 17). The swap happens in the first S_IDLE cycle with swap_pending = 1 and rst_n = 1: active_bank
+// toggles and swap_pending falls at the same edge (spec question 18: the swap wins over an accept that cycle).
 
 module eog_head #(
     // N_FAC, N_WELL, II: uniform stage interface (conventions section 6), unused here (TASKS.md spec question 11)
@@ -43,7 +49,8 @@ module eog_head #(
     parameter integer N_CLS  = 4     // 1..4
 ) (
     input  logic          clk,
-    input  logic          rst_n,
+    input  logic          rst_n,          // engine reset (includes soft reset): flushes the record in flight
+    input  logic          wb_rst_n,       // weight-store reset, hard reset only (spec v3)
     input  logic          in_valid,
     output logic          in_ready,
     input  logic [662:0]  in_data,        // bus C (EOG_BC_W)
@@ -86,6 +93,7 @@ module eog_head #(
     logic [1:0]          st;
     logic [KW-1:0]       cnt;
     logic [EOG_BC_W-1:0] in_r;      // the held record (bus C)
+    logic                bank_r;    // the bank active at accept (the held record's bank)
     logic [7:0]          ver_r;     // VER of the bank active at accept
     logic [4:0]          sout_r;    // S_OUT of the bank active at accept
     logic                bank_q;    // active bank
@@ -95,11 +103,11 @@ module eog_head #(
     logic take, do_swap, acc_en, fin, wr_ok;
     assign in_ready  = (st == S_IDLE) && !pend_q;
     assign take      = in_valid && in_ready;
-    assign do_swap   = (st == S_IDLE) && pend_q;
+    assign do_swap   = rst_n && (st == S_IDLE) && pend_q;
     assign acc_en    = (st == S_MAC) && (cnt >= KW'(MLAT));
     assign fin       = (st == S_FIN);
     assign out_valid = (st == S_OUT);
-    assign wr_ok     = wb_we && rst_n;
+    assign wr_ok     = wb_we && rst_n && wb_rst_n;
 
     assign active_bank  = bank_q;
     assign swap_pending = pend_q;
@@ -110,20 +118,19 @@ module eog_head #(
     assign act_sout   = bank_q ? w68_q[32 +: 5]     : w68_q[0 +: 5];
     assign active_ver = act_ver;
 
+    // weight store control: hard reset only (wb_rst_n)
     always_ff @(posedge clk) begin
-        if (!rst_n) begin
-            st     <= S_IDLE;
-            cnt    <= '0;
+        if (!wb_rst_n) begin
             pend_q <= 1'b0;
             bank_q <= 1'b0;
             w68_q  <= '0;
         end else begin
             // word 68 of the inactive bank
-            if (wb_we && wb_addr == 7'd68) begin
+            if (wr_ok && wb_addr == 7'd68) begin
                 if (bank_q) w68_q[31:0]  <= wb_wdata;
                 else        w68_q[63:32] <= wb_wdata;
             end
-            // swap: requests while pending coalesce; the swap itself only in S_IDLE (no record held)
+            // swap: requests while pending coalesce; the swap itself only in S_IDLE (no record held), rst_n = 1
             if (pend_q) begin
                 if (do_swap) begin
                     pend_q <= 1'b0;
@@ -132,6 +139,15 @@ module eog_head #(
             end else if (swap_req) begin
                 pend_q <= 1'b1;
             end
+        end
+    end
+
+    // record state machine: engine reset (rst_n)
+    always_ff @(posedge clk) begin
+        if (!rst_n) begin
+            st  <= S_IDLE;
+            cnt <= '0;
+        end else begin
             case (st)
                 S_IDLE: if (take) begin
                     st  <= S_MAC;
@@ -150,6 +166,7 @@ module eog_head #(
     always_ff @(posedge clk) begin
         if (take) begin
             in_r   <= in_data;
+            bank_r <= bank_q;
             ver_r  <= act_ver;
             sout_r <= act_sout;
         end
@@ -250,10 +267,10 @@ module eog_head #(
                 end
             end
 
-            // MAC operands: words 2c and 2c+1 of the active bank
+            // MAC operands: words 2c and 2c+1 of the record's bank (the active one, see bank_r)
             logic [31:0] rd_e, rd_o;
-            assign rd_e = mem_e[{bank_q, cc}];
-            assign rd_o = mem_o[{bank_q, cc}];
+            assign rd_e = mem_e[{bank_r, cc}];
+            assign rd_o = mem_o[{bank_r, cc}];
             assign wop[64*k +: 64] = {rd_o, rd_e};
 
             // readback of the inactive bank
@@ -338,7 +355,13 @@ module eog_head #(
     // ---- internal invariants (own state only; help k-induction) ----
     // the MAC counter never passes the last accumulate
     always_comb if (rst_n && st == S_MAC) fi_cnt: assert (cnt <= KW'(LASTC));
-    // no swap and no write to the active bank while a record is held: its VER / S_OUT snapshot stays current
-    always_comb if (rst_n && st != S_IDLE) fi_bank: assert (ver_r == act_ver && sout_r == act_sout);
+    // While a record is held there is no swap and no write to the active bank, so its snapshot (bank, VER, S_OUT)
+    // stays the active one. The only other case is a wb_rst_n pulse without rst_n after the accept (impossible in
+    // eog_top): bank 0 is then active with word 68 = 0, and nothing can change that while the record is held
+    // (writes go to bank 1, no swap). Valid for any combination of the two resets.
+    logic fi_snap_cur, fi_store_rst;
+    assign fi_snap_cur  = (bank_r == bank_q) && (ver_r == act_ver) && (sout_r == act_sout);
+    assign fi_store_rst = !bank_q && (w68_q[31:0] == 32'd0);
+    always_comb if (rst_n && st != S_IDLE) fi_bank: assert (fi_snap_cur || fi_store_rst);
 `endif
 endmodule
