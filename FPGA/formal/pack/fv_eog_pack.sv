@@ -11,9 +11,9 @@
 //              for eog_fv_stage (out_valid = l3, out_ready = m_ready, out_recno = RESULT_NO low bits = beat 3
 //              bits [39:32]), so one-in-one-out-in-order, the in-flight link and II / latency are checked per
 //              record, with f_inflight counting records whose last beat has not transferred (conventions §7).
-//   q_last*    IN_LAST of the in-flight records, indexed by the checker's in/out counters (K3)
+//   q_last*    IN_LAST of the in-flight records, oldest first (K3)
 //   f_bcnt     results since the last m_last, computed from the spec rule (not from the DUT's m_last)
-//   f_t*       the tracked record (K2): the record accepted while the free input trk_go = 1 (first time after
+//   f_t*       the tracked record (K2) and f_tpos, the records ahead of it: the record accepted while trk_go = 1 (first time after
 //              reset); the solver may pick any record, like an anyconst record number, but the record identity
 //              stays out of the arithmetic (pattern of formal/unpack).
 //
@@ -146,16 +146,13 @@ module fv_eog_pack (
         .excl(1'b0), .dut_inflight(dut_inflight), .dut_oldest(dut_oldest),
         .f_in_cnt(f_in_cnt), .f_out_cnt(f_out_cnt), .f_in_flight(f_in_flight));
 
-    // IN_LAST of the in-flight records (<= 2 held, 4 slots)
-    logic q_last0, q_last1, q_last2, q_last3, h_last;
-    always_comb begin
-        case (f_out_cnt[1:0])
-            2'd0:    h_last = q_last0;
-            2'd1:    h_last = q_last1;
-            2'd2:    h_last = q_last2;
-            default: h_last = q_last3;
-        endcase
-    end
+    // IN_LAST of the in-flight records (<= 2 held, 3 slots)
+    // (a shift queue, oldest first, positioned by the in-flight count: position-relative shadows keep modular
+    // counter arithmetic out of the invariants the engine has to learn)
+    logic       q_last0, q_last1, q_last2, h_last;
+    logic [1:0] q_wr;              // slot of this cycle's push, after this cycle's pop
+    assign h_last = q_last0;
+    assign q_wr   = f_in_flight[1:0] - {1'b0, l3fire};
 
     // K3: results since the last m_last (spec rule), and this record's expected m_last
     logic [7:0] f_bcnt;
@@ -164,13 +161,13 @@ module fv_eog_pack (
 
     // K2: tracked record
     logic          f_tused, f_tsel;
-    logic [RW-1:0] f_tno;
+    logic [1:0]    f_tpos;         // records ahead of the tracked one
     logic [AW-1:0] f_tdat;
     logic          t_start, t_cur;
     logic [255:0]  t_res;
     logic [63:0]   t_beat;
     assign t_start = in_fire && trk_go && !f_tused;
-    assign t_cur   = (f_tsel && f_out_cnt == f_tno) || (t_start && f_in_flight == 8'd0);
+    assign t_cur   = (f_tsel && f_tpos == 2'd0) || (t_start && f_in_flight == 8'd0);
     assign t_res   = res_of(f_tsel ? f_tdat : in_data);
     always_comb begin
         case (f_beat)
@@ -216,12 +213,15 @@ module fv_eog_pack (
             p_v     <= 1'b0;
             f_run   <= '0;
         end else begin
+            if (l3fire) begin
+                q_last0 <= q_last1;
+                q_last1 <= q_last2;
+            end
             if (in_fire) begin
-                case (f_in_cnt[1:0])
+                case (q_wr)
                     2'd0:    q_last0 <= in_data[EOG_BA_IN_LAST];
                     2'd1:    q_last1 <= in_data[EOG_BA_IN_LAST];
-                    2'd2:    q_last2 <= in_data[EOG_BA_IN_LAST];
-                    default: q_last3 <= in_data[EOG_BA_IN_LAST];
+                    default: q_last2 <= in_data[EOG_BA_IN_LAST];
                 endcase
             end
             if (m_fire) begin
@@ -233,9 +233,10 @@ module fv_eog_pack (
             if (t_start) begin
                 f_tused <= 1'b1;
                 f_tsel  <= 1'b1;
-                f_tno   <= f_in_cnt;
+                f_tpos  <= q_wr;
                 f_tdat  <= in_data;
             end
+            if (l3fire && f_tsel && f_tpos != 2'd0) f_tpos <= f_tpos - 2'd1;
             if (l3fire && t_cur) f_tsel <= 1'b0;
             p_v  <= l3fire && !tap_valid;
             p_st <= c_st;
@@ -282,7 +283,7 @@ module fv_eog_pack (
         // Harness-internal consistency
         if (f_past_valid) begin
             H_bcnt: assert (f_bcnt < BATCH);
-            H_trk:  assert (!f_tsel || f_tused);
+            H_trk:  assert (!f_tsel || (f_tused && {6'd0, f_tpos} < f_in_flight));
             H_pv:   assert (!p_v || f_beat == 2'd0);
         end
     end

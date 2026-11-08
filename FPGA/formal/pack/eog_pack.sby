@@ -6,10 +6,17 @@
 #         (and any skid buffer) is invisible at the ports; with m_ready held 0 for any number of cycles a k-step
 #         induction trace can start with the DUT's beat counter out of step with the harness's f_beat, so no
 #         depth closes without RTL-internal invariants (same situation as formal/unpack). PDR learns them.
+#         The harness keeps its shadows position-relative (tracked record = "records ahead of it", IN_LAST in a
+#         shift queue) -- a version indexed by REC_NO counters ran > 25 min without converging.
+#         Against the verifier's throwaway stubs (never committed), shared loaded WSL machine: 2-entry (skid)
+#         stub PASS 62 s, one-record-at-a-time stub PASS 31 s, registered-tap stub PASS 62 s; mutants FAIL on
+#         the expected label: corrupted RESULT bit K2_data 15 s, corruption only on REC_NO 200 K2_data 101 s,
+#         wrong BATCH count K3_last 4 s.
 # bmc   : smtbmc, every assertion from reset, depth 20 = reset + idle + 4 records' 16 beats (> one BATCH = 3 batch
-#         plus the next record) -- quick counterexamples for the RTL author.
-# cover : spec cover (a batch of BATCH = 3 results ending in m_last) + sanity covers; depth 24.
-# Run times against the verifier's throwaway stub: see the T1.pack.fv report (lead's notes / TASKS.md row).
+#         plus the next record) -- quick counterexamples for the RTL author (~55 s against the stub). Mutants
+#         caught: K2_data, K3_beat, K3_last, K4_val, K4_ghost, B_rate, u_stage.st_link_n (5-beat record).
+# cover : spec cover (a batch of BATCH = 3 results ending in m_last) + sanity covers; depth 24 (deepest goal,
+#         C1_batch, at step 14 against the stub); ~1 s.
 
 [tasks]
 prove
