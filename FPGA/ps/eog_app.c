@@ -36,7 +36,17 @@
 #include "xil_io.h"
 #include "xil_printf.h"
 #include "xparameters.h"
+/* Vitis 2026.1 standalone no longer exports xtime_l.h; XTime / XTime_GetTime / COUNTS_PER_SECOND come from xiltimer. */
+#if defined(__has_include)
+#if __has_include("xtime_l.h")
 #include "xtime_l.h"
+#else
+#include "xiltimer.h"
+#include "xtimer_config.h"
+#endif
+#else
+#include "xtime_l.h"
+#endif
 
 #if defined(XPAR_EOG_TOP_0_BASEADDR)
 #define EOG_BASEADDR XPAR_EOG_TOP_0_BASEADDR

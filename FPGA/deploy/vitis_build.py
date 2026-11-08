@@ -117,6 +117,8 @@ def configure_for_lwip_template():
             ("lwip220", "lwip220_lwip_dhcp_does_acd_check", "true"),
             ("lwip220", "lwip220_pbuf_pool_size", "2048"),
             ("lwip220", "lwip220_api_mode", "RAW_API"),
+            # the EOG app binds 7000/7003/7004/7001 next to udp_mul's 7777: 5 PCBs > the default 4
+            ("lwip220", "lwip220_memp_n_udp_pcb", "8"),
             ("xiltimer", "XILTIMER_en_interval_timer", "true")]
     for lib, param, val in want:
         for call in (lambda: dom.set_config(option="lib", param=param, value=val, lib_name=lib),
@@ -131,7 +133,7 @@ def configure_for_lwip_template():
 
 xpfm = find_xpfm()
 log("xpfm:", xpfm)
-if not os.path.isdir(app_dir):
+if not os.path.isdir(app_dir) or os.environ.get("VITIS_RECONFIG"):
     configure_for_lwip_template()
 
 if not os.path.isdir(app_dir):
