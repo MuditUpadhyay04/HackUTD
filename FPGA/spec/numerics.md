@@ -125,9 +125,13 @@ Outputs after the update (all 0 for INVALID/DROPPED): 0–11 the channels; 12–
 | 2 | `HIST_RESET` | | 8 | `DUPLICATE` |
 | 3 | `OUT_OF_RANGE` | | 9 | `OUT_OF_ORDER` |
 | 4 | `ILLEGAL_ENUM` | | 10 | `UNKNOWN_FAC` |
-| 5 | `FEAT_SAT` | | 12 | `FRAMING` (new in v4) |
+| 5 | `FEAT_SAT` | | 11 | `FIELD_ABSENT` (restored, ruling #23) |
+| | | | 12 | `FRAMING` (new in v4) |
+| | | | 13 | `NO_MODEL` (restored, ruling #23; set by `eog_head`) |
+| | | | 14 | `FIELD_LOST` (restored, ruling #23) |
 
-Bits 11, 13–31 are 0. Status codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 never produced).
+Bits 11, 13 and 14 follow the set/clear rules of `features_int.py` @ 8e67750 (ruling #23; Mudit lists them in
+`ml/README.md`). Bits 15–31 are 0. Status codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 never produced).
 
 ## 7. Countdown (eog_countdown)
 
