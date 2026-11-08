@@ -29,6 +29,9 @@ also uses the weights v4 golden sets.
 
 No clock times until regs and T2.top land. Lucas pings Mudit when T2.bd1 starts.
 
+The ML side's test procedure for steps d and e (pre-flight, golden tests with pass criteria, fault finding, live
+checks including the swap): [`ml/BOARD_CHECKLIST.md`](../../../ml/BOARD_CHECKLIST.md).
+
 ## 3. Next FPGA step
 
 T2.top → T2.bd1 → T2.board1, once countdown, head and regs are signed off under the three-tier standard (proven,

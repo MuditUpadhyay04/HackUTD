@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:45 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:55 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -193,8 +193,8 @@ flowchart LR
    | a | T2.top: `eog_top`, top-level proof, full-week sim bit for bit against the model and weights v4 G0 / G1 / G2 | other machine | — |
    | b | T2.bd1: block design, LED / BTN0 / Pmod constraints, Vivado build | Lucas's PC | 30–60 min |
    | c | ARM app (`eog_app`, already host-tested): Vitis build, program the board | Lucas's PC | ~10 min |
-   | d | T2.board1: `board.py --golden ml/artifacts/v4/golden/g0`, then g2, then g1, then `--heartbeat-test 6`; each byte-identical before the next. Compare ALERTs on a freshly started board (latches survive CONFIG writes). | board | 15–30 min |
-   | e | First live run: `replay.py` with weights v4 + its `global_config.json` over the full week → board → `listen.py` → Jason's server; then the live weight swap (`--swap-at-step`) | board PC → server | — |
+   | d | T2.board1: `board.py --golden ml/artifacts/v4/golden/g0 --weights-negative`, then g2, then g1, then `--heartbeat-test 6`; each byte-identical (RESULTs and ALERTs) before the next. Compare ALERTs on a freshly started board (latches survive CONFIG writes). Step-by-step checks, pass criteria and fault finding: [`ml/BOARD_CHECKLIST.md`](ml/BOARD_CHECKLIST.md). | board | 15–30 min |
+   | e | First live run: `replay.py` with weights v4 + its `global_config.json` over the full week → board → `listen.py` → Jason's server; then the live weight swap (`--swap-at-step … --swap-config`, checklist L4) | board PC → server | — |
 
    No clock times until regs and T2.top land; Lucas pings Mudit when T2.bd1 starts. Until step e, steps 2–3 below
    run against `fakeboard.py` (same JSON), so they don't wait on the board.
@@ -295,6 +295,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 03:55 | **Board test suite** (`ml/BOARD_CHECKLIST.md`): pre-flight clash checks, golden tests B1–B6 with pass criteria (now also every ALERT and four rejected weight blobs), fault finding by module, live checks L1–L5. **Live swap fixed:** `replay.py --swap-config` sends the new model's GLOBAL (thresholds, K) right after the swap, and `listen.py --model` reads each result with its own model's settings. Rehearsed on the software board: B1–B4 PASS; v3 → v4 swap exact at one step boundary (900 results, 0 mismatches against the offline engine). |
 | Sun Nov 8 03:45 | **`active` added to the board JSON (C11, additive):** heads over threshold K records in a row, mirroring the board's persistence exactly (tested against the engine on the v4 edge-case set and the full week). Events should open on `active`, not on per-record `above_threshold`: the v4 thresholds were tuned with K, so the measured false-alert rates assume it. `ml/INTEGRATION.md`, Jason's briefing and the console's live store updated. New O15 (no-model alarms, guarded on the host). |
 | Sun Nov 8 03:30 | **Briefing for Jason** (`docs/plan/jason/START_HERE.md`): what the board side delivers (C11 JSON, weights v4, board timeline), the three-terminal software path re-verified with v4 (600 results, 9 alerts, 35 POST batches), his open items in a suggested order. New I-15 (Nemotron context limit and tool-call parser). |
 | Sun Nov 8 03:25 | **Plan statuses made honest** (PR #6 review): hard rules 11–13 and C9 / C10 / C12 are PROPOSED until their owners confirm (§8 approvers); O6, O7 (server side), O11, O12 reopened with their proposed resolutions; the final say is a tiebreaker after the §8 approvers are consulted; tracked review findings I-11 … I-14. I-11 (hard rule 9 in the console) fixed in PR #6 for Gurneal to review. |

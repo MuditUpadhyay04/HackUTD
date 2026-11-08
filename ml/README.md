@@ -88,7 +88,8 @@ G1 omits `.mem` and `.csv` to keep the repo small. Regenerate them with `--mem -
 python3 -m hutd_ml.compare artifacts/v4/golden/g2/expected_results.bin my_results.bin --stages artifacts/v4/golden/g2/expected_stages.csv
 ```
 
-**On the board** (direct cable, PC 192.168.1.50 ↔ board 192.168.1.10):
+**On the board** (direct cable, PC 192.168.1.50 ↔ board 192.168.1.10). The full procedure, with pass criteria and fault
+finding, is [`BOARD_CHECKLIST.md`](BOARD_CHECKLIST.md):
 
 ```sh
 python3 -m hutd_ml.board --golden artifacts/v4/golden/g0                      # then g2, then g1 (v2 sets work too)
