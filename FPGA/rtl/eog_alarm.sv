@@ -1,14 +1,17 @@
 // eog_alarm.sv -- persistence counters, Night Shift / E-STOP latches, ALERT pushes, acknowledge sweep,
-// heartbeat / autonomous, BTN0 debounce, LEDs and Pmods.  Spec: spec/modules/eog_alarm.md, numerics.md §9.
+// heartbeat / autonomous, BTN0 debounce, LEDs and Pmods.  Spec v4: spec/modules/eog_alarm.md, numerics.md §9
+// (D7 strict '>', D8 both latches held until acknowledged, D10 per-class K).
 //
 // LOCAL ALARM SIGNALS ONLY (global_plan hard rule 8): nothing here is wired to equipment.
 //
 // Structure (one record at a time):
 //   accept (cycle t)  : read the slot's counters/latches, compute hit/cnt/ns_c/es_c, write the new state,
-//                       load the bus-A output register and the (up to 4) pending ALERT flags.
+//                       load the bus-A output register and the (up to 2) pending ALERT flags.
+//                       VALID/HELD: counters (from 0 if HIST_RESET), conditions, latches, ALERTs.
+//                       INVALID: counters cleared only.  DROPPED / codes 2, 5..7 / FAC >= N_FAC: nothing.
 //   t+1 ...           : out_valid = 1 until it transfers; pending ALERTs pushed one per cycle in the order
 //                       NS_RAISED, ES_RAISED, CLEARED(NS), CLEARED(ES).
-//   in_ready = 1 again once the output has transferred and no ALERT is pending (II = 2 without ALERTs).
+//   in_ready = 1 again once the output has transferred and no ALERT is pending (II = 2, 3 with two ALERTs).
 //   Acknowledge (ack_srv pulse or debounced BTN0 press) is applied between records: in the first cycle with no
 //   record ALERT pending, no sweep running and no input accepted in that cycle. latch &= cond for both vectors;
 //   one ACKED ALERT per cleared bit follows on consecutive cycles (lowest slot first, NS before ES within a slot),
@@ -32,7 +35,7 @@ module eog_alarm #(
     output logic         out_valid,
     input  logic         out_ready,
     output logic [242:0] out_data,     // EOG_BA_W
-    // GLOBAL CONFIG: only PERSIST_K, LOGIT_THR, GAP_THR, HB_TIMEOUT_MS are used here
+    // GLOBAL CONFIG: only PERSIST_K, PERSIST_K4, LOGIT_THR, GAP_THR, HB_TIMEOUT_MS are used here
     /* verilator lint_off UNUSEDSIGNAL */
     input  logic [255:0] glb,
     /* verilator lint_on UNUSEDSIGNAL */
@@ -59,10 +62,8 @@ module eog_alarm #(
     , output logic [31:0] f_oldest_recno  // REC_NO of that record (don't-care when f_inflight == 0)
 `endif
 );
-    // the shared header defines every spec constant; this module uses only some of them
-    /* verilator lint_off UNUSEDPARAM */
+    // the shared header defines every spec constant (it waives UNUSEDPARAM for the ones not used here)
     `include "eog_defs.svh"
-    /* verilator lint_on UNUSEDPARAM */
 
     localparam integer FW  = EOG_BL_FAC_W;                          // 5
     localparam integer PW  = (CYC_PER_MS < 2) ? 1 : $clog2(CYC_PER_MS);
@@ -72,18 +73,21 @@ module eog_alarm #(
     // ------------------------------------------------------------------ input record fields
     logic [FW-1:0] in_fac;
     logic [2:0]    in_st;
-    logic          is_vh, is_inv, in_range, in_fire, upd;
+    logic          is_vh, is_inv, in_range, in_fire, upd, upd_vh, in_hist;
     logic [31:0]   in_fac32;
 
     assign in_fac   = in_data[EOG_BL_FAC +: EOG_BL_FAC_W];
     assign in_st    = in_data[EOG_BL_STATUS +: EOG_BL_STATUS_W];
+    assign in_hist  = in_data[EOG_BL_HIST_RESET];
     assign is_vh    = (in_st == EOG_ST_VALID) || (in_st == EOG_ST_HELD);
     assign is_inv   = (in_st == EOG_ST_INVALID);
     assign in_fac32 = {{(32-FW){1'b0}}, in_fac};
     assign in_range = (in_fac32 < N_FAC);
     assign in_fire  = in_valid && in_ready;
-    // DROPPED (and the never-produced codes 2, 5..7) change no state
+    // DROPPED (and the never-produced codes 2, 5..7) change no state; INVALID only clears the counters;
+    // VALID/HELD also update conditions and latches and raise ALERTs
     assign upd      = in_fire && in_range && (is_vh || is_inv);
+    assign upd_vh   = in_fire && in_range && is_vh;
 
     // ------------------------------------------------------------------ per-facility state
     logic [8*N_FAC-1:0] c0_q, c1_q, c2_q, c3_q, lk_q;   // cnt[0..3], leak_cnt (u8 saturating)
@@ -114,30 +118,42 @@ module eog_alarm #(
     end
 
     // ------------------------------------------------------------------ numerics.md §9
-    logic [7:0] g_k, kk;
-    logic [3:0] hit, cls_act;
+    // K[k] = PERSIST_K4[k] != 0 ? PERSIST_K4[k] : max(PERSIST_K, 1)   (D10)
+    logic [7:0]  g_k, k_fb;
+    logic [31:0] g_k4;
+    logic [31:0] kk;      // K[k] at [8k+7:8k]
+    logic [3:0]  hit, cls_act;
+    logic [31:0] c_old;   // cnt[k] before this record's update (0 after a history reset)
     logic [31:0] c_nx;    // new cnt[k] at [8k+7:8k]
-    logic [7:0] lk_nx;
-    logic       gap_hit, leak_hit, es_c, ns_c, rule_any;
-    logic [3:0] cls_out;
+    logic [7:0]  lk_old, lk_nx;
+    logic        gap_hit, leak_hit, es_c, ns_c, rule_any;
+    logic [3:0]  cls_out;
 
-    assign g_k = glb[EOG_G_PERSIST_K +: EOG_G_PERSIST_K_W];
-    assign kk  = (g_k == 8'd0) ? 8'd1 : g_k;
+    assign g_k    = glb[EOG_G_PERSIST_K  +: EOG_G_PERSIST_K_W];
+    assign g_k4   = glb[EOG_G_PERSIST_K4 +: EOG_G_PERSIST_K4_W];
+    assign k_fb   = (g_k == 8'd0) ? 8'd1 : g_k;
+    // a non-DROPPED HIST_RESET record clears the counters before its own update
+    assign c_old  = in_hist ? 32'd0 : c_rd;
+    assign lk_old = in_hist ? 8'd0  : lk_rd;
 
     always_comb begin
         for (int k = 0; k < 4; k++) begin
-            hit[k]  = $signed(in_data[EOG_BL_LOGITS + 16*k +: 16]) >= $signed(glb[EOG_G_LOGIT_THR + 16*k +: 16]);
-            c_nx[8*k +: 8] = (is_vh && hit[k]) ? ((c_rd[8*k +: 8] == 8'hFF) ? 8'hFF : c_rd[8*k +: 8] + 8'd1) : 8'd0;
-            cls_act[k] = is_vh && (c_nx[8*k +: 8] >= kk);
+            kk[8*k +: 8] = (g_k4[8*k +: 8] != 8'd0) ? g_k4[8*k +: 8] : k_fb;
+            // strict, signed (D7)
+            hit[k]  = $signed(in_data[EOG_BL_LOGITS + 16*k +: 16]) > $signed(glb[EOG_G_LOGIT_THR + 16*k +: 16]);
+            // INVALID (not VALID/HELD) clears the counter
+            c_nx[8*k +: 8] = (is_vh && hit[k])
+                           ? ((c_old[8*k +: 8] == 8'hFF) ? 8'hFF : c_old[8*k +: 8] + 8'd1) : 8'd0;
+            cls_act[k] = is_vh && (c_nx[8*k +: 8] >= kk[8*k +: 8]);
         end
     end
 
-    assign gap_hit  = $signed(in_data[EOG_BL_CH3 +: EOG_BL_CH3_W]) >= $signed(glb[EOG_G_GAP_THR +: EOG_G_GAP_THR_W]);
+    assign gap_hit  = $signed(in_data[EOG_BL_CH3 +: EOG_BL_CH3_W]) > $signed(glb[EOG_G_GAP_THR +: EOG_G_GAP_THR_W]);
     assign leak_hit = is_vh && hit[0] && gap_hit;
-    assign lk_nx    = leak_hit ? ((lk_rd == 8'hFF) ? 8'hFF : lk_rd + 8'd1) : 8'd0;
-    assign es_c     = is_vh && (lk_nx >= kk);
+    assign lk_nx    = leak_hit ? ((lk_old == 8'hFF) ? 8'hFF : lk_old + 8'd1) : 8'd0;
+    assign es_c     = is_vh && (lk_nx >= kk[7:0]);        // E-STOP uses K[0]
     assign rule_any = (in_data[EOG_BL_RULES +: 4] != 4'd0);
-    assign ns_c     = rule_any || (cls_act != 4'd0);
+    assign ns_c     = is_vh && (rule_any || (cls_act != 4'd0));
     assign cls_out  = upd ? cls_act : 4'd0;
 
     // ------------------------------------------------------------------ record / ALERT / ack control
@@ -145,7 +161,6 @@ module eog_alarm #(
     logic             out_valid_q;
     logic [3:0]       al_pend;      // [0] NS_RAISED [1] ES_RAISED [2] CLEARED NS [3] CLEARED ES
     logic             auto_q;       // autonomous when the record was accepted
-    logic             gap_q;        // CH3 >= GAP_THR on that record
     logic [N_FAC-1:0] ackp_ns, ackp_es;   // ACKED alerts still to push
     logic             sweeping;
     logic             ack_req, ack_now, ack_apply;
@@ -204,20 +219,22 @@ module eog_alarm #(
 
     logic       al_want;
     logic [7:0] rec_kind, rec_src;
-    logic       q_rule, q_model;
+    logic       q_rule, q_model, rec_es;
     assign al_want = (al_pend != 4'd0) || sweeping;
     assign al_valid = al_want && !al_full;
     assign al_drop  = al_want && al_full;
     assign q_rule   = (out_q[EOG_BA_RULES +: 4] != 4'd0);
     assign q_model  = (out_q[EOG_BA_CLASSES +: EOG_BA_CLASSES_W] != 4'd0);
+    assign rec_es   = rs[0];                // flags 1 and 3 are the E-STOP latch type
 
+    // SOURCE (every record ALERT): bit 0 RULES[3:0] != 0, bit 1 class_active != 0, bit 2 AUTONOMOUS,
+    // bit 3 reserved (ARM), bit 4 latch type (0 Night Shift, 1 E-STOP)
+    assign rec_src  = {3'd0, rec_es, 1'b0, auto_q, q_model, q_rule};
     always_comb begin
         case (rs)
-            2'd0:    begin rec_kind = EOG_AK_NS_RAISED; rec_src = {5'd0, auto_q, q_model, q_rule}; end
-            2'd1:    begin rec_kind = EOG_AK_ES_RAISED;
-                           rec_src = {3'd0, 1'b1, 1'b0, auto_q, out_q[EOG_BA_CLASSES], gap_q}; end
-            2'd2:    begin rec_kind = EOG_AK_CLEARED;   rec_src = {3'd0, 1'b0, 1'b0, auto_q, 2'd0}; end
-            default: begin rec_kind = EOG_AK_CLEARED;   rec_src = {3'd0, 1'b1, 1'b0, auto_q, 2'd0}; end
+            2'd0:    rec_kind = EOG_AK_NS_RAISED;
+            2'd1:    rec_kind = EOG_AK_ES_RAISED;
+            default: rec_kind = EOG_AK_CLEARED;
         endcase
     end
 
@@ -246,7 +263,7 @@ module eog_alarm #(
             c0_q <= '0; c1_q <= '0; c2_q <= '0; c3_q <= '0; lk_q <= '0;
             ns_latch <= '0; es_latch <= '0; ns_cond <= '0; es_cond <= '0;
             out_q <= '0; out_valid_q <= 1'b0;
-            al_pend <= 4'd0; auto_q <= 1'b0; gap_q <= 1'b0;
+            al_pend <= 4'd0; auto_q <= 1'b0;
             ackp_ns <= '0; ackp_es <= '0; ack_req <= 1'b0;
         end else begin
             // output handshake
@@ -254,13 +271,13 @@ module eog_alarm #(
                 out_q       <= out_nx;
                 out_valid_q <= 1'b1;
                 auto_q      <= autonomous;
-                gap_q       <= gap_hit;
             end else if (out_valid_q && out_ready) begin
                 out_valid_q <= 1'b0;
             end
 
-            // record ALERTs: pending flags loaded at accept, one consumed per cycle (pushed or dropped)
-            if (upd) begin
+            // record ALERTs (VALID/HELD only): pending flags loaded at accept, one consumed per cycle
+            // (pushed or dropped). CLEARED: the old cond = 1, the new cond = 0 (the latch is then still set).
+            if (upd_vh) begin
                 al_pend <= {esc_rd && !es_c && esl_rd,
                             nsc_rd && !ns_c && nsl_rd,
                             es_c && !esl_rd,
@@ -269,7 +286,8 @@ module eog_alarm #(
                 al_pend[rs] <= 1'b0;
             end
 
-            // per-facility state update
+            // per-facility state update: counters on VALID/HELD and INVALID (cleared), conditions and
+            // latches on VALID/HELD only; history resets never touch the latches
             for (int i = 0; i < N_FAC; i++) begin
                 if (upd && in_fac32 == i) begin
                     c0_q[8*i +: 8] <= c_nx[8*0 +: 8];
@@ -277,6 +295,8 @@ module eog_alarm #(
                     c2_q[8*i +: 8] <= c_nx[8*2 +: 8];
                     c3_q[8*i +: 8] <= c_nx[8*3 +: 8];
                     lk_q[8*i +: 8] <= lk_nx;
+                end
+                if (upd_vh && in_fac32 == i) begin
                     ns_latch[i]    <= ns_latch[i] | ns_c;
                     es_latch[i]    <= es_latch[i] | es_c;
                     ns_cond[i]     <= ns_c;
@@ -457,8 +477,12 @@ module eog_alarm #(
             // a slot still to be ACKED has its latch and condition clear (no record runs during a sweep)
             fi_sweep_ns:      assert ((ackp_ns & (ns_latch | ns_cond)) == '0);
             fi_sweep_es:      assert ((ackp_es & (es_latch | es_cond)) == '0);
+            // at most two record ALERTs: {NS_RAISED, ES_RAISED} or {CLEARED NS, CLEARED ES} or one alone
+            // (es_c implies ns_c, and an old es_cond implies an old ns_cond and ns_latch)
             fi_al_ns:         assert (!(al_pend[0] && al_pend[2]));
             fi_al_es:         assert (!(al_pend[1] && al_pend[3]));
+            fi_al_x0:         assert (!(al_pend[0] && al_pend[3]));
+            fi_al_x1:         assert (!(al_pend[1] && al_pend[2]));
             // counters in range
             fi_hb_pre:        assert ({{(32-PW){1'b0}}, hb_pre}  < ((CYC_PER_MS < 1) ? 1 : CYC_PER_MS));
             fi_fr_pre:        assert ({{(32-PW){1'b0}}, fr_pre}  < ((CYC_PER_MS < 1) ? 1 : CYC_PER_MS));
