@@ -17,9 +17,9 @@
 | `FAC` | 49 | 5 | facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown) |
 | `TS` | 54 | 32 | DATA.ts_unix |
 | `STATUS` | 86 | 3 | wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused) |
-| `REASON` | 89 | 16 | reason bits, see numerics.md §6 |
-| `SINCE_RESET` | 105 | 8 | records since this facility's last history reset, saturating at 255 (0 on the reset record) |
-| `HIST_RESET` | 113 | 1 | this record starts a new history for its facility |
+| `REASON` | 89 | 16 | reason bits, numerics.md section 6 |
+| `SINCE_RESET` | 105 | 8 | VALID/HELD records of this facility since its last history reset, before this record (saturating 255) |
+| `HIST_RESET` | 113 | 1 | a history reset happened at this record (later stages clear this facility's state; never on DROPPED) |
 | `INFLOW` | 114 | 16 | s16, 0.5 bpd |
 | `LEVEL` | 130 | 16 | s16, 0.01 % |
 | `PUMP_FLOW` | 146 | 16 | s16, 0.5 bpd |
@@ -44,9 +44,9 @@
 | `FAC` | 49 | 5 | facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown) |
 | `TS` | 54 | 32 | DATA.ts_unix |
 | `STATUS` | 86 | 3 | wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused) |
-| `REASON` | 89 | 16 | reason bits, see numerics.md §6 |
-| `SINCE_RESET` | 105 | 8 | records since this facility's last history reset, saturating at 255 (0 on the reset record) |
-| `HIST_RESET` | 113 | 1 | this record starts a new history for its facility |
+| `REASON` | 89 | 16 | reason bits, numerics.md section 6 |
+| `SINCE_RESET` | 105 | 8 | VALID/HELD records of this facility since its last history reset, before this record (saturating 255) |
+| `HIST_RESET` | 113 | 1 | a history reset happened at this record (later stages clear this facility's state; never on DROPPED) |
 | `FEAT0_11` | 114 | 192 | 12 x s16 features, channel c at [16c+15:16c] |
 | `RULES4` | 306 | 4 | rule bits 0..3 |
 | `INFLOW` | 310 | 16 | s16 copy for countdown |
@@ -63,9 +63,9 @@
 | `FAC` | 49 | 5 | facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown) |
 | `TS` | 54 | 32 | DATA.ts_unix |
 | `STATUS` | 86 | 3 | wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused) |
-| `REASON` | 89 | 16 | reason bits, see numerics.md §6 |
-| `SINCE_RESET` | 105 | 8 | records since this facility's last history reset, saturating at 255 (0 on the reset record) |
-| `HIST_RESET` | 113 | 1 | this record starts a new history for its facility |
+| `REASON` | 89 | 16 | reason bits, numerics.md section 6 |
+| `SINCE_RESET` | 105 | 8 | VALID/HELD records of this facility since its last history reset, before this record (saturating 255) |
+| `HIST_RESET` | 113 | 1 | a history reset happened at this record (later stages clear this facility's state; never on DROPPED) |
 | `FEAT` | 114 | 496 | 31 x s16 features, index i at [16i+15:16i] |
 | `RULES4` | 610 | 4 |  |
 | `INFLOW` | 614 | 16 |  |
@@ -81,9 +81,9 @@
 | `FAC` | 49 | 5 | facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown) |
 | `TS` | 54 | 32 | DATA.ts_unix |
 | `STATUS` | 86 | 3 | wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused) |
-| `REASON` | 89 | 16 | reason bits, see numerics.md §6 |
-| `SINCE_RESET` | 105 | 8 | records since this facility's last history reset, saturating at 255 (0 on the reset record) |
-| `HIST_RESET` | 113 | 1 | this record starts a new history for its facility |
+| `REASON` | 89 | 16 | reason bits, numerics.md section 6 |
+| `SINCE_RESET` | 105 | 8 | VALID/HELD records of this facility since its last history reset, before this record (saturating 255) |
+| `HIST_RESET` | 113 | 1 | a history reset happened at this record (later stages clear this facility's state; never on DROPPED) |
 | `FEAT` | 114 | 496 |  |
 | `RULES` | 610 | 5 | rule bits 0..4 |
 | `CD` | 615 | 48 | p10 [15:0], p50 [31:16], p90 [47:32], minutes |
@@ -98,9 +98,9 @@
 | `FAC` | 49 | 5 | facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown) |
 | `TS` | 54 | 32 | DATA.ts_unix |
 | `STATUS` | 86 | 3 | wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused) |
-| `REASON` | 89 | 16 | reason bits, see numerics.md §6 |
-| `SINCE_RESET` | 105 | 8 | records since this facility's last history reset, saturating at 255 (0 on the reset record) |
-| `HIST_RESET` | 113 | 1 | this record starts a new history for its facility |
+| `REASON` | 89 | 16 | reason bits, numerics.md section 6 |
+| `SINCE_RESET` | 105 | 8 | VALID/HELD records of this facility since its last history reset, before this record (saturating 255) |
+| `HIST_RESET` | 113 | 1 | a history reset happened at this record (later stages clear this facility's state; never on DROPPED) |
 | `CH3` | 114 | 16 | feature 3 (flow gap) for the leak rule |
 | `RULES` | 130 | 5 |  |
 | `CD` | 135 | 48 |  |
@@ -117,9 +117,9 @@
 | `FAC` | 49 | 5 | facility slot = FAC_RAW[4:0]; meaningful only if status != DROPPED(unknown) |
 | `TS` | 54 | 32 | DATA.ts_unix |
 | `STATUS` | 86 | 3 | wire codes: 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 unused) |
-| `REASON` | 89 | 16 | reason bits, see numerics.md §6 |
-| `SINCE_RESET` | 105 | 8 | records since this facility's last history reset, saturating at 255 (0 on the reset record) |
-| `HIST_RESET` | 113 | 1 | this record starts a new history for its facility |
+| `REASON` | 89 | 16 | reason bits, numerics.md section 6 |
+| `SINCE_RESET` | 105 | 8 | VALID/HELD records of this facility since its last history reset, before this record (saturating 255) |
+| `HIST_RESET` | 113 | 1 | a history reset happened at this record (later stages clear this facility's state; never on DROPPED) |
 | `RULES` | 114 | 5 |  |
 | `CD` | 119 | 48 |  |
 | `LOGITS` | 167 | 64 |  |
