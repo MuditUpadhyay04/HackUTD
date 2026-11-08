@@ -198,7 +198,7 @@ export function Console({
         )}
 
         {view === "agents" ? (
-          <AgentsPanel runId={s.runId} />
+          <AgentsPanel runId={s.runId} nowUnix={s.nowUnix} />
         ) : view === "handoff" ? (
           <div className="mt-6 grid max-w-[760px] gap-4">
             <NemotronBrief runId={s.runId} expanded />

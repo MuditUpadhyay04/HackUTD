@@ -98,7 +98,13 @@ export function Workspace({
         try {
           const fresh = unwrap(await api.api.runs({ id: run.id }).snapshot.get({ fetch: { signal: abort.signal } }));
           if (fresh.runId === run.id && fresh.cursor >= current.cursor && fresh.revision >= current.revision) { current = fresh; setSnapshot(fresh); }
-        } catch { /* retry on the next connection */ }
+        } catch (e) {
+          // The run is gone (the API restarted in memory mode): stop retrying and say how to recover.
+          if (e instanceof Error && /not found|\(404\)/i.test(e.message)) {
+            sessionStorage.removeItem(storageKey);
+            throw new Error("This analysis run no longer exists on the server. Reload the page to start a new one.");
+          }
+        }
       }
     }
     start().catch((e: Error) => { if (!abort.signal.aborted) setError(e.message); });
