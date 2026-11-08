@@ -27,14 +27,15 @@
 //       plus word-aligned addresses.
 //   G2  G2 (direct): while FLAGS[0] of slot f_slot is 1, cfg_row changes only right after a cycle in which the
 //       current write is a word-0 write to that slot with WSTRB[3] = 1 and WDATA[24] = 0.
-//       G2_row / G2_port / G2_port_c: the rows on all three read ports (v, f free; c = f_slot) equal a full shadow
+//       G2_row_q* / G2_port / G2_port_c: outside write windows, the row on port v (free slot) equals a full shadow
 //       of the NF-slot table built from the regmap rules (WSTRB merge, enabled-slot protection), starting at 0
 //       when AXI service starts after a hard reset (ruling #63: zero sweep); FAC_ID bits excluded on the ports.
-//       G2_rd: AXI readback of any CONFIG word (FAC_ID reads as the slot). (A full shadow is stronger than the
+//       G2_rd_q*: AXI readback of any CONFIG word (FAC_ID reads as the slot). Rows and readback are split into word
+//       quarters q0..q3 (words 4q..4q+3) so that each PDR task holds a quarter of the table. (A full shadow is stronger than the
 //       spec's anyconst slot/word and is far easier for PDR than an anyconst-indexed word.)
 //   G3  G3 (direct): glb unchanged in any cycle after a cycle with stream_en = 1. G3_const: glb byte 0 = 17,
 //       byte 2 = 4. G3_glb / G3_rd: the whole GLOBAL record equals its shadow (writes ignored while
-//       stream_en = 1) on the port and on readback.
+//       stream_en = 1) on the port (outside write windows) and on readback.
 //   G4  G4_cnt: fac_touch[f_slot] pulses exactly once per accepted write to slot f_slot, none for a rejected one.
 //       G4_only: no fac_touch bit pulses outside the window of a CONFIG write to that slot.
 //   G5  RESULT FIFO (4 beats per record, r_last ignored) and ALERT FIFO, each with one tracked entry picked by a
@@ -46,7 +47,7 @@
 //       G5_rcnt / G5_acnt / G5_ravail / G5_aavail: STATUS counts and *_avail bits. G5_runf / G5_aunf (harness
 //       counts never underflow) are implied: a pop is only modeled when the model count is > 0.
 //   G6  DATA push: G6_ghost (no beat without a pushed record), G6_last (d_last exactly on the 6th beat),
-//       G6_data (beat j half h = DATA word 2j+h as written before the push; anyconst word f_dw, written words
+//       G6_data (beat j half h = DATA word 2j+h as written before the push; full 12-word shadow, written words
 //       0-10 may change while busy, ruling #65), G6_live (beats start within 4 cycles of the push's BVALID),
 //       u_d.ax_* (handshake holds), G6_ovr (STATS word 12 = pushes while busy; cleared by stats_clear),
 //       G6_busy (STATUS.data_busy).
@@ -135,14 +136,12 @@ module fv_eog_regs (
     logic        r_ready, al_full;
 
     (* anyconst *) logic [4:0] f_slot;   // G2 (direct) / G4 tracked CONFIG slot
-    (* anyconst *) logic [3:0] f_dw;     // G6 tracked DATA word
     (* anyconst *) logic [1:0] f_rb;     // G5 tracked beat position in a RESULT record
     (* anyconst *) logic [1:0] f_aw;     // G5 tracked ALERT word
     (* anyconst *) logic [6:0] f_wa;     // R_wb tracked weight word
     (* anyconst *) logic [31:0] f_wv;    //      and its value in the head's window
     always_comb begin
         assume (f_slot < NF);
-        assume (f_dw < 12);
         assume (f_wa < 71);
     end
 
@@ -333,14 +332,11 @@ module fv_eog_regs (
     end
 
     // GLOBAL: full 8-word shadow (no reset value in the spec: synced from the port in the first cycle after reset).
-    // Only the word being written can differ inside a window: f_gow / f_goi keep its old value.
     function automatic [255:0] gforce_all(input [255:0] v);
         gforce_all = {v[255:24], 8'd4, v[15:8], 8'd17};
     endfunction
     logic         f_gk;
     logic [255:0] f_g;
-    logic [31:0]  f_gow;
-    logic [2:0]   f_goi;
     wire  [2:0]   c_gi   = c_gi4[2:0];
     wire  [255:0] g_base = f_gk ? f_g : glb;
     wire          g_hit  = H && c_glb && !f_sen;
@@ -350,16 +346,11 @@ module fv_eog_regs (
             f_gk <= 1'b1;
             f_g  <= g_base;
             if (g_hit) f_g[32 * c_gi +: 32] <= mrg(g_base[32 * c_gi +: 32], c_d, c_s);
-            if (H) begin f_gow <= g_base[32 * c_gi +: 32]; f_goi <= c_gi; end
         end
-    logic [255:0] g_old;
-    always_comb begin
-        g_old = f_g;
-        g_old[32 * f_goi +: 32] = f_gow;
-    end
     always_comb if (rst_n) begin
         G3_const: assert (glb[7:0] == 8'd17 && glb[23:16] == 8'd4);
-        if (f_gk) G3_glb: assert (glb == gforce_all(f_g) || (pend && glb == gforce_all(g_old)));
+        // outside a write window (inside one, the write may land in any cycle up to the first BVALID)
+        if (f_gk && !pend) G3_glb: assert (glb == gforce_all(f_g));
     end
     always_ff @(posedge clk)
         if (f_past_valid && $past(rst_n) && rst_n && $past(stream_en)) G3: assert (glb == $past(glb));
@@ -370,8 +361,6 @@ module fv_eog_regs (
     localparam integer SW = (NF <= 2) ? 1 : $clog2(NF);
     logic              f_ck;
     logic [NF*512-1:0] f_c;
-    logic [31:0]       f_cow;
-    logic [SW+3:0]     f_coi;
     wire  [SW-1:0]     c_sl   = c_slot[SW-1:0];
     wire  [SW+3:0]     c_wix  = {c_sl, c_cw};
     wire  [31:0]       c_w0   = f_c[512 * c_sl +: 32];
@@ -383,26 +372,31 @@ module fv_eog_regs (
         end else begin
             if (served) f_ck <= 1'b1;
             if (H && c_acc) f_c[32 * c_wix +: 32] <= mrg(f_c[32 * c_wix +: 32], c_d, c_s);
-            if (H) begin f_cow <= f_c[32 * c_wix +: 32]; f_coi <= c_wix; end
         end
-    logic [NF*512-1:0] c_old;
-    always_comb begin
-        c_old = f_c;
-        c_old[32 * f_coi +: 32] = f_cow;
-    end
     function automatic [511:0] fidm(input [511:0] r);   // FAC_ID bits masked
         fidm = {r[511:16], 16'd0};
     endfunction
-    function automatic logic rowok(input [4:0] fac, input [511:0] row);
+    // Port v (free slot index) against the shadow, outside write windows (inside one, the write may land in any cycle
+    // up to the first BVALID; G2 below covers the window for enabled slots). Split in four word quarters
+    // (G2_row_q0..q3) so each PDR task's cone holds only those words of the table. Ports f and c (c = f_slot) must
+    // agree with port v whenever they read the same slot (G2_port, G2_port_c).
+    function automatic logic rowq(input [4:0] fac, input [511:0] row, input [1:0] q);
         logic [SW-1:0] sl;
+        logic [511:0]  sh, rm;
         sl = fac[SW-1:0];
-        rowok = (fac >= NF) || fidm(row) == fidm(f_c[512 * sl +: 512])
-                || (pend && fidm(row) == fidm(c_old[512 * sl +: 512]));
+        sh = fidm(f_c[512 * sl +: 512]);
+        rm = fidm(row);
+        rowq = (fac >= NF) || rm[128 * q +: 128] == sh[128 * q +: 128];
     endfunction
-    always_comb if (rst_n && f_ck) begin
-        G2_row:    assert (rowok(cfg_fac_v, cfg_row_v));
-        G2_port:   assert (rowok(cfg_fac_f, cfg_row_f));
-        G2_port_c: assert (rowok(f_slot, cfg_row_c));
+    always_comb if (rst_n) begin
+        if (f_ck && !pend) begin
+            G2_row_q0: assert (rowq(cfg_fac_v, cfg_row_v, 2'd0));
+            G2_row_q1: assert (rowq(cfg_fac_v, cfg_row_v, 2'd1));
+            G2_row_q2: assert (rowq(cfg_fac_v, cfg_row_v, 2'd2));
+            G2_row_q3: assert (rowq(cfg_fac_v, cfg_row_v, 2'd3));
+        end
+        if (cfg_fac_f == cfg_fac_v) G2_port:   assert (cfg_row_f == cfg_row_v);
+        if (f_slot == cfg_fac_v)    G2_port_c: assert (cfg_row_c == cfg_row_v);
     end
     always_ff @(posedge clk)
         if (f_past_valid && $past(rst_n) && rst_n && $past(f_ck) && $past(cfg_row_c[24]) && cfg_row_c != $past(cfg_row_c))
@@ -498,8 +492,9 @@ module fv_eog_regs (
 
     // ---- DATA push model (G6)
     logic [2:0]  f_dleft, f_db;
-    logic        f_dk, f_dck;
-    logic [31:0] f_dsh, f_dcap, f_ovr;
+    logic [11:0]  f_dk, f_dck;          // DATA words written since reset / known in the pushed record
+    logic [383:0] f_dsh, f_dcap;        // DATA window shadow / the pushed record
+    logic [31:0]  f_ovr;
     wire  d_hs     = d_valid && d_ready;
     wire  push     = H && c_push && !f_src;
     wire  busy     = f_dleft != 3'd0;
@@ -514,11 +509,11 @@ module fv_eog_regs (
         if (!rst_n) begin
             f_dleft <= 0; f_db <= 0; f_dk <= 0; f_ovr <= 0;
         end else begin
-            if (H && c_dat && c_s == 4'hF && c_di == f_dw) begin f_dsh <= c_d; f_dk <= 1'b1; end
+            if (H && c_dat && c_s == 4'hF) begin f_dsh[32 * c_di +: 32] <= c_d; f_dk[c_di] <= 1'b1; end
             if (push_acc) begin
                 f_dleft <= 3'd6; f_db <= 3'd0;
-                f_dcap  <= (f_dw == 4'd11) ? c_d : f_dsh;
-                f_dck   <= (f_dw == 4'd11) || f_dk;
+                f_dcap  <= {c_d, f_dsh[351:0]};
+                f_dck   <= {1'b1, f_dk[10:0]};
             end else if (d_hs && busy) begin
                 f_dleft <= f_dleft - 3'd1; f_db <= f_db + 3'd1;
             end
@@ -552,7 +547,8 @@ module fv_eog_regs (
         if (d_valid) begin
             G6_ghost: assert (busy);
             G6_last:  assert (d_last == (f_db == 3'd5));
-            if (f_dck && f_db == {1'b0, f_dw[3:1]}) G6_data: assert (d_data[32 * f_dw[0] +: 32] == f_dcap);
+            G6_data: assert ((!f_dck[2 * f_db] || d_data[31:0] == f_dcap[64 * f_db +: 32])
+                             && (!f_dck[2 * f_db + 1] || d_data[63:32] == f_dcap[64 * f_db + 32 +: 32]));
         end
         G6_live: assert (c_dw8 < 3'd5);
     end
@@ -642,6 +638,7 @@ module fv_eog_regs (
                            // 12 ALERT tracked, 13 ALERT empty, 14 STATS 0
     logic [31:0] x_val;
     wire  [15:0] ra = s_axi_araddr;
+    wire  [2:0]  ra_gi = ra[4:2] - 3'd4;                // GLOBAL word index (3-bit wrap: 0x10 -> 0)
     always_comb begin
         x_cls = 4'd0; x_val = 32'd0;
         if (ra == 16'h0000) begin x_cls = 4'd1; x_val = 32'h31474F45; end
@@ -649,7 +646,7 @@ module fv_eog_regs (
         else if (ra == 16'h0008) begin x_cls = 4'd2; x_val = {26'd0, f_src, 4'd0, f_sen}; end
         else if (ra == 16'h000C) x_cls = 4'd9;
         else if (ra >= 16'h0010 && ra <= 16'h002C) begin
-            x_cls = f_gk ? 4'd3 : 4'd0; x_val = gforce_all(f_g) >> (32 * (ra[4:2] - 3'd4)); end
+            x_cls = f_gk ? 4'd3 : 4'd0; x_val = gforce_all(f_g) >> (32 * ra_gi); end
         else if (ra == 16'h0060) begin x_cls = 4'd4; x_val = f_led; end
         else if (ra == 16'h0064) begin x_cls = 4'd4; x_val = {27'd0, f_dsel}; end
         else if (ra >= 16'h1000 && ra < 16'h1000 + 64 * NF) begin
@@ -672,6 +669,7 @@ module fv_eog_regs (
         else if (unmapped(ra)) x_cls = 4'd8;
     end
     logic [3:0]  f_xc;
+    logic [1:0]  f_xq;          // CONFIG word quarter of the read
     logic [31:0] f_xv;
     logic        f_xw;          // write activity seen during the read
     logic        f_xe;          // FIFO stayed empty during the read
@@ -685,7 +683,7 @@ module fv_eog_regs (
     always_ff @(posedge clk)
         if (!rst_n) f_xc <= 4'd0;
         else if (ar_hs) begin
-            f_xc <= x_cls; f_xv <= x_val; f_xw <= wact; f_xg <= g_off;
+            f_xc <= x_cls; f_xv <= x_val; f_xw <= wact; f_xg <= g_off; f_xq <= ra[5:4];
             f_xe <= (x_cls == 4'd11) ? (rM == 0) : (aM == 0);
             f_crmin <= rM; f_camin <= aM;
             f_xst <= st_in == f_stq;
@@ -704,7 +702,10 @@ module fv_eog_regs (
             if (f_xc == 4'd2) G7_rd: assert (rd == f_xv);
             if (f_xc == 4'd3) G3_rd: assert (rd == f_xv);
             if (f_xc == 4'd4) R_rw:  assert (rd == f_xv);
-            if (f_xc == 4'd5) G2_rd: assert (rd == f_xv);
+            if (f_xc == 4'd5 && f_xq == 2'd0) G2_rd_q0: assert (rd == f_xv);
+            if (f_xc == 4'd5 && f_xq == 2'd1) G2_rd_q1: assert (rd == f_xv);
+            if (f_xc == 4'd5 && f_xq == 2'd2) G2_rd_q2: assert (rd == f_xv);
+            if (f_xc == 4'd5 && f_xq == 2'd3) G2_rd_q3: assert (rd == f_xv);
             if (f_xc == 4'd7 && !f_xg && !g_off) G6_ovr: assert (rd == f_xv);
             // rec_in pulses may arrive during the read: the value lies between the counts at AR and at RVALID
             if (f_xc == 4'd14) R_rec: assert (rd >= f_xv && rd <= f_rec);

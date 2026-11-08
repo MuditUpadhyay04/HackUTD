@@ -4,9 +4,18 @@
 # Harness parameters: N_FAC = 2, RES_DEPTH = 2, AL_DEPTH = 2, N_WELL = 8, CYC_PER_MS = 4 (see the harness header).
 # eog_regs has no multiplier, so there is no abstract/real split; every task sees the same design.
 #
-# prove : PDR (abc pdr), unbounded. k-induction is not used: the DUT's AXI pipeline, sweep counter, FIFO pointers and
-#         DATA beat counter are invisible at the ports, so port-level properties are not inductive without internal
-#         invariants (the independence rule keeps the RTL's internals out of the harness).
+# prove_* : PDR (abc pdr), unbounded, one task per property group (the other assertions are removed with chformal so
+#           each PDR run sees a small cone; one combined run did not converge in 50 min). Prove tasks read the harness
+#           with -DFV_QUIET: tap/stall/DBG/al_drop/ms_since_hb inputs held quiet (they feed only STATS/DBG, which the
+#           testbench checks) and STATS 0 / 12 counted to 15 (equal 32-bit counters are hard for PDR).
+#           k-induction is not used: the DUT's AXI pipeline, sweep counter, FIFO pointers and DATA beat counter are
+#           invisible at the ports, so port-level properties are not inductive without internal invariants (the
+#           independence rule keeps the RTL's internals out of the harness).
+#   prove_axi  G1_*, u_d.ax_*            prove_ctl  R_ctrl R_led R_dsel R_id R_unm R_status
+#   prove_rd   R_rw G7_rd R_wb            prove_puls G4_* G7_* (not G7_rd) R_wbw*
+#   prove_cfg  G2 G2_port G2_port_c       prove_cq<k> G2_row_q<k> G2_rd_q<k> (CONFIG words 4k..4k+3)
+#   prove_glb  G3*
+#   prove_fifo G5_*                       prove_data G6_* R_rec
 # bmc   : abc bmc3 (smtbmc/boolector took > 10 min to reach step 10 on this design), every assertion from reset,
 #         depth 20 (reset + sweep + 3-4 AXI transactions, or a push with its 6 beats plus a RESULT record and its
 #         pop). Each step costs ~1 min at depth 15-20, so deeper runs belong to `prove`.
@@ -21,6 +30,10 @@ prove_ctl prove
 prove_rd prove
 prove_puls prove
 prove_cfg prove
+prove_cq0 prove
+prove_cq1 prove
+prove_cq2 prove
+prove_cq3 prove
 prove_glb prove
 prove_fifo prove
 prove_data prove
@@ -60,7 +73,11 @@ prove_axi: chformal -assert -remove c:* c:G1_* c:*ax_* %u %d
 prove_ctl: chformal -assert -remove c:* c:R_ctrl c:R_led c:R_dsel c:R_id c:R_unm c:R_status %u %u %u %u %u %d
 prove_rd: chformal -assert -remove c:* c:R_rw c:G7_rd c:R_wb %u %u %d
 prove_puls: chformal -assert -remove c:* c:G4_* c:G7_* c:R_wbw* %u %u c:G7_rd %d %d
-prove_cfg: chformal -assert -remove c:* c:G2* %d
+prove_cfg: chformal -assert -remove c:* c:G2 c:G2_port %u c:G2_port_c %u %d
+prove_cq0: chformal -assert -remove c:* c:G2_row_q0 c:G2_rd_q0 %u %d
+prove_cq1: chformal -assert -remove c:* c:G2_row_q1 c:G2_rd_q1 %u %d
+prove_cq2: chformal -assert -remove c:* c:G2_row_q2 c:G2_rd_q2 %u %d
+prove_cq3: chformal -assert -remove c:* c:G2_row_q3 c:G2_rd_q3 %u %d
 prove_glb: chformal -assert -remove c:* c:G3* %d
 prove_fifo: chformal -assert -remove c:* c:G5_* %d
 prove_data: chformal -assert -remove c:* c:G6_* c:R_rec %u %d
