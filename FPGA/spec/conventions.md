@@ -8,7 +8,7 @@ Applies to every module in `rtl/`, every harness in `formal/` and every testbenc
 - One reset, `rst_n`: synchronous, active low. After reset every `*_valid` output is 0.
 - Soft reset (`CTRL.soft_reset`) is applied by `eog_top` as a 2-cycle `rst_n` pulse to the engine stages. It clears
   all per-facility state and FIFOs, not the CONFIG table or weight banks (those live in `eog_regs` / `eog_head`
-  and are not reset by soft reset).
+  and are not reset by soft reset). `eog_head` receives the hard reset separately on `wb_rst_n` for this (spec v3).
 - A stage that keeps per-facility state in RAM may spend up to `N_FAC + 8` cycles after reset clearing it; it holds
   `in_ready = 0` until done.
 

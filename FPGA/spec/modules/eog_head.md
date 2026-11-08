@@ -10,7 +10,8 @@ Implements numerics.md §8.
 
 | Port | Dir | Width | Meaning |
 | --- | --- | --- | --- |
-| `clk`, `rst_n` | in | 1 | |
+| `clk`, `rst_n` | in | 1 | `rst_n` = engine reset (includes soft reset): flushes the record in flight only |
+| `wb_rst_n` | in | 1 | weight-store reset, hard reset only (spec v3): `eog_top` wires the raw `rst_n`, not the engine reset |
 | `in_valid`, `in_ready`, `in_data` | | `EOG_BC_W` | bus C |
 | `out_valid`, `out_ready`, `out_data` | | `EOG_BL_W` | bus L |
 | `wb_we` | in | 1 | write one word of the **inactive** bank |
@@ -29,8 +30,14 @@ Uses `eog_mul` (`AW = 16`, `BW = 16`, both signed). 124 MACs per record in ≤ 1
 ## Behavior
 
 Header copied (`REASON |= NO_MODEL` for VALID/HELD when `active_ver == 0`). `CH3 = FEAT[3]`. `RULES`, `CD` copied.
-`LOGITS` per numerics.md §8. `WVER` = `active_ver` at accept time. Reset: both banks' word 68 reads 0 (no model);
-the weight RAM contents are otherwise undefined after power-up until written. Soft reset does not clear banks.
+`LOGITS` per numerics.md §8. `WVER` = `active_ver` at accept time.
+
+Reset (spec v3):
+- `wb_rst_n` = 0 resets the weight store: both banks' word 68 reads 0 (no model), `active_bank` = 0, and
+  `swap_pending` = 0. Words 0–67 are undefined after power-up until written.
+- `rst_n` = 0 (engine reset, including the 2-cycle soft-reset pulse) only flushes the record in flight. Both banks,
+  `active_bank` and a pending swap survive it, so soft reset never clears the model (conventions §1).
+- Weight writes are ignored while either reset is 0. A pending swap does not execute while `rst_n` = 0.
 A swap happens only when no record is being processed (between output transfer and next accept); writes during a
 pending swap go to the bank that is inactive at the time of the write.
 
