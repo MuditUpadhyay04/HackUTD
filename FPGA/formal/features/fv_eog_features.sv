@@ -63,7 +63,8 @@
 //   - B_copy: for DROPPED records the harness accepts INFLOW / LEVEL either copied or 0. eog_validate sends DROPPED
 //     records with all values 0 (numerics §3 step 9), so "copied" (module spec) and "every field a later stage
 //     produces is 0" (conventions §3) agree on every input the pipeline can produce.
-//   - n_wells = min(CFG.N_WELLS, N_WELL) (TASKS.md spec question 14); the harness keeps N_WELL = 8.
+//   - n_wells = min(CFG.N_WELLS, N_WELL) (TASKS.md spec question 14); the harness keeps N_WELL = 8. CONFIG rows are
+//     free, so n_wells = 0 is reachable: SHUT_IN is then 1 for VALID/HELD (vacuous all(), question 41).
 //
 // Yosys notes: per-channel / per-well checks are folded into vectors with one labelled assert / assume each
 // (labelled asserts inside for-loops can duplicate cell names in Yosys 0.70).

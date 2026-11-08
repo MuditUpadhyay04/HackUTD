@@ -1,4 +1,4 @@
-# SymbiYosys job for eog_features (spec/modules/eog_features.md, numerics.md §4, spec v2). Verify role, task
+# SymbiYosys job for eog_features (spec/modules/eog_features.md, numerics.md §4, spec v4). Verify role, task
 # T1.features.fv.     bash scripts/formal.sh features
 # Harness fv_eog_features.sv (property list F1-F6 + stage contract in its header). N_FAC = 2, N_WELL = 8.
 #
