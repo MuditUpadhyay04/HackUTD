@@ -13,7 +13,7 @@ const X = { wells: 34, tank: 156, pump: 240, pipeStart: 256, manifold: 700, disp
 type Status = "flowing" | "idle" | "down" | "leak" | "worn" | "nodata" | "shut";
 
 function pipeStatus(f: FacilityState): Status {
-  if (f.health === "no_data" || f.health === "unknown" || f.pump.flowBpd == null) return "nodata";
+  if (f.health === "no_data" || f.pump.flowBpd == null) return "nodata";
   if (f.health === "failure") return "down";
   if (f.health === "shut_in") return "shut";
   if (f.health === "leak") return "leak";

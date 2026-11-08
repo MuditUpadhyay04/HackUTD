@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import type { BoardStatus, DatasetInfo, FleetState, Incident, OperatorAction, Snapshot, SystemState } from "@/lib/engine/types";
-import { api, commandKey, unwrap } from "@/lib/api";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import type { BoardStatus, DatasetInfo, FleetState, Incident, Snapshot, SystemState } from "@/lib/engine/types";
 import { clockFrom, countdownState, money, systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { getBoard } from "@/lib/live/board";
 import { boardFacility, InspectorRows, PumpCard, SensorRows, StatCard, SystemCard } from "./cards";
 import { NetworkCard } from "./network";
+import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
@@ -23,11 +22,21 @@ function trucksFree(system: SystemState, fleet: FleetState | undefined, nowUnix:
   return Math.max(0, system.fleetSize - busy);
 }
 
-export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: DatasetInfo[] }) {
+export function Console({
+  snapshot,
+  datasets,
+  followsBoard = false,
+}: {
+  snapshot: Snapshot;
+  datasets: DatasetInfo[];
+  /** "Now" is the newest board timestamp (live board feed), so this is live, not a replay of the past. */
+  followsBoard?: boolean;
+}) {
   const s = snapshot;
-  const live = s.nowUnix >= s.dataset.nowUnix;
+  const live = followsBoard || s.nowUnix >= s.dataset.nowUnix;
+  // Brief and export must describe the same moment the screen shows, including a board-driven "now".
+  const at = s.nowUnix < s.dataset.nowUnix ? s.nowUnix : undefined;
   const router = useRouter();
-  const params = useSearchParams();
   const [view, setView] = useState<View>(live ? "overview" : "replay");
   // Browser Back/Forward can move between live and past URLs without remounting: a past
   // snapshot must never sit under the "Now" overview.
@@ -41,40 +50,12 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
   const [approved, setApproved] = useState<Record<string, number>>({});
   const [tickets, setTickets] = useState<Record<string, number>>({});
   const [flash, setFlash] = useState<string | null>(null);
-  const [actionError, setActionError] = useState("");
-  const adviceReady = s.recommendation.state === "ready" && s.recommendation.inputRevision === s.recommendation.currentRevision;
-  const [board, setBoard] = useState<BoardStatus | null>(null);
-  useEffect(() => {
-    void getBoard(s).then((b) => setBoard(b ?? null));
-  }, [s.runId, s.revision, s.nowUnix]);
-  useEffect(() => {
-    const abort = new AbortController();
-    api.api.runs({ id: s.runId }).actions.get({ fetch: { signal: abort.signal } }).then(unwrap).then((actions) => {
-      const current = actions.filter((a) => a.revision === s.revision);
-      setApproved(Object.fromEntries(current.filter((a) => a.kind === "acknowledge_advice").map((a) => [a.incidentId, s.nowUnix])));
-      setTickets(Object.fromEntries(current.filter((a) => a.kind === "inspection_ticket").map((a) => [a.incidentId, s.nowUnix])));
-    }).catch((e: Error) => { if (!abort.signal.aborted) setActionError(e.message); });
-    return () => abort.abort();
-  }, [s.runId, s.revision, s.nowUnix]);
-  async function act(a: Incident, kind: OperatorAction["kind"]) {
-    if (!adviceReady || (kind === "acknowledge_advice" && (!a.plan || a.plan.inputRevision !== s.revision))) return;
-    try {
-      const keyName = `operator-action:${s.runId}:${s.revision}:${a.id}:${kind}`;
-      let key = sessionStorage.getItem(keyName);
-      if (!key) { key = commandKey(); sessionStorage.setItem(keyName, key); }
-      unwrap(await api.api.runs({ id: s.runId }).actions.post({ incidentId: a.id, ...(kind === "acknowledge_advice" ? { planId: a.plan!.systemPlanId } : {}), revision: s.revision, kind }, { headers: { "idempotency-key": key } }));
-      if (kind === "acknowledge_advice") setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
-      else setTickets((p) => ({ ...p, [a.id]: s.nowUnix }));
-      setActionError(""); setIncident(null);
-    } catch (e) { setActionError(e instanceof Error ? e.message : "Action failed"); }
-  }
 
   // Approvals and tickets only count at or after the replay time they were made.
   const approvedAt = (id: string) => (approved[id] !== undefined && approved[id] <= s.nowUnix ? approved[id] : undefined);
   const ticketsNow = Object.fromEntries(Object.entries(tickets).filter(([, t]) => t <= s.nowUnix));
 
   const facilities = s.systems.flatMap((x) => x.facilities);
-  const currentIncident = incident ? s.alerts.find((a) => a.id === incident.id) ?? null : null;
   const failures = s.alerts.filter((a) => a.category === "pump_failure");
   const inspections = s.alerts.filter((a) => a.category !== "pump_failure");
 
@@ -83,7 +64,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
       ? "crit"
       : inspections.some((a) => a.systemId === sys.id)
         ? "warn"
-        : sys.facilities.some((f) => f.health === "no_data" || f.health === "unknown")
+        : sys.facilities.some((f) => f.health === "no_data")
           ? "nodata"
           : "ok";
 
@@ -107,9 +88,9 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
   const nothingCost = failures.reduce((t, a) => t + (a.options?.find((o) => o.kind === "do_nothing")?.cost ?? 0), 0);
 
   const sysWithFailures = [...new Set(failures.map((a) => a.systemId))];
-  const noData = facilities.filter((f) => f.health === "no_data" || f.health === "unknown");
+  const noData = facilities.filter((f) => f.health === "no_data");
   let headline: string;
-  if (failures.length === 0) headline = "No pumps are reported down.";
+  if (failures.length === 0) headline = noData.length ? "No pumps are reported down." : "Every pump is running.";
   else if (sysWithFailures.length === 1) {
     const fleet = s.systems.find((x) => x.id === sysWithFailures[0])?.fleetSize ?? 0;
     const fleetClause = fleet === 0 ? "have no emergency trucks" : `share ${fleet === 1 ? "one truck" : `${count(fleet).toLowerCase()} trucks`}`;
@@ -126,8 +107,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
     setView(v);
     if (v === "overview" && !live) {
       // Overview always means the latest reading.
-      const q = new URLSearchParams(params.toString()); q.set("dataset", s.dataset.id); q.delete("at");
-      router.push(`/?${q}`);
+      router.push(`/?dataset=${encodeURIComponent(s.dataset.id)}`);
     }
   };
 
@@ -149,17 +129,11 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         current={s.dataset}
         replay={!live || view === "replay"}
         onReplay={(on) => onView(on ? "replay" : "overview")}
-        atUnix={undefined}
-        board={board}
+        atUnix={at}
+        board={s.board}
       />
 
       <main className="px-4 pt-7 pb-10 sm:px-7">
-        <div className="glass mb-4 px-4 py-3 text-[13px] text-muted-foreground" role="status">
-          Runtime: requested {s.runtime.requested}, effective {s.runtime.effective}, {s.runtime.state}. {s.runtime.scoresAvailable ? `Model scores available${s.runtime.modelVersion ? ` (${s.runtime.modelVersion})` : ""}.` : "Model scores unavailable."} Coverage: {s.coverage.received} of {s.coverage.expected}. Recommendation: {s.recommendation.state}.
-          {s.runtime.reasons.length > 0 && <span> {s.runtime.reasons.join("; ")}</span>}
-          {!adviceReady && <span> Advice is not current; actions are disabled.</span>}
-        </div>
-        {actionError && <p role="alert" className="mb-3 text-crit">{actionError}</p>}
         <header>
           <h1 className="tracking-display font-display text-[30px] leading-[1.1] font-bold sm:text-[34px]">
             {view === "handoff" ? "Shift handoff" : "Avon water network"}
@@ -186,7 +160,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
           <div className="mt-6 grid max-w-[760px] gap-4">
             <NemotronBrief runId={s.runId} expanded />
             <a
-              href={`/api/backend/api/runs/${encodeURIComponent(s.runId)}/export`}
+              href={`/api/events?dataset=${encodeURIComponent(s.dataset.id)}${at ? `&at=${at}` : ""}`}
               className="w-fit text-[14px] font-medium text-water hover:underline"
             >
               Download events.json
@@ -194,16 +168,16 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
           </div>
         ) : (
           <>
-            {(() => { const b = board; return b && (b.mode === "AUTONOMOUS" || b.replayedAlerts > 0) && <BoardBanner board={b} nowUnix={s.nowUnix} />; })()}
+            {s.board && (s.board.mode === "AUTONOMOUS" || s.board.replayedAlerts > 0) && <BoardBanner board={s.board} nowUnix={s.nowUnix} />}
             <div className="mt-[22px] grid grid-cols-2 gap-3.5 xl:grid-cols-4">
               <StatCard label="Pumps down" value={String(failures.length)} tone={failures.length ? "crit" : undefined} />
               <StatCard
                 label="First shutdown"
-                value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "At limit" : failures.length ? "Unknown" : "None"}
+                value={next?.kind === "counting" ? clockFrom(next.at, s.nowUnix) : allShut ? "Shut in" : "None"}
                 tone={next || allShut ? "crit" : undefined}
               />
-              <StatCard label="Recommended plan" value={failures.some((a) => !a.plan) || !adviceReady ? "Unavailable" : money(planCost)} />
-              <StatCard label="If nobody acts" value={failures.some((a) => !a.options?.some((o) => o.kind === "do_nothing")) || !adviceReady ? "Unavailable" : money(nothingCost)} />
+              <StatCard label="Recommended plan" value={money(planCost)} />
+              <StatCard label="If nobody acts" value={money(nothingCost)} />
             </div>
 
             <SectionTitle title="Pumps down" note={failures.length > 1 ? "Soonest shutdown first" : undefined} />
@@ -214,7 +188,7 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
                 ))}
               </div>
             ) : (
-              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">No pumps are reported down.{noData.length ? " Some facilities have unknown or missing readings; see Check sensors." : ""}</div>
+              <div className="glass px-5 py-4 text-[15px] text-muted-foreground">{noData.length ? "No pumps are reported down. Some facilities have no recent readings; see Check sensors." : "No pumps are down. Every tank is cycling normally."}</div>
             )}
 
             {noData.length > 0 && (
@@ -230,9 +204,10 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
                 <InspectorRows
                   items={inspections}
                   tickets={ticketsNow}
-                  disabled={!adviceReady}
                   onOpen={setIncident}
-                  onTicket={(a) => void act(a, "inspection_ticket")}
+                  onTicket={(a) => setTickets((t) => ({ ...t, [a.id]: s.nowUnix }))}
+                  board={s.board}
+                  nowUnix={s.nowUnix}
                 />
               </>
             )}
@@ -258,13 +233,19 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
       </main>
 
       <IncidentSheet
-        incident={currentIncident}
-        facility={facilities.find((f) => f.id === currentIncident?.facilityId)}
+        incident={incident}
+        facility={facilities.find((f) => f.id === incident?.facilityId)}
         nowUnix={s.nowUnix}
         limits={s.limits}
-        approvedAt={currentIncident ? approvedAt(currentIncident.id) : undefined}
-        disabled={!adviceReady || (!!currentIncident?.plan && currentIncident.plan.inputRevision !== s.revision)}
-        onApprove={(a) => void act(a, "acknowledge_advice")}
+        approvedAt={incident ? approvedAt(incident.id) : undefined}
+        boardFacility={incident ? boardFacility(s.board, incident.facilityId) : undefined}
+        boardSource={s.board?.source}
+        boardTestWeights={isTestWeights(s.board?.weightsVersion)}
+        boardSoftware={s.board?.provenance === "software"}
+        onApprove={(a) => {
+          setApproved((p) => ({ ...p, [a.id]: s.nowUnix }));
+          setIncident(null);
+        }}
         onClose={() => setIncident(null)}
       />
       <FacilitySheet
@@ -272,6 +253,8 @@ export function Console({ snapshot, datasets }: { snapshot: Snapshot; datasets: 
         incident={s.alerts.find((a) => a.facilityId === facilityId)}
         boardFacility={facilityId ? boardFacility(s.board, facilityId) : undefined}
         boardSource={s.board?.source}
+        boardTestWeights={isTestWeights(s.board?.weightsVersion)}
+        boardSoftware={s.board?.provenance === "software"}
         nowUnix={s.nowUnix}
         limits={s.limits}
         onClose={() => setFacilityId(null)}
@@ -294,8 +277,7 @@ function SectionTitle({ title, note }: { title: string; note?: string }) {
 }
 
 /** One sentence when the board ran without the server or replayed buffered alerts. */
-function BoardBanner({ board, nowUnix }: { board: BoardStatus | null; nowUnix: number }) {
-  if (!board) return null;
+function BoardBanner({ board, nowUnix }: { board: BoardStatus; nowUnix: number }) {
   const own = board.mode === "AUTONOMOUS";
   const since = board.autonomousSinceUnix != null ? ` at ${clockFrom(board.autonomousSinceUnix, nowUnix)}` : "";
   const n = board.replayedAlerts;

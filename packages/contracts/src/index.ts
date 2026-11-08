@@ -40,7 +40,7 @@ export interface DataQuality { quality: Quality; reasons: string[] }
 export interface Series { t: number[]; v: (number | null)[] }
 export interface BoardScores { pipeline_leak: number; pump_degradation: number; pump_failure: number; facility_shut_in: number }
 export interface BoardFacility { facilityId: string; updatedUnix: number; scores: BoardScores | null; overThreshold: string[]; source: "rule" | "model" | "both" | "none"; sinceReset: number; alarm: "night_shift" | "e_stop" | "none"; alarmState: "raised" | "cleared" | "acknowledged" | null; alarmSinceUnix: number | null; replayed: boolean; degradationTrend: Series | null | undefined }
-export interface BoardStatus { source: "live" | "simulated"; online: boolean; mode: "AUTONOMOUS" | "NORMAL"; lastSeenUnix: number | null; weightsVersion: number | null; autonomousSinceUnix: number | null; replayedAlerts: number; facilities: BoardFacility[] }
+export interface BoardStatus { source: "live" | "simulated"; provenance: "fpga" | "software" | "unavailable"; online: boolean; mode: "AUTONOMOUS" | "NORMAL"; lastSeenUnix: number | null; weightsVersion: number | null; autonomousSinceUnix: number | null; replayedAlerts: number; facilities: BoardFacility[] }
 export type FacilityHealth = "ok" | "failure" | "shut_in" | "leak" | "degradation" | "no_data" | "unknown";
 export interface WellState { id: string; producing: boolean; waterBpd: number; baselineWaterBpd: number; oilBpd: number; gasMcfd: number; revenuePerHour: number; costPerBblAvoided: number }
 export interface FacilityState {

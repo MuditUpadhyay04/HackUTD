@@ -20,6 +20,7 @@ scores, alarms, and board health. One read-only endpoint is enough.
 
 ```json
 {
+  "provenance": "fpga",
   "online": true,
   "mode": "NORMAL",
   "lastSeenUnix": 1791646200,
@@ -48,10 +49,11 @@ scores, alarms, and board health. One read-only endpoint is enough.
 
 | Field | From | Notes |
 | --- | --- | --- |
+| `provenance` | server (fpga-sim `Provenance`) | `"fpga"` board results, `"software"` the server's fpga-sim stand-in is classifying, `"unavailable"` nothing is |
 | `online` | server | `true` if a RESULT or STATS arrived in the last ~5 s |
 | `mode` | STATS `mode` | `"NORMAL"` (0) or `"AUTONOMOUS"` (1) |
 | `lastSeenUnix` | latest RESULT `ts_unix` | data time, not wall clock |
-| `weightsVersion` | RESULT `weights_ver` / STATS | active weight bank |
+| `weightsVersion` | RESULT `weights_ver` / STATS | active weight bank; `240` = Mudit's untrained bring-up weights (the UI then says scores are not meaningful), `1` = trained v1 |
 | `autonomousSinceUnix` | server | when the board last went AUTONOMOUS, else `null` |
 | `replayedAlerts` | ALERT `source` bit 3 | count replayed since reconnect |
 | `facilityId` | `fac_id` → `network.json` order | the web app needs the **ID string**, not the slot number (C3 slot rule) |
@@ -84,4 +86,4 @@ Nothing is shown when the endpoint isn't configured, so the console never displa
 
 `SIMULATE_BOARD=1 npm run dev` serves a development feed shaped like this contract, derived from the console's own
 detections and labelled "Simulated board" on screen. `SIMULATE_BOARD=autonomous` shows the board working on its own,
-`SIMULATE_BOARD=reconnected` the alerts it replayed after reconnecting, and `SIMULATE_BOARD=offline` the offline state.
+`SIMULATE_BOARD=software` the software stand-in, `SIMULATE_BOARD=reconnected` the alerts it replayed after reconnecting, and `SIMULATE_BOARD=offline` the offline state.

@@ -3,7 +3,7 @@
 import { useRef, type ReactNode } from "react";
 import { Check, Truck } from "lucide-react";
 import type { BoardFacility, BoardScores, FacilityState, Incident, PlanOption } from "@/lib/engine/types";
-import { assetName, categoryLabel, clockFrom, countdownState, dayClock, duration, planText, facilityTitle, facilityName, humanize, money, num, systemNum } from "@/lib/format";
+import { assetName, categoryLabel, clockFrom, countdownState, dayClock, duration, planText, facilityTitle, humanize, money, num, systemNum } from "@/lib/format";
 import { Dialog as Sheet, DialogContent as SheetContent, DialogDescription as SheetDescription, DialogHeader as SheetHeader, DialogTitle as SheetTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { LevelChart } from "./level-chart";
@@ -20,7 +20,10 @@ export function IncidentSheet({
   approvedAt,
   onApprove,
   onClose,
-  disabled,
+  boardFacility,
+  boardSource,
+  boardTestWeights,
+  boardSoftware,
 }: {
   incident: Incident | null;
   facility?: FacilityState;
@@ -29,7 +32,11 @@ export function IncidentSheet({
   approvedAt?: number;
   onApprove: (a: Incident) => void;
   onClose: () => void;
-  disabled?: boolean;
+  /** Live board data for this facility; absent in local mode, so nothing extra renders. */
+  boardFacility?: BoardFacility;
+  boardSource?: "live" | "simulated";
+  boardTestWeights?: boolean;
+  boardSoftware?: boolean;
 }) {
   // Focus starts on the sheet itself, so a stray Enter can't approve a plan nobody has read yet.
   const popupRef = useRef<HTMLDivElement>(null);
@@ -37,12 +44,33 @@ export function IncidentSheet({
     <Sheet open={!!incident} onOpenChange={(o) => !o && onClose()}>
       <SheetContent ref={popupRef} initialFocus={popupRef} className={sheetClass}>
         {incident && (incident.category === "pump_failure" ? (
-          <FailureDetail incident={incident} facility={facility} nowUnix={nowUnix} limits={limits} approvedAt={approvedAt} disabled={disabled} onApprove={() => onApprove(incident)} />
+          <FailureDetail
+            incident={incident}
+            facility={facility}
+            nowUnix={nowUnix}
+            limits={limits}
+            approvedAt={approvedAt}
+            onApprove={() => onApprove(incident)}
+            board={boardFacility && <BoardSection board={boardFacility} source={boardSource} testWeights={boardTestWeights} software={boardSoftware} nowUnix={nowUnix} />}
+          />
         ) : (
           <InspectionDetail
             incident={incident}
             facility={facility}
             nowUnix={nowUnix}
+            board={
+              boardFacility && (
+                <BoardSection
+                  board={boardFacility}
+                  source={boardSource}
+                  testWeights={boardTestWeights}
+                  software={boardSoftware}
+                  nowUnix={nowUnix}
+                  showTrend={incident.category === "pump_degradation"}
+                  onsetUnix={incident.onsetUnix}
+                />
+              )
+            }
           />
         ))}
       </SheetContent>
@@ -57,7 +85,7 @@ function FailureDetail({
   limits,
   approvedAt,
   onApprove,
-  disabled,
+  board,
 }: {
   incident: Incident;
   facility?: FacilityState;
@@ -65,7 +93,7 @@ function FailureDetail({
   limits: Limits;
   approvedAt?: number;
   onApprove: () => void;
-  disabled?: boolean;
+  board?: ReactNode;
 }) {
   const cd = countdownState(a, nowUnix);
   const doNothing = a.options?.find((o) => o.kind === "do_nothing");
@@ -83,7 +111,7 @@ function FailureDetail({
               {facilityTitle(a.facilityId)} reaches shutdown in <span className="num text-crit">{duration(cd.hours)}</span> unless we act
             </>
           ) : cd.kind === "shut_in" ? (
-            `${facilityName(a.facilityId)} is at the shutdown limit`
+            `${facilityTitle(a.facilityId)} is shut in until the repair`
           ) : cd.kind === "repair_first" ? (
             `${facilityTitle(a.facilityId)} should be repaired before the tank fills`
           ) : (
@@ -131,6 +159,8 @@ function FailureDetail({
 
       {facility && <WellsTable facility={facility} highlight={a.plan?.shutIns.map((s) => s.wellId) ?? []} />}
 
+      {board}
+
       <section className="px-5 sm:px-8 py-7">
         <h3 className="mb-2 font-display text-[16px] font-semibold">Why we think the pump is down</h3>
         <ul className="flex flex-col gap-1.5 text-[14px] text-muted-foreground">
@@ -138,7 +168,7 @@ function FailureDetail({
             <li key={e} className="flex gap-2"><Check className="mt-0.5 size-4 shrink-0 text-faint" aria-hidden />{humanize(e)}</li>
           ))}
         </ul>
-        <p className="mt-3 text-[13px] text-faint">Confidence {a.confidence == null ? "unavailable" : `${Math.round(a.confidence * 100)}%`}</p>
+        <p className="mt-3 text-[13px] text-faint">Confidence {Math.round((a.confidence ?? 0) * 100)}%</p>
         {doNothing && a.plan && doNothing.cost > a.plan.cost && (
           <p className="mt-4 text-[14px] text-muted-foreground">
             Doing nothing would cost <span className="num text-text">{money(doNothing.cost)}</span> in lost production.
@@ -153,16 +183,15 @@ function FailureDetail({
           </p>
           {approvedAt ? (
             <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[14px] font-medium text-ok">
-              <Check className="size-4" aria-hidden /> Advice acknowledged
+              <Check className="size-4" aria-hidden /> Approved at {clockFrom(approvedAt, nowUnix)}
             </span>
           ) : (
             <button
               type="button"
-              disabled={disabled}
               onClick={onApprove}
               className="ml-auto shrink-0 rounded-[10px] bg-water px-5 py-[9px] text-[14px] font-semibold text-white shadow-[inset_0_0.5px_0_rgba(255,255,255,0.35),0_1px_2px_rgba(10,132,255,0.35)] transition-[transform,background-color] duration-100 hover:bg-water-deep active:scale-[0.98]"
             >
-              Acknowledge advice
+              Approve plan
             </button>
           )}
         </div>
@@ -266,7 +295,7 @@ function InspectionDetail({
       <section className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:px-8">
         {a.estLeakBblPerDay != null && <Stat label="Estimated water lost" value={`${num(a.estLeakBblPerDay)} bpd`} title="bpd = barrels per day" />}
         {a.capacityLossPct != null && <Stat label="Pumping capacity lost" value={`${num(a.capacityLossPct, 1)}%`} />}
-        <Stat label="Confidence" value={a.confidence == null ? "Unavailable" : `${Math.round(a.confidence * 100)}%`} />
+        <Stat label="Confidence" value={`${Math.round((a.confidence ?? 0) * 100)}%`} />
       </section>
       {facility && (
         <section className="px-5 sm:px-8 pt-6">
@@ -289,7 +318,7 @@ function InspectionDetail({
   );
 }
 
-const bpd = (n: number | null) => (n != null && Number.isFinite(n) ? `${num(n)} bpd` : "No data");
+const bpd = (n: number) => (Number.isFinite(n) ? `${num(n)} bpd` : "No data");
 
 function Stat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
@@ -375,7 +404,7 @@ function MiniChart({
 function LeakChart({ facility: f, onsetUnix, nowUnix }: { facility: FacilityState; onsetUnix: number; nowUnix: number }) {
   const { t, v: sent } = f.series.pumpFlow;
   const got = f.series.receiveFlow.v;
-  const gap = sent.map((s, i) => (s != null && s > 50 && got[i] != null ? Math.max(0, s - got[i]!) : null));
+  const gap = sent.map((s, i) => (s != null && s > 50 ? Math.max(0, s - (got[i] ?? s)) : null));
   return (
     <>
       <MiniChart t={t} bars={gap} onsetUnix={onsetUnix} nowUnix={nowUnix} unit="bpd" label="Water lost per reading since the leak started" />
@@ -406,6 +435,8 @@ export function FacilitySheet({
   onOpenIncident,
   boardFacility,
   boardSource,
+  boardTestWeights,
+  boardSoftware,
 }: {
   facility: FacilityState | null;
   incident?: Incident;
@@ -416,10 +447,12 @@ export function FacilitySheet({
   /** Live board data for this facility; absent in local mode, so nothing extra renders. */
   boardFacility?: BoardFacility;
   boardSource?: "live" | "simulated";
+  boardTestWeights?: boolean;
+  boardSoftware?: boolean;
 }) {
   const f = facility;
-  const pumpText = f && f.pump.status != null ? (["Stopped", "Running", "Fault"][f.pump.status] ?? "status unknown") : "status unknown";
-  const level = f?.tank.levelPct != null && Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct) : null;
+  const pumpText = f ? (["Stopped", "Running", "Fault"][f.pump.status ?? 0] ?? "status unknown") : "";
+  const level = f && Number.isFinite(f.tank.levelPct) ? Math.round(f.tank.levelPct ?? 0) : null;
   const dq = f && f.dataQuality && f.dataQuality.quality !== "VALID" ? f.dataQuality : undefined;
   const popupRef = useRef<HTMLDivElement>(null);
   return (
@@ -431,18 +464,18 @@ export function FacilitySheet({
               <TankGlyph level={f.tank.levelPct} tone={toneFor(f, limits)} limits={limits} height={120} width={74} />
               <div className="flex min-w-0 flex-col gap-1">
                 <SheetDescription className="text-[14px]">System {systemNum(f.systemId)}, {num(f.tank.capacityBbl)} bbl tank</SheetDescription>
-                <SheetTitle className="font-display text-[28px] leading-tight font-semibold text-text">
-                  {level == null ? (
-                    `${facilityName(f.id)} has no data`
+                <SheetTitle className="font-display text-[28px] leading-tight font-semibold text-text [overflow-wrap:anywhere]">
+                  {f.health === "no_data" && level == null ? (
+                    `${facilityTitle(f.id)} has no data`
                   ) : (
                     <>
-                      {facilityName(f.id)} is <span className="num">{level}%</span> full
+                      {facilityTitle(f.id)} is <span className="num">{level ?? 0}%</span> full
                     </>
                   )}
                 </SheetTitle>
-                {f.fillPctPerHour != null && Number.isFinite(f.fillPctPerHour) && (
+                {Number.isFinite(f.fillPctPerHour) && (
                   <p className="text-[14px] text-muted-foreground">
-                    {f.fillPctPerHour >= 0 ? "Rising" : "Falling"} <span className="num text-text">{num(Math.abs(f.fillPctPerHour), 1)}%</span> per hour. Pump {pumpText.toLowerCase()}.
+                    {(f.fillPctPerHour ?? 0) >= 0 ? "Rising" : "Falling"} <span className="num text-text">{num(Math.abs(f.fillPctPerHour ?? 0), 1)}%</span> per hour. Pump {pumpText.toLowerCase()}.
                   </p>
                 )}
                 {dq && (
@@ -476,11 +509,11 @@ export function FacilitySheet({
               <LevelChart history={f.series.level} nowUnix={nowUnix} limits={limits} />
             </section>
             <section className="grid grid-cols-2 gap-6 px-5 pt-6 sm:grid-cols-3 sm:px-8">
-              <Stat label="Water coming in" value={bpd(f.inflowBpd)} title="bpd = barrels per day" />
-              <Stat label="Pump moving" value={bpd(f.pump.flowBpd)} />
-              <Stat label="Reaching disposal" value={bpd(f.pipeline.receiveFlowBpd)} />
+              <Stat label="Water coming in" value={bpd(f.inflowBpd ?? 0)} title="bpd = barrels per day" />
+              <Stat label="Pump moving" value={bpd(f.pump.flowBpd ?? 0)} />
+              <Stat label="Reaching disposal" value={bpd(f.pipeline.receiveFlowBpd ?? 0)} />
             </section>
-            {boardFacility && <BoardSection board={boardFacility} source={boardSource} nowUnix={nowUnix} showTrend />}
+            {boardFacility && <BoardSection board={boardFacility} source={boardSource} testWeights={boardTestWeights} software={boardSoftware} nowUnix={nowUnix} showTrend />}
             <WellsTable facility={f} highlight={[]} />
             <div className="h-8" />
           </>
@@ -519,14 +552,15 @@ function alarmText(b: BoardFacility, nowUnix: number) {
   return `Night Shift alarm raised${at ? ` at ${at}` : ""}`;
 }
 
-function sourceText(b: BoardFacility, simulated: boolean) {
+function sourceText(b: BoardFacility, simulated: boolean, testWeights = false) {
   const over = b.overThreshold as string[];
   const s = b.scores;
   // The model's confidence in what it flagged: the highest score among heads over threshold.
   const flagged = s ? HEADS.filter((h) => over.includes(h.key)).map((h) => s[h.key]) : [];
   // A simulated feed is not model output, so it never says "Model N% sure".
   const top = flagged.length ? pct(Math.max(...flagged)) : null;
-  const sure = top == null ? null : simulated ? `Simulated score ${top}%` : `Model ${top}% sure`;
+  const sure =
+    top == null ? null : simulated ? `Simulated score ${top}%` : testWeights ? "Untrained test weights, scores not meaningful" : `Model ${top}% sure`;
   switch (b.source) {
     case "both":
       return sure ? `${sure}, rule and model agree` : "Rule and model agree";
@@ -545,12 +579,16 @@ function BoardSection({
   nowUnix,
   showTrend = false,
   onsetUnix,
+  testWeights = false,
+  software = false,
 }: {
   board: BoardFacility;
   source?: "live" | "simulated";
   nowUnix: number;
   showTrend?: boolean;
   onsetUnix?: number;
+  testWeights?: boolean;
+  software?: boolean;
 }) {
   const simulated = source === "simulated";
   const over = b.overThreshold as string[];
@@ -570,6 +608,11 @@ function BoardSection({
       {simulated && (
         <p className="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
           Development feed made from the console&apos;s own detections. These are not model scores.
+        </p>
+      )}
+      {software && !simulated && (
+        <p className="-mt-1.5 mb-3 text-[13px] text-muted-foreground">
+          The board isn&apos;t connected, so the server&apos;s software copy of the board model produced these scores.
         </p>
       )}
       <div className="rounded-xl border border-line bg-white/60 px-4 py-4 shadow-[inset_0_0.5px_0_rgba(255,255,255,0.9)]">
@@ -625,7 +668,7 @@ function BoardSection({
         )}
 
         <div className="mt-4 flex flex-col gap-1 border-t border-line-soft pt-3 text-[13px] text-muted-foreground">
-          <p className="text-text">{sourceText(b, simulated)}</p>
+          <p className="text-text">{sourceText(b, simulated, testWeights)}</p>
           <p>
             History behind these scores: <span className="num text-text">{b.sinceReset >= 255 ? "255 or more" : num(b.sinceReset)}</span>{" "}
             {b.sinceReset === 1 ? "reading" : "readings"}

@@ -22,3 +22,14 @@ export function unwrap<T>(result: { data: T | null; error: unknown }): Exclude<T
 }
 
 export function commandKey() { return crypto.randomUUID(); }
+
+export async function listDatasets(): Promise<DatasetInfo[]> {
+  const result = await api.api.datasets.get();
+  return unwrap(result);
+}
+
+export function defaultDataset(datasets: DatasetInfo[]): DatasetInfo | undefined {
+  return datasets.find((d) => d.id === "test") ?? datasets.find((d) => d.id.startsWith("mock_test")) ?? datasets[0];
+}
+
+import type { DatasetInfo } from "@hackutd/contracts";

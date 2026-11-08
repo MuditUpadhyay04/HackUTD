@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { DatasetInfo, LiveEvent, RunRecord, RuntimeMode, Snapshot } from "@hackutd/contracts";
+import type { DatasetInfo, LiveEvent, RunRecord, RuntimeMode } from "@hackutd/contracts";
+import type { Snapshot } from "@/lib/engine/types";
 import { api, commandKey, unwrap } from "@/lib/api";
 import { Console } from "./console";
 
@@ -12,11 +13,19 @@ const delay = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, r
   if (signal.aborted) cancel(); else signal.addEventListener("abort", cancel, { once: true });
 });
 
-export function Workspace() {
+export function Workspace({
+  dataset: datasetProp,
+  at: atProp,
+  boardNow: boardNowProp,
+}: {
+  dataset?: DatasetInfo;
+  at?: number;
+  boardNow?: number;
+} = {}) {
   const params = useSearchParams();
   const router = useRouter();
   const datasetId = params.get("dataset");
-  const at = params.get("at");
+  const atParam = params.get("at");
   const mode = params.get("runtime");
   const runtime: RuntimeMode = mode === "software" || mode === "fpga" ? mode : "auto";
   const [datasets, setDatasets] = useState<DatasetInfo[]>([]);
@@ -36,9 +45,10 @@ export function Workspace() {
     async function start() {
       const list = await loadDatasets();
       if (abort.signal.aborted) return;
-      const selected = list.find((d) => d.id === datasetId) ?? (!datasetId ? list[0] : undefined);
+      // Props take precedence over URL params
+      const selected = datasetProp ?? list.find((d) => d.id === datasetId) ?? (!datasetId ? list[0] : undefined);
       if (!selected) { setStatus(datasetId ? "Dataset not found. Select or upload a dataset." : "Upload a dataset to begin."); return; }
-      const time = at && Number.isFinite(Number(at)) ? Number(at) : undefined;
+      const time = atProp ?? (atParam && Number.isFinite(Number(atParam)) ? Number(atParam) : undefined);
       const selection = JSON.stringify([selected.id, time ?? null, runtime, parent.current]);
       const storageKey = `operator-run:${selection}`;
       let key = sessionStorage.getItem(storageKey);
@@ -93,7 +103,7 @@ export function Workspace() {
     }
     start().catch((e: Error) => { if (!abort.signal.aborted) setError(e.message); });
     return () => abort.abort();
-  }, [datasetId, at, runtime, loadDatasets]);
+  }, [datasetProp, atProp, runtime, loadDatasets]);
 
   const navigate = (patch: Record<string, string | null>) => {
     const q = new URLSearchParams(params.toString());
