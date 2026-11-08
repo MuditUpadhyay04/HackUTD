@@ -3,37 +3,41 @@
 Claim a task by writing your agent/session name in **Owner** and setting **Status** to CLAIMED, in the same
 commit as your first work. Statuses: TODO · CLAIMED · BLOCKED · REVIEW · DONE. A task can start only when every
 task in **Needs** is DONE (a Verify task may start writing properties before its vectors exist; it needs T0.2 only
-to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v1).
+to finish simulation). Rules: `AGENTS.md`. Spec: `spec/` (FROZEN v2).
+
+**Branches on Windows:** `fpga/<task-id>` cannot coexist with the `FPGA` branch on a case-insensitive filesystem, so
+task branches are named `eog/<task-id>` (e.g. `eog/T1.validate.rtl`). **Status edits:** only the lead edits this
+file during a wave (agents report status in their final message) to avoid merge conflicts.
 
 ## Wave 0 — lead
 
 | ID | Task | Needs | Owner | Status | Output |
 | --- | --- | --- | --- | --- | --- |
 | T0.1 | Freeze the spec (decisions D1–D5, conventions, numerics, regmap, 12 module specs, `rtl/eog_defs.svh`) | — | Claude (Lucas's session) | DONE | `spec/` v1 |
-| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | | TODO | `model/`, `tb/vectors/` |
-| T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | | TODO | `formal/common/` |
+| T0.2 | Bit-exact model + reference ingest + vectors (`model/README.md`) | T0.1 | fpga-model agent (lead session) | CLAIMED | `model/`, `tb/vectors/` |
+| T0.3 | `formal/common/` (abstract multiplier, handshake/stage property macros); check `scripts/*.sh` against the installed tools | T0.1 | lead | DONE | `formal/common/` (checker modules, abstract mul, self-test), `scripts/env.sh`, `scripts/wsl.sh`; 5d34900; `reports/formal_common.txt`, `reports/formal_axi_mul.txt` |
 
 ## Wave 1 — parallel, two agents per module (RTL and Verify never share a branch)
 
 | ID | Module (spec) | Role | Needs | Owner | Status | Report |
 | --- | --- | --- | --- | --- | --- | --- |
-| T1.mul.rtl | `eog_mul` | RTL | T0.1 | | TODO | |
+| T1.mul.rtl | `eog_mul` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
 | T1.mul.fv | `eog_mul` | Verify | T0.1, T0.3 | | TODO | |
-| T1.div.rtl | `eog_div` | RTL | T0.1 | | TODO | |
+| T1.div.rtl | `eog_div` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
 | T1.div.fv | `eog_div` | Verify | T0.1, T0.3 | | TODO | |
 | T1.unpack.rtl | `eog_unpack` | RTL | T0.1 | | TODO | |
 | T1.unpack.fv | `eog_unpack` | Verify | T0.1, T0.3 | | TODO | |
-| T1.validate.rtl | `eog_validate` | RTL | T0.1 | | TODO | |
+| T1.validate.rtl | `eog_validate` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
 | T1.validate.fv | `eog_validate` | Verify | T0.1, T0.2, T0.3 | | TODO | |
 | T1.features.rtl | `eog_features` | RTL | T0.1, T1.mul.rtl | | TODO | |
 | T1.features.fv | `eog_features` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.memory.rtl | `eog_memory` | RTL | T0.1 | | TODO | |
+| T1.memory.rtl | `eog_memory` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
 | T1.memory.fv | `eog_memory` | Verify | T0.1, T0.2, T0.3 | | TODO | |
 | T1.countdown.rtl | `eog_countdown` | RTL | T0.1, T1.mul.rtl, T1.div.rtl | | TODO | |
 | T1.countdown.fv | `eog_countdown` | Verify | T0.1, T0.2, T0.3 | | TODO | |
 | T1.head.rtl | `eog_head` | RTL | T0.1, T1.mul.rtl | | TODO | |
 | T1.head.fv | `eog_head` | Verify | T0.1, T0.2, T0.3 | | TODO | |
-| T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | | TODO | |
+| T1.alarm.rtl | `eog_alarm` | RTL | T0.1 | fpga-rtl agent | CLAIMED | |
 | T1.alarm.fv | `eog_alarm` | Verify | T0.1, T0.2, T0.3 | | TODO | |
 | T1.pack.rtl | `eog_pack` | RTL | T0.1 | | TODO | |
 | T1.pack.fv | `eog_pack` | Verify | T0.1, T0.3 | | TODO | |

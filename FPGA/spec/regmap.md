@@ -1,4 +1,4 @@
-# AXI-Lite register map (spec v1, FROZEN)
+# AXI-Lite register map (spec v2, FROZEN; unchanged since v1 except the VERSION value)
 
 `eog_regs` is an AXI4-Lite slave (32-bit data, 16-bit byte address, 64 KB window) at **`0x43C1_0000`** on
 `M_AXI_GP0`. `axi_mul` stays at `0x43C0_0000`. All multi-byte values are little-endian. Unmapped addresses read 0;
@@ -8,7 +8,7 @@ CONFIG/GLOBAL/weight words; the DATA window requires full-word writes (`WSTRB = 
 | Offset | Name | Access | Contents |
 | --- | --- | --- | --- |
 | `0x0000` | ID | RO | `0x31474F45` ("EOG1" in bytes) |
-| `0x0004` | VERSION | RO | `[7:0]` spec version (1), `[15:8]` N_FAC, `[23:16]` N_WELL |
+| `0x0004` | VERSION | RO | `[7:0]` spec version (`EOG_SPEC_VERSION`, = `spec/VERSION`), `[15:8]` N_FAC, `[23:16]` N_WELL |
 | `0x0008` | CTRL | RW / W1P | `bit0 stream_en` (RW), `bit5 src_dma` (RW: 0 = DATA/RESULT windows, 1 = AXI-Stream DMA); write-1-pulse, read 0: `bit1 soft_reset`, `bit2 heartbeat`, `bit3 swap_req`, `bit4 server_ack`, `bit6 stats_clear` |
 | `0x000C` | STATUS | RO | `bit0 autonomous`, `bit1 swap_pending`, `bit2 active_bank`, `bit3 result_avail`, `bit4 alert_avail`, `bit5 data_busy`, `[15:8]` result FIFO count (records, saturating 255), `[23:16]` alert FIFO count, `[31:24]` active weights version |
 | `0x0010`–`0x002C` | GLOBAL | RW | the 32 B GLOBAL CONFIG record, word i = bytes 4i..4i+3. **Writes ignored while `stream_en = 1`.** Byte 0 (`S`) always reads 17 |

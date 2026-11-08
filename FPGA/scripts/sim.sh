@@ -2,7 +2,8 @@
 # sim.sh <module> — Icarus simulation of tb/<module>/ (file list tb/<module>/files.f, paths relative to FPGA/).
 # The testbench must print a line containing PASS on success and FAIL on any mismatch.
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
+EOG_SELF="scripts/$(basename "$0")"; . scripts/env.sh
 m=${1:?usage: sim.sh <module>}
 mkdir -p build reports
 if [ "$m" = axi_mul ]; then

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # check_all.sh — lint, simulate and prove every module that has the pieces; writes reports/SUMMARY.md
 set -u
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 2
+EOG_SELF="scripts/$(basename "$0")"; . scripts/env.sh
 mkdir -p reports
 out=reports/SUMMARY.md
 {
@@ -12,7 +13,7 @@ out=reports/SUMMARY.md
   echo "| Module | Lint | Sim | Formal |"
   echo "| --- | --- | --- | --- |"
 } > "$out"
-mods=$( (ls rtl/eog_*.sv 2>/dev/null | sed 's#rtl/eog_\(.*\)\.sv#\1#'; echo axi_mul) | sort -u )
+mods=$( (ls rtl/eog_*.sv 2>/dev/null | sed 's#rtl/eog_\(.*\)\.sv#\1#'; echo axi_mul; echo common) | sort -u )
 fail=0
 for m in $mods; do
   l=n/a; s=n/a; f=n/a

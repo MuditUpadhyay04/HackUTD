@@ -1,4 +1,4 @@
-# Conventions (spec v1, FROZEN)
+# Conventions (spec v2, FROZEN)
 
 Applies to every module in `rtl/`, every harness in `formal/` and every testbench in `tb/`.
 
@@ -87,3 +87,32 @@ See `gen/bus_tables.md` for the full tables. Summary:
 - `>>>` on signed values is an arithmetic right shift (floor). Write signedness explicitly (`$signed`).
 - Formal helpers inside RTL go under `` `ifdef FORMAL `` and may only **add** assertions/assumptions about the
   module's own internal state (to help induction), never assumptions about inputs.
+
+## 7. Formal observation ports (added in v2)
+
+Port-level k-induction cannot see a record a stage silently dropped or is still holding, so every **pipeline
+stage** (`eog_validate`, `eog_features`, `eog_memory`, `eog_countdown`, `eog_head`, `eog_alarm`, `eog_pack`) has two
+extra output ports that exist **only under `` `ifdef FORMAL ``** (simulation and synthesis never see them):
+
+| Port | Width | Meaning |
+| --- | --- | --- |
+| `f_inflight` | 8 | number of records accepted on `in_*` whose output has not yet transferred (for `eog_pack`: whose last beat has not transferred) |
+| `f_oldest_recno` | 32 | `REC_NO` of the oldest such record; don't-care when `f_inflight = 0` |
+
+Place them last in the port list:
+
+```systemverilog
+    output logic [EOG_BA_W-1:0] out_data
+`ifdef FORMAL
+    , output logic [7:0]  f_inflight
+    , output logic [31:0] f_oldest_recno
+`endif
+);
+```
+
+The RTL drives them from its own state (for a one-record-at-a-time stage: `busy ? 1 : 0` and the held record's
+`REC_NO`) and may add internal invariants relating them to that state. The harness never trusts them: the shared
+checker `formal/common/eog_fv_stage` *asserts* they equal its own count and the next expected `REC_NO`
+(`st_link_n`, `st_link_r`), which makes "one in, one out, nothing lost" inductive. Verifiers use these two ports
+and the normal ports only; all other internals stay off limits. `eog_unpack` (beats in) and the helpers `eog_mul`,
+`eog_div`, `eog_regs` don't have them.
