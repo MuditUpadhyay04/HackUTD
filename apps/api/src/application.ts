@@ -6,14 +6,17 @@ import { buildRunSnapshot, planningInputForSnapshot } from "./features/runtimes/
 import type { RegisteredModel } from "./features/runtimes/model";
 import { validateSystemPlan } from "./features/planning/validator";
 import { createAnalysisService } from "./features/agents/service";
+import { AgentLoopService } from "./features/agents/learning/service";
 import type { AppConfig } from "./infrastructure/config";
 
 export class Application {
   readonly agents: ReturnType<typeof createAnalysisService>;
+  readonly agentLoop: AgentLoopService;
   readonly cancellations = new Map<string, AbortController>();
   readonly modelFingerprint: string | null;
   constructor(readonly store: Store, readonly config: AppConfig, readonly model?: RegisteredModel) {
     this.agents = createAnalysisService({ store, provider: config.provider, sessionDir: config.sessionDir });
+    this.agentLoop = new AgentLoopService({ provider: config.provider, databaseUrl: config.databaseUrl, memory: config.memory, learningFile: config.agentLearningFile, boardJsonl: config.boardJsonl });
     this.modelFingerprint = model ? createHash("sha256").update(JSON.stringify(model)).digest("hex") : null;
   }
   async upload(files: { network: string; ops: string; telemetry: string }, label?: string) {
@@ -71,6 +74,11 @@ export class Application {
     await this.store.putAnalysis(a);
     await this.store.enqueueJob(`analysis:${id}`, "analysis", id);
     return a;
+  }
+  /** Starts the Nemotron orchestrator (advice only) on the run's current snapshot; operator approvals feed the decision records. */
+  async startAgentRun(runId: string) {
+    const s = await this.requireSnapshot(runId);
+    return this.agentLoop.start(s, await this.store.listActions(runId));
   }
   async requireAnalysis(id: string) {
     const a = await this.store.getAnalysis(id);
@@ -162,5 +170,5 @@ export class Application {
       throw error;
     } finally { this.cancellations.delete(job.payload.id); }
   }
-  async close() { for (const c of this.cancellations.values()) c.abort(); await this.agents.close(); }
+  async close() { for (const c of this.cancellations.values()) c.abort(); await this.agents.close(); await this.agentLoop.close(); }
 }

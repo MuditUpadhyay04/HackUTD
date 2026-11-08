@@ -9,7 +9,7 @@ import { systemNum } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { NemotronMark } from "./nemotron";
 
-export type View = "overview" | "replay" | "handoff";
+export type View = "overview" | "replay" | "handoff" | "agents";
 export type SystemStatus = "ok" | "warn" | "crit" | "nodata";
 
 /** The macOS-style window the whole console lives in (Mockup A). */
@@ -48,6 +48,14 @@ const navIcon = {
       <path d="M3 4h10M3 8h10M3 12h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   ),
+  agents: (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden>
+      <circle cx="8" cy="3.5" r="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="3.5" cy="12" r="2" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <circle cx="12.5" cy="12" r="2" fill="var(--nv)" />
+      <path d="M7 5.3 4.4 10.2M9 5.3l2.6 4.9" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  ),
 };
 
 export function Sidebar({
@@ -69,6 +77,7 @@ export function Sidebar({
     { id: "overview", label: "Overview", count: alertCount || undefined },
     { id: "replay", label: "Replay week" },
     { id: "handoff", label: "Shift handoff" },
+    { id: "agents", label: "Agents" },
   ];
   return (
     <aside className="border-b-[0.5px] border-line bg-[rgba(236,238,242,0.72)] px-3 pt-4 pb-3 backdrop-blur-[50px] backdrop-saturate-[1.8] lg:border-r-[0.5px] lg:border-b-0 lg:pb-4">

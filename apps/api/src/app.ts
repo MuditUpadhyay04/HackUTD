@@ -44,7 +44,8 @@ export function createApp(service: Application) {
       return { error: "Service unavailable; request was not completed", code: "INTERNAL" };
     })
     .group("/api", api => api
-      .get("/health", () => ({ status: "ok", storage: service.config.memory ? "memory-nonpersistent" : "postgresql", agents: service.config.provider ? "configured-unverified" : "draft-only", hardware: "not-verified", hardwareBatches: "unsupported-sink-documented" }))
+      .get("/health", () => ({ status: "ok", storage: service.config.memory ? "memory-nonpersistent" : "postgresql", agents: service.config.provider ? "configured-unverified" : "draft-only",
+        ...(service.config.provider ? { agentModel: { thinking: service.config.provider.thinking?.mode ?? "off", contextWindow: service.config.provider.contextWindow ?? null, maxOutputTokens: service.config.provider.maxOutputTokens ?? null } } : {}), hardware: "not-verified", hardwareBatches: "unsupported-sink-documented" }))
       .get("/datasets", () => service.store.listDatasets())
       .post("/datasets", async ({ body, set }) => {
         if (body.network.name !== "network.json" || body.ops.name !== "ops.json" || body.telemetry.name !== "telemetry.csv") throw new DomainError("INVALID_FILES", "Upload network.json, ops.json and telemetry.csv with their original filenames");
@@ -64,6 +65,10 @@ export function createApp(service: Application) {
       .post("/runs/:id/analyses", async ({ params, request, set }) => { const a = await service.createAnalysis(params.id, keyOf(request)); set.status = 202; return a; })
       .get("/analyses/:id", ({ params }) => service.requireAnalysis(params.id))
       .post("/analyses/:id/cancel", ({ params }) => service.cancelAnalysis(params.id))
+      .post("/runs/:id/agents", async ({ params, set }) => { const r = await service.startAgentRun(params.id); set.status = 202; return r; })
+      .get("/runs/:id/agent-runs", async ({ params }) => { await service.requireRun(params.id); return service.agentLoop.listForRun(params.id); })
+      .get("/agent-runs/:id", ({ params }) => service.agentLoop.get(params.id))
+      .get("/agents/learning", () => service.agentLoop.summary())
       .get("/runs/:id/actions", async ({ params }) => { await service.requireRun(params.id); return service.store.listActions(params.id); })
       .post("/runs/:id/actions", ({ params, body, request }) => service.operatorAction(params.id, body, requiredKey(request)), {
         body: t.Object({ incidentId: id, planId: t.Optional(id), revision: t.Integer({ minimum: 1 }), kind: t.Union([t.Literal("acknowledge_advice"), t.Literal("inspection_ticket")]) }, { additionalProperties: false })

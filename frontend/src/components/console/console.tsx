@@ -11,6 +11,7 @@ import { isTestWeights } from "@/lib/live/board";
 import { Sidebar, Toolbar, Window, type SystemStatus, type View } from "./chrome";
 import { FacilitySheet, IncidentSheet } from "./detail-sheets";
 import { NemotronBrief } from "./nemotron";
+import { AgentsPanel } from "./agents";
 import { Timeline } from "./timeline";
 
 const longDay = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
@@ -43,7 +44,7 @@ export function Console({
   const [prevLive, setPrevLive] = useState(live);
   if (prevLive !== live) {
     setPrevLive(live);
-    if (!live && view !== "handoff") setView("replay");
+    if (!live && view !== "handoff" && view !== "agents") setView("replay");
   }
   const [incident, setIncident] = useState<Incident | null>(null);
   const [facilityId, setFacilityId] = useState<string | null>(null);
@@ -69,7 +70,7 @@ export function Console({
           : "ok";
 
   const goSystem = (id: string) => {
-    if (view === "handoff") setView(live ? "overview" : "replay");
+    if (view === "handoff" || view === "agents") setView(live ? "overview" : "replay");
     requestAnimationFrame(() => {
       document.getElementById(`system-${id}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
       setFlash(id);
@@ -138,11 +139,11 @@ export function Console({
       <main className="px-4 pt-7 pb-10 sm:px-7">
         <header>
           <h1 className="tracking-display font-display text-[30px] leading-[1.1] font-bold sm:text-[34px]">
-            {view === "handoff" ? "Shift handoff" : "Avon water network"}
+            {view === "handoff" ? "Shift handoff" : view === "agents" ? "Agents" : "Avon water network"}
           </h1>
           <p className="mt-1.5 text-[15px] text-muted-foreground">
             {longDay.format(new Date(s.nowUnix * 1000))}, {clockFrom(s.nowUnix, s.nowUnix)} UTC.{" "}
-            {view === "handoff" ? "What the next operator needs to know." : headline}
+            {view === "handoff" ? "What the next operator needs to know." : view === "agents" ? "Chip detects. Server plans. Nemotron explains." : headline}
           </p>
         </header>
 
@@ -158,7 +159,9 @@ export function Console({
           </div>
         )}
 
-        {view === "handoff" ? (
+        {view === "agents" ? (
+          <AgentsPanel runId={s.runId} />
+        ) : view === "handoff" ? (
           <div className="mt-6 grid max-w-[760px] gap-4">
             <NemotronBrief runId={s.runId} expanded />
             <a
