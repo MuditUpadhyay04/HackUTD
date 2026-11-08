@@ -58,7 +58,8 @@
 //   Other regmap checks: R_id (ID, VERSION with N_WELL, #66), R_ctrl / R_led / R_dsel (stream_en, src_dma, ledovr,
 //       dbg_fac follow CTRL / LEDOVR (32 bits) / DBGSEL ([4:0]); reset value 0 as in the model), R_rw (LEDOVR /
 //       DBGSEL readback), R_wb (weight readback through wb_raddr/wb_rdata, 1-cycle latency), R_wbw (wb_we once per
-//       weight write, word address and data; partial strobes merge with wb_rdata, ruling #62), R_unm (unmapped
+//       weight write with WSTRB != 0, word address and data; partial strobes merge with wb_rdata, ruling #62;
+//       WSTRB = 0 is a no-op, ruling #101), R_unm (unmapped
 //       addresses read 0), R_status (STATUS bits 0-2, 31:24), R_rec (STATS 0 = rec_in pulses, ruling #59; a
 //       DATA push alone does not change it).
 //   Covers: C_main (the spec's: CONFIG row written, slot enabled, a DATA record pushed, a RESULT read back and
@@ -303,7 +304,8 @@ module fv_eog_regs (
     wire       c_cfg  = c_a >= 16'h1000 && c_a < 16'h1000 + 64 * NF;
     wire [4:0] c_slot = c_a[10:6];
     wire [3:0] c_cw   = c_a[5:2];
-    wire       c_wt   = c_a >= 16'h4000 && c_a <= 16'h4118;
+    // weight-window write; WSTRB = 0 is a no-op without wb_we (ruling #101)
+    wire       c_wt   = c_a >= 16'h4000 && c_a <= 16'h4118 && c_s != 4'h0;
     wire [6:0] c_wi   = c_a[8:2];
     wire       c_dat  = c_a >= 16'h0200 && c_a <= 16'h022C;
     wire [3:0] c_di   = c_a[5:2];
