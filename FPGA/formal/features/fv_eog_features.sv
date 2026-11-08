@@ -5,47 +5,61 @@
 // there are no hierarchical references.
 //
 // Property labels map to the spec's "Required properties" list:
-//   F1_feat0, F1_drop          F1  INVALID/DROPPED -> FEAT0_11 = 0; DROPPED -> RULES4 = 0, PUMP_RUN = 0
-//   F2_ch7, F2_ch8             F2  channels 7/8 are exactly 16384/0 per PUMP_ST
-//   F3_ch11                    F3  channel 11 = 0 when PREV_OK = 0
-//   F4_ch, F4_sat              F4  every channel = sat16((x*M + 2^16) >>> 17) and FEAT_SAT iff some VALID/HELD
-//                                  channel's unsaturated value is outside [-32768, 32767]   (bmc, real multiplier)
-//   F4_zero                    F4  corollary that holds for any multiplier with 0*M = x*0 = 0: a multiplied channel
-//                                  whose multiplier M is 0, or whose operand x is a single raw field equal to 0,
-//                                  is 0                                         (prove, abstract multiplier)
-//   (F4 range)                     "every channel lies in [-32768, 32767]" is true of any 16-bit two's complement
-//                                  field; F4_ch is what gives it content.
-//   F5_pf, F5_si, F5_sd, F5_wl F5  rule bits 0..3 exactly per numerics.md §4 (inputs not OK -> 0; DROPPED -> 0;
-//                                  SHUT_IN needs n_wells >= 1)
-//   F6_gain                    F6  REASON only gains bits
-//   B_hdr                      conventions §3 header pass-through (REC_NO, IN_LAST, FAC_RAW, FAC, TS, STATUS,
-//                              SINCE_RESET, HIST_RESET unchanged)
-//   B_reason                   module spec "Behavior": the only bit features may add is FEAT_SAT, and only for
-//                              VALID/HELD
-//   B_run, B_copy              PUMP_RUN = (PUMP_ST == 1) for VALID/HELD else 0; INFLOW, LEVEL copied from bus V
-//   u_in.*, u_out.*            handshake, conventions §2 (formal/common eog_fv_axis)
-//   u_stage.st_*               stage contract, conventions §3/§7: one in -> one out, in order (REC_NO), nothing
-//                              lost or invented, in-flight bound, II <= 16, latency <= 128 (formal/common eog_fv_stage)
+//   F1_feat0, F1_drop   F1  INVALID/DROPPED -> FEAT0_11 = 0; DROPPED -> RULES4 = 0, PUMP_RUN = 0
+//   F2_ch7, F2_ch8      F2  channels 7 / 8 are exactly 16384 / 0 per PUMP_ST (VALID/HELD; 0 otherwise, F1)
+//   F3_ch11             F3  channel 11 = 0 when PREV_OK = 0
+//   F4_ch               F4  every multiplied channel c in {0..6, 9, 10, 11} that is computed (VALID/HELD; channel 11
+//                           only with PREV_OK) equals sat16((x_c*M_c + 2^16) >>> 17) bit for bit (12-bit vector of
+//                           per-channel results, one assert: see "Yosys notes")
+//   F4_sat                  REASON[FEAT_SAT] = incoming FEAT_SAT | (some computed channel's unsaturated value is
+//                           outside [-32768, 32767])
+//   F4_zero                 (prove task only, abstract multiplier) a computed channel whose multiplier M_c is 0, or
+//                           whose operand x_c is a single field equal to 0 (channels 0, 1, 2, 4, 9), is 0
+//   (F4 range)              "every channel lies in [-32768, 32767]" holds for any 16-bit two's complement field;
+//                           F4_ch is what gives it content.
+//   F5_pf, F5_si,       F5  rule bits 0..3 exactly per numerics.md §4: computed for VALID/HELD/INVALID from fields
+//   F5_sd, F5_wl            whose FLD_OK / WELLS_OK bit is set (else 0), DROPPED -> 0, SHUT_IN needs n_wells >= 1
+//   F6_gain             F6  REASON only gains bits
+//   B_hdr               conventions §3 header pass-through (REC_NO, IN_LAST, FAC_RAW, FAC, TS, STATUS, SINCE_RESET,
+//                       HIST_RESET unchanged)
+//   B_reason            module spec "Behavior": the only bit features may add is FEAT_SAT, and only for VALID/HELD
+//   B_run, B_copy       PUMP_RUN = (PUMP_ST == 1) for VALID/HELD else 0; INFLOW, LEVEL copied from bus V
+//   u_in.ax_*           input handshake assumptions, conventions §2 (formal/common eog_fv_axis, ASSUME = 1)
+//   u_out.ax_*          output handshake, conventions §2: valid 0 after reset, valid/data held until the transfer
+//   u_stage.st_*        stage contract, conventions §3/§7 (formal/common eog_fv_stage): one in -> one out, in order
+//                       (REC_NO), nothing lost or invented, f_inflight / f_oldest_recno match, at most MAXF records
+//                       held, II <= 16 (st_ii), latency <= 128 (st_lat)
 //
-// Defines:
-//   FV_ABSTRACT_MUL  set by the `prove` task (formal/common/eog_mul_abstract.sv is linked instead of the real
-//                    multiplier): F4_ch / F4_sat are compiled out, F4_zero is checked instead.
+// Which multiplier is linked (selected by the .sby task):
+//   FV_ABSTRACT_MUL  formal/common/eog_mul_abstract.sv (product unconstrained except 0 for a 0 operand): every
+//                    property except F4_ch / F4_sat, plus F4_zero. Task `prove`.
+//   FV_CONCAT_MUL    formal/features/eog_mul_concat.sv (cheap injective stand-in P(a, b), see that file): F4_ch and
+//                    F4_sat against the same reference with x*M replaced by P(x, M), unbounded. Task `prove_f4`.
+//   neither          rtl/eog_mul.sv (the real multiplier): F4_ch / F4_sat with the real product x*M. Tasks `bmc`,
+//                    `cover`.
 //
-// Environment assumptions (the upstream eog_validate's contract, spec/numerics.md §3 / eog_validate.md); each is
-// labelled A_*:
-//   A_status  STATUS is one of 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 is never produced).
-//   A_fac     a non-DROPPED record's FAC is a configured slot (< N_FAC).            (V2)
+// Environment assumptions (the upstream eog_validate's contract, numerics.md §3 / eog_validate.md), labelled A_*:
+//   A_status  STATUS is one of 0 VALID, 1 HELD, 3 INVALID, 4 DROPPED (2 is never produced; conventions §3).
+//   A_fac     a non-DROPPED record's FAC is a configured slot (< N_FAC)                  (numerics §3 step 2)
 //   A_ok      a VALID/HELD record has every facility field and every configured well OK
-//             (FLD_OK = 7'h7F, WELLS_OK = 1).                                         (V8)
-//   A_wells   a non-DROPPED record has WELL_ACT[i] = 0 and WELL_WATER[i] = 0 for i >= n_wells.   (V11)
+//             (FLD_OK = 7'h7F, WELLS_OK = 1): a lost field makes the record INVALID       (numerics §3 steps 5, 6)
+//   A_wells   a non-DROPPED record has WELL_ACT[i] = 0 and WELL_WATER[i] = 0 for i >= n_wells   (numerics §3 step 9)
 //             This makes "popcount(WELL_ACT)", "sum of WELL_WATER[i]" and "WELL_ACT == 0" independent of whether
-//             an implementation sums all 8 slots or only the configured ones.
-//   A_sat     incoming REASON[FEAT_SAT] = 0 (only eog_features sets it, numerics.md §6), so F4_sat can be "iff".
-// Not assumed (so F1/F5 are checked against arbitrary garbage): the values, FLD_OK, PUMP_ST, wells of
-// INVALID/DROPPED records.
+//             a design looks at all 8 slots or only the configured ones.
+// Not assumed (so F1 / F5 / B_* are checked against arbitrary garbage): the values, FLD_OK, WELLS_OK, PUMP_ST,
+// wells, PREV_* and REASON of INVALID / DROPPED records, and REASON of every record (an incoming FEAT_SAT is kept).
 //
-// CONFIG rows are per-slot constants ($anyconst) as conventions §5 says; a cfg_fac outside the configured
-// slots reads an unconstrained ($anyseq) row. GLOBAL is a constant.
+// CONFIG rows are per-slot constants ($anyconst) as conventions §5 says; a cfg_fac outside the configured slots
+// reads an unconstrained ($anyseq) row (only DROPPED records can carry such a FAC). GLOBAL is a constant.
+//
+// Reading of the spec where it leaves room (no spec question needed; noted for the lead):
+//   - B_copy: for DROPPED records the harness accepts INFLOW / LEVEL either copied or 0. eog_validate sends DROPPED
+//     records with all values 0 (numerics §3 step 9), so "copied" (module spec) and "every field a later stage
+//     produces is 0" (conventions §3) agree on every input the pipeline can produce.
+//   - n_wells = min(CFG.N_WELLS, N_WELL) (TASKS.md spec question 14); the harness keeps N_WELL = 8.
+//
+// Yosys notes: per-channel / per-well checks are folded into vectors with one labelled assert / assume each
+// (labelled asserts inside for-loops can duplicate cell names in Yosys 0.70).
 
 module fv_eog_features (
     input logic clk
@@ -55,7 +69,9 @@ module fv_eog_features (
     // ---- shrunk instance ----------------------------------------------------------------------------------
     localparam integer N_FAC = 2;
     localparam integer RW    = 8;     // low REC_NO bits compared by the stage checker
-    localparam integer MAXF  = 2;     // records the stage may hold (accepted, output not yet transferred): 1 or 2
+    localparam integer MAXF  = 2;     // records the stage may hold (accepted, output not yet transferred): 1, 2 or 4.
+                                      // The spec bounds only II and latency; 2 allows a design with an output
+                                      // register next to the record being computed.
     localparam integer VW    = EOG_BV_W;
     localparam integer FW    = EOG_BF_W;
     localparam integer CW    = EOG_CFG_BITS;
@@ -68,8 +84,8 @@ module fv_eog_features (
     assign out_ready = $anyseq;
     assign in_data   = $anyseq;
 
-    logic [N_FAC*CW-1:0] f_rows;   // CONFIG rows of slots 0..N_FAC-1
-    logic [CW-1:0]       f_row_x;  // what an unconfigured slot reads
+    logic [N_FAC*CW-1:0]   f_rows;   // CONFIG rows of slots 0..N_FAC-1
+    logic [CW-1:0]         f_row_x;  // what an unconfigured slot reads
     logic [EOG_G_BITS-1:0] glb;
     assign f_rows  = $anyconst;
     assign f_row_x = $anyseq;
@@ -120,35 +136,33 @@ module fv_eog_features (
     assign i_row = (i_fac < N_FAC) ? f_rows[i_fac * CW +: CW] : f_row_x;
     assign i_nw  = (i_row[EOG_CFG_N_WELLS +: 8] > 8'd8) ? 8'd8 : i_row[EOG_CFG_N_WELLS +: 8];
 
+    logic [7:0] i_wbad;   // well slot i >= n_wells with WELL_ACT or WELL_WATER nonzero
+    always_comb
+        for (int i = 0; i < 8; i++)
+            i_wbad[i] = (i_nw <= i) && (in_data[EOG_BV_WELL_ACT + i] || in_data[EOG_BV_WELL_WATER + 16*i +: 16] != 16'd0);
+
     always_comb begin
         if (rst_n && in_valid) begin
             A_status: assume (i_st == EOG_ST_VALID || i_st == EOG_ST_HELD || i_st == EOG_ST_INVALID
                               || i_st == EOG_ST_DROPPED);
-            A_sat:    assume (!in_data[EOG_BV_REASON + EOG_R_FEAT_SAT]);
             if (i_st != EOG_ST_DROPPED) begin
-                A_fac: assume (i_fac < N_FAC);
+                A_fac:   assume (i_fac < N_FAC);
+                A_wells: assume (i_wbad == 8'd0);
             end
             if (i_st == EOG_ST_VALID || i_st == EOG_ST_HELD) begin
                 A_ok: assume (in_data[EOG_BV_FLD_OK +: EOG_BV_FLD_OK_W] == 7'h7F && in_data[EOG_BV_WELLS_OK]);
             end
         end
     end
-    genvar gw;
-    generate
-        for (gw = 0; gw < 8; gw = gw + 1) begin : g_awells
-            always_comb if (rst_n && in_valid && i_st != EOG_ST_DROPPED && i_nw <= gw) begin
-                A_wells: assume (!in_data[EOG_BV_WELL_ACT + gw] && in_data[EOG_BV_WELL_WATER + 16*gw +: 16] == 16'd0);
-            end
-        end
-    endgenerate
 
     // ---- shadow of the accepted records (port-only) ---------------------------------------------------------
-    // Slot k holds the record whose acceptance number has low bit k (MAXF = 2) -- the stage checker guarantees at
-    // most MAXF in flight, in order, so slot f_out_cnt[0] is the oldest.
+    // Slot (acceptance number mod MAXF) holds that record. The stage checker asserts at most MAXF in flight and
+    // outputs in acceptance order, so slot (f_out_cnt mod MAXF) is the record the current output belongs to.
+    localparam logic [1:0] SLOT_MASK = 2'(MAXF - 1);
     logic [MAXF*VW-1:0] f_sh;
-    logic               f_wi, f_ri;
-    assign f_wi = (MAXF > 1) ? f_in_cnt[0]  : 1'b0;
-    assign f_ri = (MAXF > 1) ? f_out_cnt[0] : 1'b0;
+    logic [1:0]         f_wi, f_ri;
+    assign f_wi = f_in_cnt[1:0]  & SLOT_MASK;
+    assign f_ri = f_out_cnt[1:0] & SLOT_MASK;
     always_ff @(posedge clk) if (rst_n && in_valid && in_ready) f_sh[f_wi * VW +: VW] <= in_data;
 
     // The record the current output must belong to (a same-cycle pass-through is allowed by the checker).
@@ -169,7 +183,7 @@ module fv_eog_features (
     assign e_vh     = (e_st == EOG_ST_VALID) || (e_st == EOG_ST_HELD);
     assign e_dr     = (e_st == EOG_ST_DROPPED);
     assign e_fac    = e[EOG_BV_FAC +: EOG_BV_FAC_W];
-    assign e_row    = (e_fac < N_FAC) ? f_rows[e_fac * CW +: CW] : '0;
+    assign e_row    = (e_fac < N_FAC) ? f_rows[e_fac * CW +: CW] : '0;   // only DROPPED records reach '0
     assign e_nw     = (e_row[EOG_CFG_N_WELLS +: 8] > 8'd8) ? 8'd8 : e_row[EOG_CFG_N_WELLS +: 8];
     assign e_pst    = e[EOG_BV_PUMP_ST +: EOG_BV_PUMP_ST_W];
     assign e_fok    = e[EOG_BV_FLD_OK +: EOG_BV_FLD_OK_W];
@@ -216,56 +230,16 @@ module fv_eog_features (
         f_x[11*20 +: 20] = v_level - v_prev;  f_m[11*32 +: 32] = e_row[EOG_CFG_M_NET +: 32];
     end
 
-    // which channels are computed with feat() for this record (VALID/HELD; channel 11 only with PREV_OK)
+    // channels computed with feat() for this record: VALID/HELD, all multiplied channels (not 7, 8); channel 11 only
+    // with PREV_OK. Bit c = channel c.
+    localparam logic [11:0] F_MULCH = 12'b0110_0111_1111;   // channels 0-6, 9, 10 (11 added below)
     logic [11:0] f_used;
-    assign f_used = e_vh ? {e[EOG_BV_PREV_OK], 11'b111_0011_1111} : 12'd0;
+    assign f_used = e_vh ? (F_MULCH | {e[EOG_BV_PREV_OK], 11'd0}) : 12'd0;
 
-    // channels whose operand x is a single raw field (0, 1, 2, 4, 9): x == 0 gives a 0 product however the
-    // design arranges the multiply; for the others only M == 0 is used in F4_zero (a design may legally compute
-    // e.g. (PUMP_FLOW - RECV_FLOW)*M as PUMP_FLOW*M - RECV_FLOW*M).
+    // channels whose operand x is a single field (0, 1, 2, 4) or the popcount (9): x == 0 gives a 0 product however
+    // a design arranges the multiply. For the others F4_zero uses only M == 0 (a design may legally compute, e.g.,
+    // (PUMP_FLOW - RECV_FLOW)*M as PUMP_FLOW*M - RECV_FLOW*M).
     localparam logic [11:0] F_RAWX = 12'b0010_0001_0111;
-
-`ifndef FV_ABSTRACT_MUL
-    // feat(x, M) = sat16((x*M + 2^16) >>> 17); x*M is signed 53-bit (|x| <= 2^19, M < 2^32)
-    logic [12*16-1:0] f_val;
-    logic [11:0]      f_satc;
-    genvar gc;
-    generate
-        for (gc = 0; gc < 12; gc = gc + 1) begin : g_ref
-            logic signed [52:0] prod, rnd;
-            logic signed [35:0] q;
-            assign prod = $signed(f_x[gc*20 +: 20]) * $signed({1'b0, f_m[gc*32 +: 32]});
-            assign rnd  = prod + 53'sd65536;
-            assign q    = rnd >>> 17;
-            assign f_satc[gc] = (q > 36'sd32767) || (q < -36'sd32768);
-            assign f_val[gc*16 +: 16] = (q > 36'sd32767) ? 16'h7FFF : (q < -36'sd32768) ? 16'h8000 : q[15:0];
-        end
-    endgenerate
-`endif
-
-    // rule bits 0..3
-    logic [15:0] e_swm, e_shut, e_warn;
-    assign e_swm  = glb[EOG_G_SHUTIN_WATER_MAX +: 16];
-    assign e_shut = e_row[EOG_CFG_SHUT_LVL +: 16];
-    assign e_warn = e_row[EOG_CFG_WARN_LVL +: 16];
-    logic e_water_le;   // every configured slot (i < n_wells) has water <= SHUTIN_WATER_MAX (integer compare)
-    always_comb begin
-        e_water_le = 1'b1;
-        for (int i = 0; i < 8; i++)
-            if (i < e_nw && $signed({e[EOG_BV_WELL_WATER + 16*i + 15], e[EOG_BV_WELL_WATER + 16*i +: 16]})
-                            > $signed({1'b0, e_swm}))
-                e_water_le = 1'b0;
-    end
-    logic [3:0] e_rules;
-    assign e_rules[EOG_RULE_PUMP_FAULT]   = !e_dr && e_fok[2] && e_pst == 2'd2;
-    assign e_rules[EOG_RULE_SHUT_IN]      = !e_dr && e[EOG_BV_WELLS_OK] && e_nw >= 8'd1 && e_act == 8'd0
-                                            && e_water_le;
-    assign e_rules[EOG_RULE_LVL_SHUTDOWN] = !e_dr && e_fok[1]
-                                            && $signed({e[EOG_BV_LEVEL + 15], e[EOG_BV_LEVEL +: 16]})
-                                               >= $signed({1'b0, e_shut});
-    assign e_rules[EOG_RULE_LVL_WARNING]  = !e_dr && e_fok[1]
-                                            && $signed({e[EOG_BV_LEVEL + 15], e[EOG_BV_LEVEL +: 16]})
-                                               >= $signed({1'b0, e_warn});
 
     // ---- output fields ------------------------------------------------------------------------------------
     logic [15:0]  o_reason;
@@ -275,7 +249,77 @@ module fv_eog_features (
     assign o_feat   = out_data[EOG_BF_FEAT0_11 +: EOG_BF_FEAT0_11_W];
     assign o_rules  = out_data[EOG_BF_RULES4 +: EOG_BF_RULES4_W];
 
+    // ---- F4 reference: feat(x, M) = sat16((x*M + 2^16) >>> 17) ----------------------------------------------
+`ifdef FV_ABSTRACT_MUL
+    // F4_zero: a computed channel with M_c == 0, or with a single-field / popcount x_c == 0, is 0.
+    logic [11:0] f4_ok;
+    always_comb
+        for (int c = 0; c < 12; c++)
+            f4_ok[c] = !(f_used[c] && (f_m[c*32 +: 32] == 32'd0 || (F_RAWX[c] && f_x[c*20 +: 20] == 20'd0)))
+                       || o_feat[c*16 +: 16] == 16'd0;
+`else
+    // Product: the real x*M (signed 53-bit; |x| <= 2^19, M < 2^32), or with FV_CONCAT_MUL the stand-in P(x, M) of
+    // formal/features/eog_mul_concat.sv (the same function the linked eog_mul computes).
+    function automatic logic signed [52:0] f_prod(input logic [19:0] x, input logic [31:0] m);
+`ifdef FV_CONCAT_MUL
+        logic [51:0] pc;
+        if (x == 20'd0 || m == 32'd0) pc = 52'd0;
+        else if (!x[19])              pc = {x - 20'd1, m};
+        else                          pc = -{~x, m};
+        f_prod = $signed({pc[51], pc});
+`else
+        f_prod = $signed({{33{x[19]}}, x}) * $signed({21'd0, m});
+`endif
+    endfunction
+
+    logic [12*16-1:0]   f_val;    // expected channel value
+    logic [11:0]        f_satc;   // channel's unsaturated value outside [-32768, 32767]
+    logic signed [52:0] t_rnd;    // loop temporaries
+    logic signed [35:0] t_q;
+    always_comb begin
+        t_rnd = '0;
+        t_q   = '0;
+        for (int c = 0; c < 12; c++) begin
+            t_rnd = f_prod(f_x[c*20 +: 20], f_m[c*32 +: 32]) + 53'sd65536;
+            t_q   = $signed(t_rnd[52:17]);                            // >>> 17
+            f_satc[c]         = (t_q > 36'sd32767) || (t_q < -36'sd32768);
+            f_val[c*16 +: 16] = (t_q > 36'sd32767) ? 16'h7FFF : (t_q < -36'sd32768) ? 16'h8000 : t_q[15:0];
+        end
+    end
+
+    logic [11:0] f4_ok;
+    always_comb
+        for (int c = 0; c < 12; c++)
+            f4_ok[c] = !f_used[c] || o_feat[c*16 +: 16] == f_val[c*16 +: 16];
+`endif
+
+    // ---- rule bits 0..3 (numerics.md §4) --------------------------------------------------------------------
+    logic [15:0] e_swm, e_shut, e_warn;
+    assign e_swm  = glb[EOG_G_SHUTIN_WATER_MAX +: 16];
+    assign e_shut = e_row[EOG_CFG_SHUT_LVL +: 16];
+    assign e_warn = e_row[EOG_CFG_WARN_LVL +: 16];
+    logic [7:0] e_wle;   // slot i is not configured, or its water <= SHUTIN_WATER_MAX (s16 vs u16, integer compare)
+    always_comb
+        for (int i = 0; i < 8; i++)
+            e_wle[i] = (e_nw <= i)
+                       || $signed({e[EOG_BV_WELL_WATER + 16*i + 15], e[EOG_BV_WELL_WATER + 16*i +: 16]})
+                          <= $signed({1'b0, e_swm});
+    logic signed [16:0] e_lvl17;
+    assign e_lvl17 = $signed({e[EOG_BV_LEVEL + 15], e[EOG_BV_LEVEL +: 16]});
+    logic [3:0] e_rules;
+    assign e_rules[EOG_RULE_PUMP_FAULT]   = !e_dr && e_fok[2] && e_pst == 2'd2;
+    assign e_rules[EOG_RULE_SHUT_IN]      = !e_dr && e[EOG_BV_WELLS_OK] && e_nw >= 8'd1 && e_act == 8'd0
+                                            && e_wle == 8'hFF;
+    assign e_rules[EOG_RULE_LVL_SHUTDOWN] = !e_dr && e_fok[1] && e_lvl17 >= $signed({1'b0, e_shut});
+    assign e_rules[EOG_RULE_LVL_WARNING]  = !e_dr && e_fok[1] && e_lvl17 >= $signed({1'b0, e_warn});
+
+    // ---- assertions ---------------------------------------------------------------------------------------
     localparam logic [15:0] SAT_BIT = 16'd1 << EOG_R_FEAT_SAT;
+
+    logic copy_ok;
+    assign copy_ok = (out_data[EOG_BF_INFLOW +: 16] == e[EOG_BV_INFLOW +: 16]
+                      && out_data[EOG_BF_LEVEL +: 16] == e[EOG_BV_LEVEL +: 16])
+                     || (e_dr && out_data[EOG_BF_INFLOW +: 16] == 16'd0 && out_data[EOG_BF_LEVEL +: 16] == 16'd0);
 
     always_comb begin
         if (f_past_valid && rst_n && out_valid) begin
@@ -305,39 +349,25 @@ module fv_eog_features (
             F5_wl: assert (o_rules[EOG_RULE_LVL_WARNING]  == e_rules[EOG_RULE_LVL_WARNING]);
 
             B_run:  assert (out_data[EOG_BF_PUMP_RUN] == (e_vh && e_pst == 2'd1));
-            B_copy: assert (out_data[EOG_BF_INFLOW +: 16] == e[EOG_BV_INFLOW +: 16]
-                            && out_data[EOG_BF_LEVEL +: 16] == e[EOG_BV_LEVEL +: 16]);
+            B_copy: assert (copy_ok);
 
-`ifndef FV_ABSTRACT_MUL
-            F4_sat: assert (o_reason[EOG_R_FEAT_SAT] == |(f_satc & f_used));
+`ifdef FV_ABSTRACT_MUL
+            F4_zero: assert (f4_ok == 12'hFFF);
+`else
+            F4_ch:  assert (f4_ok == 12'hFFF);
+            F4_sat: assert (o_reason[EOG_R_FEAT_SAT] == (e_reason[EOG_R_FEAT_SAT] || (f_satc & f_used) != 12'd0));
 `endif
         end
     end
 
-    genvar gk;
-    generate
-        for (gk = 0; gk < 12; gk = gk + 1) begin : g_ch
-            if (gk != 7 && gk != 8) begin : g_mul
-                always_comb if (f_past_valid && rst_n && out_valid && f_used[gk]) begin
-`ifdef FV_ABSTRACT_MUL
-                    if (f_m[gk*32 +: 32] == 32'd0 || (F_RAWX[gk] && f_x[gk*20 +: 20] == 20'd0))
-                        F4_zero: assert (o_feat[gk*16 +: 16] == 16'd0);
-`else
-                    F4_ch: assert (o_feat[gk*16 +: 16] == f_val[gk*16 +: 16]);
-`endif
-                end
-            end
-        end
-    endgenerate
-
     // ---- cover goals (spec: a saturated channel; SHUT_IN set; channel 11 nonzero) ---------------------------
     always_comb begin
         if (f_past_valid && rst_n) begin
-            C_sat:    cover (out_valid && out_ready && o_reason[EOG_R_FEAT_SAT]);
+            C_sat:    cover (out_valid && out_ready && o_reason[EOG_R_FEAT_SAT] && !e_reason[EOG_R_FEAT_SAT]);
             C_shutin: cover (out_valid && out_ready && o_rules[EOG_RULE_SHUT_IN]);
             C_ch11:   cover (out_valid && out_ready && o_feat[11*16 +: 16] != 16'd0);
-            C_two:    cover (out_valid && out_ready && f_out_cnt == 8'd1);   // second record leaves
-            C_bp:     cover (out_valid && !out_ready && f_in_flight == 8'd1 && in_valid);  // back-pressure held
+            C_two:    cover (out_valid && out_ready && f_out_cnt == 8'd1);                 // second record leaves
+            C_bp:     cover (out_valid && !out_ready && in_valid && f_in_flight != 8'd0);  // back-pressure held
         end
     end
 endmodule

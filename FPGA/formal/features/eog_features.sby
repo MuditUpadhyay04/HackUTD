@@ -1,0 +1,53 @@
+# SymbiYosys job for eog_features (spec/modules/eog_features.md, numerics.md §4, spec v2). Verify role, task
+# T1.features.fv.     bash scripts/formal.sh features
+# Harness fv_eog_features.sv (property list F1-F6 + stage contract in its header). N_FAC = 2, N_WELL = 8.
+#
+# prove     k-induction with the abstract multiplier (formal/common/eog_mul_abstract.sv): stage contract
+#           (u_stage.st_*, incl. II <= 16 and latency <= 128), handshake (u_out.ax_*), F1, F2, F3, F4_zero, F5, F6,
+#           B_*. Unbounded.
+# prove_f4  k-induction with the stand-in multiplier formal/features/eog_mul_concat.sv: F4_ch / F4_sat bit-exact
+#           against the rounding / saturation reference, plus everything `prove` checks. Unbounded. (Why a stand-in:
+#           see eog_mul_concat.sv; eog_mul = a*b itself is proven by formal/mul.)
+# bmc       the real rtl/eog_mul.sv: every property including F4_ch / F4_sat with the true product x*M, from reset
+#           through the first record(s).
+# cover     the real multiplier: a saturated channel (C_sat), SHUT_IN (C_shutin), channel 11 nonzero (C_ch11), a
+#           second record (C_two), held back-pressure (C_bp).
+#
+# Depths (DEPTH NOTES below are filled in after runs against a stub): k-induction needs depth > the design's own
+# accept-to-output latency and accept-to-accept interval (not II_MAX / LAT_MAX: the checker's wait counters are
+# reset by the design's progress within that window).
+
+[tasks]
+prove
+prove_f4
+bmc
+cover
+
+[options]
+prove:    mode prove
+prove:    depth 20
+prove_f4: mode prove
+prove_f4: depth 20
+bmc:      mode bmc
+bmc:      depth 20
+cover:    mode cover
+cover:    depth 40
+
+[engines]
+smtbmc yices
+
+[script]
+prove:    read_verilog -formal -sv -DFV_ABSTRACT_MUL eog_fv_props.sv eog_mul_abstract.sv eog_features.sv fv_eog_features.sv
+prove_f4: read_verilog -formal -sv -DFV_CONCAT_MUL eog_fv_props.sv eog_mul_concat.sv eog_features.sv fv_eog_features.sv
+bmc:      read_verilog -formal -sv eog_fv_props.sv eog_mul.sv eog_features.sv fv_eog_features.sv
+cover:    read_verilog -formal -sv eog_fv_props.sv eog_mul.sv eog_features.sv fv_eog_features.sv
+prep -top fv_eog_features
+
+[files]
+../../rtl/eog_defs.svh
+../../rtl/eog_features.sv
+../../rtl/eog_mul.sv
+../common/eog_fv_props.sv
+../common/eog_mul_abstract.sv
+eog_mul_concat.sv
+fv_eog_features.sv
