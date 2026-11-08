@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, mkdtempSync } from "node:fs";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import type { ImportedDataset } from "@hackutd/contracts";
 import { A, C, LEAK, scripted, snapshot } from "../orchestration/testing";
 import { champions, MemoryLearningStore } from "./store";
@@ -14,7 +15,7 @@ const goodTriage = () => ({ name: "submit_triage", args: { order: [A, C, LEAK], 
 
 describe("learning store", () => {
   test("seeds v1 champions, keeps one champion per role, and persists to a file", async () => {
-    const file = join(mkdtempSync("/tmp/learn-"), "state.json");
+    const file = join(mkdtempSync(join(tmpdir(), "learn-")), "state.json");
     const store = new MemoryLearningStore(file);
     await store.init();
     let c = await champions(store);

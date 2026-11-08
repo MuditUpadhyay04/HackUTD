@@ -8,11 +8,12 @@
 //
 // This Mac has no FPGA, so the default board is the software copy (fakeboard).
 // On the board PC: DEMO_BOARD=fpga bun run demo
-// Dataset: HUTD_DATA, else the newest mock_test folder, else test/, else full_week.
+// Dataset: HUTD_DATA, else the judges' test/, else the newest mock_test folder, else full_week, in the reference
+// repo next to this checkout or in %USERPROFILE%\hackutd\zeroday. HUTD_DATA picks any folder (e.g. a mock_test).
 
 import { spawn, type Subprocess } from "bun";
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { networkInterfaces } from "node:os";
+import { homedir, networkInterfaces } from "node:os";
 import { basename, join, resolve } from "node:path";
 
 type Mode = "stream" | "batch";
@@ -46,16 +47,16 @@ function ipv4(name: string): string | null {
 function datasetFolder(): string {
   const env = process.env.HUTD_DATA;
   if (env && existsSync(join(env, "telemetry.csv"))) return env;
-  const repo = join(resolve(root, ".."), "HackUTD-ZeroDay");
-  const history = join(repo, "history");
-  if (existsSync(history)) {
-    const mocks = readdirSync(history).filter((name) => name.startsWith("mock_test_") && existsSync(join(history, name, "telemetry.csv"))).sort();
-    const newest = mocks.at(-1);
-    if (newest) return join(history, newest);
+  // The reference repo next to this checkout, or where the board PC keeps it (%USERPROFILE%\hackutd\zeroday).
+  const repos = [join(resolve(root, ".."), "HackUTD-ZeroDay"), join(homedir(), "hackutd", "zeroday")].filter((r) => existsSync(r));
+  // The judges' test/ folder wins as soon as it exists; then the newest mock_test; then the full practice week.
+  for (const repo of repos) if (existsSync(join(repo, "test", "telemetry.csv"))) return join(repo, "test");
+  for (const repo of repos) {
+    const history = join(repo, "history");
+    const mocks = existsSync(history) ? readdirSync(history).filter((name) => name.startsWith("mock_test_") && existsSync(join(history, name, "telemetry.csv"))).sort() : [];
+    if (mocks.length) return join(history, mocks.at(-1)!);
   }
-  for (const dir of [join(repo, "test"), join(history, "full_week")]) {
-    if (existsSync(join(dir, "telemetry.csv"))) return dir;
-  }
+  for (const repo of repos) if (existsSync(join(repo, "history", "full_week", "telemetry.csv"))) return join(repo, "history", "full_week");
   throw new Error("No dataset. Set HUTD_DATA to a folder with network.json, ops.json and telemetry.csv.");
 }
 

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useSearchParams } from "next/navigation";
 import type { DatasetInfo, SimulationTimeline } from "@hackutd/contracts";
 import { api, defaultDataset, unwrap } from "@/lib/api";
-import { categoryLabel, clock, dayClock, duration, facilityTitle, money } from "@/lib/format";
+import { categoryLabel, clock, dayClock, duration, facilityName, facilityTitle, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FieldMap, SPEEDS, useBoardFeed, useSimulation, type BoardFeed } from "@/components/console/simulation";
 import { Rearrange } from "@/components/console/rearrange";
@@ -623,9 +623,11 @@ function readable(text: string) {
     .replace(/\s*\(written by the orchestrator from the facts\)/g, "")
     // plan refs: "P2 (do nothing)" -> "doing nothing", "Plan P1 (1 truck, 1 trip)" -> "1 truck, 1 trip"
     .replace(/\b(?:plan|option)?\s*P\d+\s*\((?:do nothing)\)/gi, " doing nothing").replace(/\b(?:plan|option)\s+P\d+\s*\(([^)]*)\)/gi, "$1")
-    .replace(/\bP\d+\s*\(([^)]*)\)/g, "$1").replace(/\b(plan|option)\s+P\d+\b/gi, "$1").replace(/\bP\d+\b\s*/g, "")
+    .replace(/\bP\d+\s*\(([^)]*)\)/g, "$1").replace(/\b(plan|option)\s+P\d+\b/gi, "$1").replace(/\bP\d+\b\s*/g, "").replace(/\s*\([\s,;]*\)/g, "")
     .replace(/\(\s*1 truck\(s\), 1 trip\(s\)\s*\)/g, "1 truck, 1 trip").replace(/(\d+) (\w+)\(s\)/g, (_m, k: string, w: string) => `${k} ${w}${k === "1" ? "" : "s"}`)
     .replace(/doing nothing recommended over doing nothing/gi, "No truck can help in time; it waits for the repair")
+    // bookkeeping sentences about IDs ("Evidence and plan IDs cited as arrays.") and raw facility IDs ("S8_FACILITY_WEST")
+    .replace(/[^.]*\bIDs?\b[^.]*\bcited\b[^.]*\.?/gi, "").replace(/\b[A-Z0-9]+_FACILITY_[A-Za-z0-9]+\b/g, (m) => facilityName(m))
     .replace(/\s+([.,;])/g, "$1").replace(/([.;])(?=[A-Z])/g, "$1 ").replace(/\s{2,}/g, " ").trim();
 }
 
