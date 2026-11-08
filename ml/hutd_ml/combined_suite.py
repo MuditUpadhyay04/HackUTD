@@ -49,7 +49,7 @@ CATEGORY = {"pipeline_leak": "pipeline_leak", "pump_degradation": "pump_degradat
 
 def load_jsonl(path):
     out = []
-    for line in Path(path).read_text().splitlines():
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
         try:
             out.append(json.loads(line))
         except json.JSONDecodeError:
@@ -107,8 +107,8 @@ def incident_key(incident_id):
 def run_agents_cli(bun, folder, cutoff, jsonl, source, out_json, log):
     t0 = time.monotonic()
     p = subprocess.run([bun, str(AGENT_RUN), "--data", str(folder), "--at", str(cutoff), "--board", str(jsonl),
-                        "--board-source", source, "--json", str(out_json)], cwd=ROOT, capture_output=True, text=True)
-    Path(log).write_text(p.stdout + p.stderr)
+                        "--board-source", source, "--json", str(out_json)], cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    Path(log).write_text(p.stdout + p.stderr, encoding="utf-8")
     return p.returncode, time.monotonic() - t0
 
 
@@ -203,7 +203,7 @@ def run_api(bun, folder, cutoff, jsonl, source, out, lines, strict=False):
     env = {**os.environ, "STORAGE_MODE": "memory", "ALLOW_INSECURE_LOCAL": "1", "API_HOST": "127.0.0.1",
            "API_PORT": str(port), "BOARD_JSONL": str(jsonl), "BOARD_SOURCE": source,
            "AGENT_LEARNING_FILE": str(out / "agent-learning.json")}
-    log = open(out / "N2_api.log", "w")
+    log = open(out / "N2_api.log", "w", encoding="utf-8")
     api = subprocess.Popen([bun, "apps/api/src/index.ts"], cwd=ROOT, env=env, stdout=log, stderr=log)
     lines_out, ok = [], True
     try:
@@ -234,7 +234,7 @@ def run_api(bun, folder, cutoff, jsonl, source, out, lines, strict=False):
             lines_out.append(f"wrong provenance {sorted(prov)} for source {source}")
         live = http("POST", f"{base}/runs/{run['id']}/agents", b"{}", {"Content-Type": "application/json"})
         live = poll(lambda: http("GET", f"{base}/agent-runs/{live['id']}"), lambda r: r["status"] != "running", 420, 2)
-        (out / "N2_agent_run.json").write_text(json.dumps(live, indent=1))
+        (out / "N2_agent_run.json").write_text(json.dumps(live, indent=1), encoding="utf-8")
         if live["status"] != "done" or not live.get("trace"):
             return False, lines_out + [f"agent run ended {live['status']}: {live.get('error')}"]
         tok, tlines = check_trace(live["trace"], lines, cutoff, source, strict=strict)
@@ -351,7 +351,7 @@ def main(argv=None):
             if rc != 0 or not tj.exists():
                 record(name, False, [f"agent-run.ts exit {rc} (see the .log; is the Nemotron key in the root .env?)"], t0)
                 continue
-            ok, det = check_trace(json.loads(tj.read_text()), ll, cutoff, source, strict=a.strict_agents)
+            ok, det = check_trace(json.loads(tj.read_text(encoding="utf-8")), ll, cutoff, source, strict=a.strict_agents)
             record(name, ok, det, t0)
 
     if "N2" not in skip:
@@ -363,13 +363,13 @@ def main(argv=None):
         t0 = time.monotonic()
         c = cutoffs[1]
         cut = out / "D1_stale.jsonl"
-        cut.write_text("".join(json.dumps(d) + "\n" for d in lines if d.get("type") != "result" or d["ts_unix"] <= c - 3600))
+        cut.write_text("".join(json.dumps(d) + "\n" for d in lines if d.get("type") != "result" or d["ts_unix"] <= c - 3600), encoding="utf-8")
         tj = out / "D1_trace.json"
         rc, _ = run_agents_cli(bun, data, c, cut, source, tj, out / "D1.log")
         if rc != 0 or not tj.exists():
             record("D1 stale drill", False, [f"agent-run.ts exit {rc}"], t0)
         else:
-            tr = json.loads(tj.read_text())
+            tr = json.loads(tj.read_text(encoding="utf-8"))
             stale = [b["stale"] for b in tr.get("board", [])]
             ok = bool(stale) and all(stale)
             record("D1 stale drill", ok, [f"board results cut 1 h before step {(c - first_ts) // 300}: "
@@ -381,8 +381,8 @@ def finish(out, rows, data, source):
     head = (f"# Combined suite: v4 board -> API -> Nemotron agents\n\n{datetime.now():%Y-%m-%d %H:%M}, data `{data.name}`, "
             f"board results from **{source}**\n\n| Test | Verdict | Seconds | Details |\n| --- | --- | --- | --- |\n")
     body = "".join(f"| {r['test']} | **{r['verdict']}** | {r['seconds']} | {'<br>'.join(r['details'])} |\n" for r in rows)
-    (out / "report.md").write_text(head + body)
-    (out / "report.json").write_text(json.dumps(rows, indent=1))
+    (out / "report.md").write_text(head + body, encoding="utf-8")
+    (out / "report.json").write_text(json.dumps(rows, indent=1), encoding="utf-8")
     failed = [r["test"] for r in rows if r["verdict"] == "FAIL"]
     print(f"\n{len(rows) - len(failed)}/{len(rows)} passed{'; FAILED: ' + ', '.join(failed) if failed else ''}. "
           f"Report: {out / 'report.md'}")
