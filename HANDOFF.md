@@ -66,13 +66,23 @@ What was left on disk, and what this session did with it:
 
 ## In flight / next steps
 
-1. Relaunch the five verifiers (validate, memory, alarm, features, head), each in its old worktree,
-   fast-forwarded to `FPGA` so it has the vectors.
-2. Start RTL for features, head and countdown (unblocked now that mul and div are DONE).
-3. Queue after that: T1.unpack.fv, T1.countdown.fv, T1.pack.rtl/.fv, T1.regs.rtl/.fv, T2.ps1.
-4. Integrate each module as both halves reach REVIEW. validate, memory, alarm and unpack already have their RTL in
-   REVIEW and are waiting only for their verifiers.
-5. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
+**In flight (launched ~00:05 CST Nov 8 by session `04653333`, 8 background agents):**
+- Verifiers, each in its old worktree and told to `git merge --ff-only FPGA` first: T1.validate.fv, T1.memory.fv
+  (resuming its partial harness), T1.alarm.fv, T1.features.fv (resuming its partial harness), T1.head.fv.
+- RTL, in new worktrees the lead created: T1.features.rtl, T1.head.rtl, T1.countdown.rtl.
+- All were launched as `general-purpose` agents told to read `.claude/agents/fpga-{verify,rtl}.md` as their role
+  (see the start-folder gotcha below). All were told to commit WIP often. If a session dies, check each worktree's
+  `git log` and `git status`, then relaunch on top of whatever is there.
+
+**Next:**
+1. As each agent reports: set its TASKS.md row to REVIEW (with its commit). When both halves of a module are
+   REVIEW, integrate: `git switch -c eog/integrate-<m> FPGA`, merge both branches, run `lint.sh`, `sim.sh` and
+   `formal.sh <m>` (generate the gitignored `*_week` vectors in the main checkout first:
+   `python FPGA/model/gen_vectors.py`), then merge to `FPGA`, set DONE, run `check_all.sh`, and push.
+   validate, memory and alarm have their RTL in REVIEW, so they integrate as soon as their verifier lands.
+2. Queue, launch as slots free up: T1.unpack.fv (its RTL is in REVIEW), T1.countdown.fv, T1.pack.rtl/.fv,
+   T1.regs.rtl/.fv, T2.ps1.
+3. T2.top once all T1 rows are DONE, then write `FPGA/reports/RTL_DONE_HANDOFF.md`.
 
 ## Worktrees (`HackUTD/.claude/worktrees/…`)
 
@@ -92,9 +102,18 @@ What was left on disk, and what this session did with it:
 | agent-a1ef26a5b3ad9ded0 | eog/T1.alarm.fv | verifier (relaunch) |
 | agent-a065500e10062e0d1 | eog/T1.features.fv | verifier (relaunch; partial harness on disk) |
 | agent-a58188a3ae0d5e3fb | eog/T1.head.fv | verifier (relaunch) |
+| T1.features.rtl | eog/T1.features.rtl | RTL agent (new) |
+| T1.head.rtl | eog/T1.head.rtl | RTL agent (new) |
+| T1.countdown.rtl | eog/T1.countdown.rtl | RTL agent (new) |
 
 ## Machine notes and gotchas
 
+- **Start Claude Code in the inner repo folder** (`...\HackUTD\HackUTD`). Started from the outer `...\HackUTD`, the
+  `fpga-rtl`, `fpga-verify` and `fpga-model` agent types and `/fpga-lead` are not loaded, and `isolation: worktree`
+  is unreliable. Workaround: create the worktree with `git worktree add -b eog/<task> .claude/worktrees/<task>
+  FPGA`, then launch a `general-purpose` agent that reads the role file first and works only in that path.
+- **Push auth:** `git push origin FPGA` goes through Git Credential Manager, which can sit waiting at a sign-in
+  window. Look for that window if a push hangs.
 - **Tools:** Git Bash on Windows; the OSS CAD Suite lives in WSL. `FPGA/scripts/{lint,sim,formal,check_all}.sh`
   re-run themselves in WSL. For anything else use `bash FPGA/scripts/wsl.sh <cmd>`.
 - **Python:** in Git Bash it is `python` (3.13). `python3` is a broken Store stub.
