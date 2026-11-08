@@ -1,7 +1,7 @@
 "use client";
 
 import type { PlanOption, Series } from "@/lib/engine/types";
-import { clock } from "@/lib/format";
+import { clock, dayClock } from "@/lib/format";
 
 /**
  * Tank level over time: the recorded history (solid) and, optionally, where it goes
@@ -70,7 +70,8 @@ export function LevelChart({
           textAnchor={x(t) > width - padR - 20 ? "end" : x(t) < padL + 20 ? "start" : "middle"}
           className="fill-[var(--faint)] text-[11px]"
         >
-          {clock(t)}
+          {/* Midnight ticks carry the weekday so two 00:00 labels can be told apart. */}
+          {t % 86400 === 0 ? dayClock(t) : clock(t)}
         </text>
       ))}
 

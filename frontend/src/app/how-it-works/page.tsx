@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { ArrowLeft } from "lucide-react";
 import { NemotronMark } from "@/components/console/nemotron";
 
@@ -20,14 +22,38 @@ const agents = [
   ["Shift handoff", "Would track what was done and what is due across shifts. Today a single Nemotron call writes the note from the solver's facts."],
 ] as const;
 
-export default function HowItWorks() {
+export const metadata: Metadata = { title: "How it works" };
+
+const backClass = "inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-text";
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+// Carry the console's dataset (and replay time, if any) back so the round trip lands where it started.
+async function BackLink({ searchParams }: { searchParams: PageProps<"/how-it-works">["searchParams"] }) {
+  const sp = await searchParams;
+  const q = new URLSearchParams();
+  const dataset = one(sp.dataset);
+  const at = one(sp.at);
+  if (dataset) q.set("dataset", dataset);
+  if (at) q.set("at", at);
+  return <BackAnchor href={q.size ? `/?${q.toString()}` : "/"} />;
+}
+
+function BackAnchor({ href }: { href: string }) {
+  return (
+    <Link href={href} className={backClass}>
+      <ArrowLeft className="size-4" aria-hidden /> Console
+    </Link>
+  );
+}
+
+export default function HowItWorks({ searchParams }: PageProps<"/how-it-works">) {
   return (
     <main className="mx-auto max-w-[880px] px-5 pt-8 pb-24 sm:px-8">
-      <Link href="/" className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-text">
-        <ArrowLeft className="size-4" aria-hidden /> Console
-      </Link>
+      <Suspense fallback={<BackAnchor href="/" />}>
+        <BackLink searchParams={searchParams} />
+      </Suspense>
 
-      <h1 className="mt-10 max-w-[26ch] text-balance text-[clamp(30px,4.6vw,46px)] leading-[1.1] font-light tracking-[-0.01em] text-text">
+      <h1 className="mt-10 max-w-[26ch] text-balance text-[clamp(30px,4.6vw,46px)] leading-[1.1] font-display font-bold tracking-display text-text">
         A pump fails at 2 a.m. The console has a costed plan before anyone picks up a radio.
       </h1>
       <p className="mt-5 flex max-w-[60ch] items-start gap-2.5 text-[16px] leading-relaxed text-muted-foreground">
@@ -39,7 +65,7 @@ export default function HowItWorks() {
         </span>
       </p>
 
-      <h2 className="mt-16 text-[15px] font-semibold text-text">From a reading to a decision</h2>
+      <h2 className="mt-16 font-display text-[20px] font-bold tracking-display text-text">From a reading to a decision</h2>
       <ol className="mt-4 border-t border-line">
         {steps.map(([name, body], i) => (
           <li key={name} className="grid grid-cols-[28px_1fr] gap-x-3 border-b border-line py-4 sm:grid-cols-[28px_200px_1fr]">
@@ -50,7 +76,7 @@ export default function HowItWorks() {
         ))}
       </ol>
 
-      <h2 className="mt-14 text-[15px] font-semibold text-text">Planned agents</h2>
+      <h2 className="mt-14 font-display text-[20px] font-bold tracking-display text-text">Planned agents</h2>
       <p className="mt-2 max-w-[60ch] text-[15px] leading-relaxed text-muted-foreground">
         Not running yet. The steps under the shift note use these names, but the plan solver writes them.
       </p>

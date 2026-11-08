@@ -25,7 +25,14 @@ export function Timeline({
   const params = useSearchParams();
   const [pending, start] = useTransition();
   const [drag, setDrag] = useState<number | null>(null);
-  const shown = drag ?? atUnix;
+  // Hold the released time until the new snapshot arrives, so the thumb doesn't jump back.
+  const [committed, setCommitted] = useState<number | null>(null);
+  const [prevAt, setPrevAt] = useState(atUnix);
+  if (atUnix !== prevAt) {
+    setPrevAt(atUnix);
+    setCommitted(null);
+  }
+  const shown = drag ?? committed ?? atUnix;
   const span = Math.max(1, endUnix - startUnix);
   const pct = (t: number) => ((t - startUnix) / span) * 100;
   const step = 300;
@@ -36,6 +43,8 @@ export function Timeline({
     q.set("dataset", dataset);
     q.delete("at");
     if (snapped < endUnix) q.set("at", String(snapped));
+    const target = Math.min(snapped, endUnix);
+    setCommitted(target === atUnix ? null : target);
     start(() => router.push(`/?${q}`, { scroll: false }));
   };
 
