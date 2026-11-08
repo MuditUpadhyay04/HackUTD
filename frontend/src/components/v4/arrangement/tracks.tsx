@@ -1,7 +1,7 @@
 "use client";
 import { memo, useMemo, useState, type MouseEvent, type ReactNode } from "react";
 import type { FacilityState, Incident, PlanOption, Snapshot } from "@/lib/engine/types";
-import { approvePlan, usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
+import { approvePlan, StalePlanError, usePlayhead, usePlayheadActions, usePlayheadStore } from "@/lib/v4/store";
 import { facilityAt, lineColor, sampleSeries, type FacilityStatus } from "@/lib/v4/derive";
 import { facilityName, hhmm, usd, UNKNOWN } from "@/lib/v4/format";
 import { curvePath, seriesMax, seriesPath } from "@/lib/v4/arrangement-paths";
@@ -193,19 +193,27 @@ function tripText(o: PlanOption, planStart: number): string {
 function ApproveButton({ snapshot, incident }: { snapshot: Snapshot; incident: Incident }) {
   const store = usePlayheadStore();
   const approved = usePlayhead((s) => s.approved.includes(incident.id));
-  const [state, setState] = useState<"idle" | "sending" | "error">("idle");
-  const label = approved ? "ACKNOWLEDGED" : state === "sending" ? "SENDING" : state === "error" ? "RETRY, NOT SENT" : "APPROVE";
+  const [state, setState] = useState<"idle" | "sending" | "error" | "stale">("idle");
+  const label = approved ? "ACKNOWLEDGED" : state === "sending" ? "SENDING" : state === "stale" ? "PLAN CHANGED, REFRESHING" : state === "error" ? "RETRY, NOT SENT" : "APPROVE";
   return (
     <div className="arr-approve">
       <button
         type="button"
         className="press arr-btn"
-        disabled={approved || state === "sending"}
+        disabled={approved || state === "sending" || state === "stale"}
         data-done={approved}
         aria-label={approved ? "Plan acknowledged, not dispatched" : "Approve recommended plan (acknowledges advice, does not dispatch)"}
         onClick={() => {
           setState("sending");
-          approvePlan(snapshot, store, incident.id).then(() => setState("idle"), () => setState("error"));
+          approvePlan(snapshot, store, incident.id).then(
+            () => setState("idle"),
+            (e: unknown) => {
+              if (!(e instanceof StalePlanError)) { setState("error"); return; }
+              // The snapshot stream resyncs on its own; allow another try once it has.
+              setState("stale");
+              window.setTimeout(() => setState("idle"), 3000);
+            },
+          );
         }}
       >
         {label}

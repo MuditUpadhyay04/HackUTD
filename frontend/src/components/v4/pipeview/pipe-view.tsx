@@ -3,7 +3,7 @@
 // Camera = one transform on one group, applied imperatively (no React render per pan/zoom frame). Packets are a
 // single canvas loop independent of React. Keyboard (Pipe View focused): + - zoom, 0 fit, 1-9 frame system N;
 // keyboard-initiated camera moves never animate.
-import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FacilityState, Snapshot, SystemState } from "@/lib/engine/types";
 import { lineColor } from "@/lib/v4/derive";
 import { bpd } from "@/lib/v4/format";
@@ -22,10 +22,10 @@ const EASE_OUT = "cubic-bezier(0.23, 1, 0.32, 1)";
 
 // ---- layout memo (single entry: layout depends only on order and counts) ----------------------------------
 let cached: { key: string; layout: PipeLayout } | null = null;
-function layoutFor(snapshot: Snapshot): { key: string; layout: PipeLayout } {
+function layoutFor(snapshot: Snapshot, targetAspect?: number): { key: string; layout: PipeLayout } {
   const input: SystemInput[] = snapshot.systems.map((s) => ({ id: s.id, facilities: s.facilities.map((f) => ({ id: f.id, wellIds: f.wells.map((w) => w.id) })) }));
-  const key = layoutKey(input);
-  if (!cached || cached.key !== key) cached = { key, layout: computeLayout(input) };
+  const key = `${layoutKey(input)}@${targetAspect ?? "default"}`;
+  if (!cached || cached.key !== key) cached = { key, layout: targetAspect == null ? computeLayout(input) : computeLayout(input, targetAspect) };
   return cached;
 }
 
@@ -95,7 +95,9 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   const store = usePlayheadStore();
   const { setFocus } = usePlayheadActions();
   const focus = usePlayhead((s) => s.focus);
-  const { key: lkey, layout } = layoutFor(snapshot);
+  // Real pane aspect (width/height), quantized to 0.25 so a window drag does not relayout on every pixel.
+  const [aspect, setAspect] = useState<number | null>(null);
+  const { key: lkey, layout } = layoutFor(snapshot, aspect ?? undefined);
   const engine = useState(() => new PacketEngine())[0];
 
   const rootRef = useRef<HTMLDivElement>(null);
@@ -116,6 +118,21 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
     for (const s of snapshot.systems) for (const f of s.facilities) m.set(f.id, { facility: f, system: s });
     return m;
   }, [snapshot.systems]);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const measure = () => {
+      const r = root.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return;
+      const q = Math.min(6, Math.max(0.5, Math.round((r.width / r.height) * 4) / 4));
+      setAspect((a) => (a === q ? a : q));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(root);
+    return () => ro.disconnect();
+  }, []);
 
   // ---- camera (imperative) ------------------------------------------------------------------------------
   const apply = useCallback(() => {
@@ -171,7 +188,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
   // ---- mount: size, first fit, intro, packets ---------------------------------------------------------------
   useEffect(() => {
     const root = rootRef.current, svg = svgRef.current, canvas = canvasRef.current;
-    if (!root || !svg || !canvas) return;
+    if (!root || !svg || !canvas || aspect === null) return; // wait for the measured aspect: one layout, one intro
     const off = trackInputModality();
     const st = camState.current;
     st.z = Number.NaN;
@@ -233,7 +250,7 @@ export function PipeView({ snapshot }: { snapshot: Snapshot }) {
       anims.forEach((a) => a.cancel());
       engine.detach();
     };
-  }, [lkey, layout, engine, uid, goTo, apply]);
+  }, [lkey, layout, aspect, engine, uid, goTo, apply]);
 
   // Keyboard-originated camera commands from elsewhere (B3's global shortcuts) via a window event. Never animated.
   useEffect(() => {

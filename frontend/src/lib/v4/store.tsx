@@ -3,7 +3,9 @@
 // resetting t to snapshot.nowUnix. speed, sound and playing carry over so a commitAt does not stop playback.
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { Snapshot } from "@/lib/engine/types";
+import type { OperatorAction, Snapshot as ApiSnapshot } from "@hackutd/contracts";
 import { api, commandKey, unwrap } from "@/lib/api";
+import { localWindow } from "@/lib/v4/derive";
 
 export const STEP_SECONDS = 300;
 /** 1x = 5 minutes of data per second. */
@@ -50,7 +52,7 @@ export interface PlayheadStore {
 // Survives run changes (module scope, per browser tab).
 const carry = { playing: false, speed: 1 as Speed, sound: false };
 
-export function createPlayheadStore(snapshot: Pick<Snapshot, "nowUnix" | "dataset">): PlayheadStore {
+export function createPlayheadStore(snapshot: Pick<Snapshot, "nowUnix" | "dataset" | "systems">): PlayheadStore {
   const lo = snapshot.dataset.startUnix;
   const hi = snapshot.dataset.nowUnix;
   let state: PlayheadState = { t: snapshot.nowUnix, playing: carry.playing, speed: carry.speed, sound: carry.sound, approved: [], focus: null };
@@ -62,9 +64,15 @@ export function createPlayheadStore(snapshot: Pick<Snapshot, "nowUnix" | "datase
     carry.playing = state.playing; carry.speed = state.speed; carry.sound = state.sound;
     listeners.forEach((l) => l());
   };
+  const windowStart = () => Math.min(hi, Math.max(lo, localWindow(snapshot as Snapshot).start));
   const clamp = (t: number) => Math.min(hi, Math.max(lo, t));
   const actions: PlayheadActions = {
-    play: () => { if (state.t >= hi) set({ t: clamp(snapshot.nowUnix), playing: false }); else set({ playing: true }); },
+    // At the end of the data Play restarts from the start of the loaded window (DAW behavior).
+    play: () => {
+      if (state.t < hi) { set({ playing: true }); return; }
+      const start = windowStart();
+      set({ t: start, playing: start < hi });
+    },
     pause: () => set({ playing: false }),
     toggle: () => (state.playing ? actions.pause() : actions.play()),
     step: (d) => set({ t: clamp(Math.round(state.t / STEP_SECONDS) * STEP_SECONDS + d * STEP_SECONDS), playing: false }),
@@ -111,6 +119,8 @@ const Ctx = createContext<PlayheadStore | null>(null);
 function Inner({ snapshot, children }: { snapshot: Snapshot; children: ReactNode }) {
   const [store] = useState(() => createPlayheadStore(snapshot));
   useEffect(() => store.attach(), [store]);
+  const { runId, revision } = snapshot as Snapshot & { revision?: number };
+  useEffect(() => { loadAcknowledged(snapshot, store).catch(() => undefined); }, [store, runId, revision]); // eslint-disable-line react-hooks/exhaustive-deps -- reload on a new revision only
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }
 
@@ -136,18 +146,50 @@ export function usePlayheadActions(): PlayheadActions {
   return usePlayheadStore().actions;
 }
 
+/** True when the snapshot carries the API fields (revision, system plan ids). Real snapshots always do. */
+function isApiSnapshot(s: Snapshot): s is ApiSnapshot {
+  return typeof (s as Partial<ApiSnapshot>).revision === "number";
+}
+
+/** The API refused the acknowledgement because the advice changed under the operator (409 STALE_PLAN). */
+export class StalePlanError extends Error {
+  constructor() { super("PLAN CHANGED, REFRESHING"); this.name = "StalePlanError"; }
+}
+
 /**
- * Acknowledge a plan revision: POST /runs/:id/actions {kind: "acknowledge_advice"} then mark it approved locally.
- * This is advice acknowledgement only, never a dispatch (hard rule 12). Throws on a failed request.
+ * A system plan is shared by every failing incident in that system. Marks the system plan id and every incident
+ * whose plan.systemPlanId matches as acknowledged, so all of that system's trucks turn solid.
+ */
+function markSystemPlan(snapshot: ApiSnapshot, store: PlayheadStore, systemPlanId: string, incidentId?: string) {
+  store.actions.approve(systemPlanId);
+  if (incidentId) store.actions.approve(incidentId);
+  for (const i of [...snapshot.alerts, ...snapshot.history]) if (i.plan?.systemPlanId === systemPlanId) store.actions.approve(i.id);
+}
+
+/**
+ * Acknowledge a plan: POST /runs/:id/actions {kind: "acknowledge_advice", planId: incident.plan.systemPlanId,
+ * revision: snapshot.revision}, then mark it approved locally. This is advice acknowledgement only, never a dispatch
+ * (hard rule 12). Throws StalePlanError on 409 STALE_PLAN and Error on any other failed request.
  */
 export async function approvePlan(snapshot: Snapshot, store: PlayheadStore, incidentId: string): Promise<void> {
-  const inc = snapshot.alerts.find((i) => i.id === incidentId);
-  const planId = (inc?.plan as { id?: string } | undefined)?.id;
-  const revision = (snapshot as unknown as { revision?: number }).revision ?? 1;
-  unwrap(await api.api.runs({ id: snapshot.runId }).actions.post(
-    { incidentId, ...(planId ? { planId } : {}), revision, kind: "acknowledge_advice" },
+  if (!isApiSnapshot(snapshot)) throw new Error("Snapshot has no revision");
+  const planId = snapshot.alerts.find((i) => i.id === incidentId)?.plan?.systemPlanId;
+  if (!planId) throw new Error("Incident has no system plan to acknowledge");
+  const result = await api.api.runs({ id: snapshot.runId }).actions.post(
+    { incidentId, planId, revision: snapshot.revision, kind: "acknowledge_advice" },
     { headers: { "idempotency-key": commandKey() } },
-  ));
-  store.actions.approve(incidentId);
-  if (planId) store.actions.approve(planId);
+  );
+  if (result.error) {
+    const v = (result.error as { value?: { code?: string } | string }).value;
+    if (Number(result.error.status) === 409 && typeof v === "object" && v?.code === "STALE_PLAN") throw new StalePlanError();
+  }
+  unwrap(result);
+  markSystemPlan(snapshot, store, planId, incidentId);
+}
+
+/** Pre-marks plans already acknowledged on the server (persistence across reloads, global_plan I-13). */
+export async function loadAcknowledged(snapshot: Snapshot, store: PlayheadStore): Promise<void> {
+  if (!isApiSnapshot(snapshot)) return;
+  const actions: OperatorAction[] = unwrap(await api.api.runs({ id: snapshot.runId }).actions.get());
+  for (const a of actions) if (a.kind === "acknowledge_advice" && a.planId) markSystemPlan(snapshot, store, a.planId, a.incidentId);
 }

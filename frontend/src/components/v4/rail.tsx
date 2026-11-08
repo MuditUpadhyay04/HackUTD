@@ -4,6 +4,7 @@ import type { Snapshot } from "@/lib/engine/types";
 import { systemStatusAt, type FacilityStatus } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions } from "@/lib/v4/store";
 import { systemNum } from "@/lib/v4/format";
+import { pipeViewCommand } from "@/lib/v4/pipeview-camera";
 
 const STATUS_TEXT: Record<FacilityStatus, string> = {
   flowing: "Flowing", idle: "Idle", down: "Pump down", leak: "Inspect, leak", worn: "Inspect, worn pump", shut: "Shut in", nodata: "No data",
@@ -63,7 +64,11 @@ export function Rail({ snapshot, datasetId }: { snapshot: Snapshot; datasetId?: 
             style={{ color: focused === sys.id ? "var(--amber)" : "var(--text)" }}
             title={`System ${systemNum(sys.id)}: ${STATUS_TEXT[st]}`}
             aria-label={`System ${systemNum(sys.id)}, ${STATUS_TEXT[st]}`}
-            onClick={() => setFocus(focused === sys.id ? null : { kind: "system", id: sys.id })}
+            onClick={() => {
+              if (focused === sys.id) { setFocus(null); pipeViewCommand({ action: "fit" }); return; }
+              setFocus({ kind: "system", id: sys.id });
+              pipeViewCommand({ action: "frame", index: i + 1 });
+            }}
           >
             <StatusGlyph status={st} />
             <span>{sys.id}</span>

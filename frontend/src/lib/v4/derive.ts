@@ -302,9 +302,9 @@ export function tickerAt(snapshot: Snapshot, t: number): TickerItem[] {
   for (const s of snapshot.systems) for (const f of s.facilities) if (facilityAt(snapshot, f, t).status === "nodata") noData++;
 
   const b = snapshot.board;
-  const board: TickerItem["value"] = b == null ? (b === null ? "BOARD UNAVAILABLE" : "LOCAL") :
+  const board: TickerItem["value"] = b == null ? (b === null ? "UNAVAILABLE" : "LOCAL") :
     b.provenance === "fpga" ? (b.weightsVersion != null ? `FPGA v${b.weightsVersion}` : "FPGA") :
-    b.provenance === "software" ? "SOFTWARE, NOT BIT-EXACT" : "BOARD UNAVAILABLE";
+    b.provenance === "software" ? "SOFTWARE, NOT BIT-EXACT" : "UNAVAILABLE";
   const latched = b ? b.facilities.filter((f) => f.alarm !== "none" && f.alarmState === "raised").length : null;
 
   return [

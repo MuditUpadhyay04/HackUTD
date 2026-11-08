@@ -34,3 +34,10 @@ export function dotSpacing(z: number): number {
 export function lodAt(z: number): "far" | "mid" | "near" {
   return z < 0.18 ? "far" : z < 0.55 ? "mid" : "near";
 }
+
+export type PipeViewCommand = { action: "fit" | "frame" | "zoom-in" | "zoom-out"; index?: number };
+
+/** Drives the Pipe View camera from outside (rail, command palette). `index` is 1-based: 0 or absent frames the whole map. */
+export function pipeViewCommand(detail: PipeViewCommand): void {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<PipeViewCommand>("v4:pipeview", { detail }));
+}

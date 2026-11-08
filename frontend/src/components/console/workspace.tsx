@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { DatasetInfo, LiveEvent, RunRecord, RuntimeMode } from "@hackutd/contracts";
 import type { Snapshot } from "@/lib/engine/types";
-import { api, commandKey, unwrap } from "@/lib/api";
+import { api, commandKey, defaultDataset, unwrap } from "@/lib/api";
 import { Console } from "./console";
 
 const delay = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -47,7 +47,7 @@ export function Workspace({
       const list = await loadDatasets();
       if (abort.signal.aborted) return;
       // Props take precedence over URL params
-      const selected = datasetProp ?? list.find((d) => d.id === datasetId) ?? (!datasetId ? list[0] : undefined);
+      const selected = datasetProp ?? list.find((d) => d.id === datasetId) ?? (!datasetId ? defaultDataset(list) : undefined);
       if (!selected) { setStatus(datasetId ? "Dataset not found. Select or upload a dataset." : "Upload a dataset to begin."); return; }
       const time = atProp ?? (atParam && Number.isFinite(Number(atParam)) ? Number(atParam) : undefined);
       const selection = JSON.stringify([selected.id, time ?? null, runtime, parent.current]);

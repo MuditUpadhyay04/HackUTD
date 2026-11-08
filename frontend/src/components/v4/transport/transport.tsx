@@ -9,9 +9,10 @@ import type { Snapshot } from "@/lib/engine/types";
 import type { RunControls } from "@/lib/v4/use-run";
 import { inWindow, isLive, localWindow } from "@/lib/v4/derive";
 import { usePlayhead, usePlayheadActions, SPEEDS } from "@/lib/v4/store";
-import { stamp } from "@/lib/v4/format";
+import { stamp, systemNum } from "@/lib/v4/format";
 import { useGlobalKeyboard, useReverseSpeed } from "@/lib/v4/keyboard";
 import type { Command } from "@/lib/v4/keyboard-commands";
+import { pipeViewCommand } from "@/lib/v4/pipeview-camera";
 import { useAudioCues } from "@/lib/v4/audio";
 import { MiniScrubber } from "./scrubber";
 import { CommandPalette } from "./command-palette";
@@ -54,6 +55,8 @@ export function Transport({ snapshot, run }: { snapshot: Snapshot; run: RunContr
     { id: "how", group: "GO TO", label: "GO TO HOW IT WORKS", hint: "/HOW-IT-WORKS", run: () => router.push("/how-it-works") },
     ...datasets.map<Command>((d) => ({ id: `ds-${d.id}`, group: "DATASET", label: `SELECT DATASET ${d.label}`, run: () => setDataset(d.id) })),
     ...RUNTIMES.map<Command>((r) => ({ id: `rt-${r.id}`, group: "RUNTIME", label: `SELECT RUNTIME ${r.label}`, run: () => setRuntime(r.id) })),
+    { id: "pv-fit", group: "VIEW", label: "FIT NETWORK", run: () => pipeViewCommand({ action: "fit" }) },
+    ...snapshot.systems.map<Command>((s, i) => ({ id: `pv-frame-${s.id}`, group: "VIEW", label: `FRAME SYSTEM ${systemNum(s.id)}`, run: () => { a.setFocus({ kind: "system", id: s.id }); pipeViewCommand({ action: "frame", index: i + 1 }); } })),
     ...snapshot.systems.map<Command>((s) => ({ id: `focus-${s.id}`, group: "FOCUS", label: `FOCUS SYSTEM ${s.id}`, run: () => a.setFocus({ kind: "system", id: s.id }) })),
     { id: "focus-clear", group: "FOCUS", label: "CLEAR FOCUS", run: () => a.setFocus(null) },
   ], [a, goLive, sound, router, datasets, setDataset, setRuntime, snapshot.systems]);
