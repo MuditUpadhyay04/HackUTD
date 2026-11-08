@@ -43,6 +43,12 @@ def main(argv=None):
     ap.add_argument("--swap-config", default=None,
                     help="global_config.json of the swapped-in weights: its thresholds / K / gap_thr are sent as a "
                          "GLOBAL CONFIG right after the swap (each model's thresholds were tuned for that model)")
+    ap.add_argument("--hb-timeout-ms", type=int, default=0,
+                    help="board goes AUTONOMOUS (buffers results) after this long without listen.py's heartbeat. "
+                         "Default 0 = never: buffered replay is the open board issue B4 (global_plan O16), so a late or "
+                         "stalled listen.py must not trigger it. 5000 shows the server-down mode")
+    ap.add_argument("--wait-board", type=float, default=45.0,
+                    help="seconds to keep trying the board before giving up (it drops the link ~15 s after a re-program)")
     ap.add_argument("--allow-no-model", action="store_true",
                     help="stream DATA even without a confirmed model (bring-up only: with no model the logits are 0, "
                          "and trained configs have negative leak/degradation thresholds, so the board would alarm)")
@@ -51,16 +57,20 @@ def main(argv=None):
         ap.error("--weights is required (or --allow-no-model for bring-up): without a model the board's alarms "
                  "count logit 0 as a hit under the trained thresholds")
 
-    gkw = {}
+    gkw = {"hb_timeout_ms": a.hb_timeout_ms}
     if a.config:
         cfg = json.loads(Path(a.config).read_text())
         gkw = {k: cfg[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat", "persist_k_per_class") if k in cfg}
-    enc = encode.encode_dataset(a.data, **gkw)
+    try:
+        enc = encode.encode_dataset(a.data, **gkw)
+    except encode.EncodeError as e:
+        sys.exit(f"stopping: this dataset can't go to the board: {e}. Run the console without the board (its software "
+                 f"runtime still detects pump failures and plans trucks), or use a folder within 32 facilities / 8 wells.")
     swap_global = None
     if a.swap_weights and a.swap_config:
         c2 = json.loads(Path(a.swap_config).read_text())
-        swap_global = encode.build_global_config(**{k: c2[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat",
-                                                                       "persist_k_per_class") if k in c2})
+        swap_global = encode.build_global_config(hb_timeout_ms=a.hb_timeout_ms, **{
+            k: c2[k] for k in ("persist_k", "logit_thr", "gap_thr", "s_feat", "persist_k_per_class") if k in c2})
     elif a.swap_weights:
         print("warning: --swap-weights without --swap-config keeps the first model's thresholds and K", flush=True)
     n_f = len(enc.facilities)
@@ -68,8 +78,22 @@ def main(argv=None):
     span = int(enc.timestamps[-1] - enc.timestamps[0]) + 300
     print(f"{Path(a.data).name}: {n_f} facilities, {len(steps)} steps, 'now' = {int(enc.timestamps[-1])}")
 
-    b = Board(a.board, a.local, collect=False)
-    b.send_config(enc.global_config, enc.facility_config)
+    try:
+        b = Board(a.board, a.local, collect=False)
+    except OSError as e:
+        sys.exit(f"stopping: can't open the UDP ports on {a.local} ({e}). Is the wired port set to {a.local}, and is "
+                 f"another replay.py / board.py still running?")
+    deadline = time.monotonic() + a.wait_board
+    while True:
+        try:
+            b.send_config(enc.global_config, enc.facility_config)
+            break
+        except TimeoutError:
+            if time.monotonic() >= deadline:
+                sys.exit(f"stopping: no CONFIG_ACK from the board at {a.board} for {a.wait_board:.0f} s. Check: the "
+                         f"board is powered and programmed (UART shows the EOG app), `ping {a.board}` answers, this PC "
+                         f"is {a.local} on the direct cable, and the firewall lets Python receive UDP 7001-7004.")
+            print(f"waiting for the board at {a.board} (no CONFIG_ACK yet)...", flush=True)
     print(f"CONFIG: GLOBAL + {n_f} facilities ACKed")
     if a.weights:
         status, active = b.send_weights(Path(a.weights).read_bytes(), a.weights_version)
@@ -87,12 +111,19 @@ def main(argv=None):
             rec = steps[i].copy()
             rec["ts_unix"] = rec["ts_unix"].astype(np.int64) + loop * span
             for p in wire.data_packets(rec, seq):
-                b.data.sendto(p, (a.board, wire.PORT_DATA))
+                try:
+                    b.data.sendto(p, (a.board, wire.PORT_DATA))
+                except OSError as e:          # cable out / link down: keep the clock going, report once per step
+                    print(f"step {i}: send failed ({e}); the board will see a gap and re-sync", flush=True)
+                    break
                 seq += 1
                 if a.step_seconds == 0 and a.pps:
                     time.sleep(1.0 / a.pps)
             if a.swap_at_step is not None and loop == 0 and i == a.swap_at_step and a.swap_weights:
-                status, active = b.send_weights(Path(a.swap_weights).read_bytes(), a.swap_version or 0)
+                try:
+                    status, active = b.send_weights(Path(a.swap_weights).read_bytes(), a.swap_version or 0)
+                except TimeoutError:
+                    status, active = "no reply", "unchanged"
                 print(f"step {i}: live swap to weights v{a.swap_version}: {status}, active version {active}",
                       flush=True)
                 if swap_global is not None and status == "swapped":

@@ -5,6 +5,8 @@ rem   win_demo.bat                 -> <reference repo>\test if it exists, else i
 rem   win_demo.bat <folder>        -> that dataset folder
 rem Needs: a full snapshot of main, win_agents_setup.bat done once (Bun, .env), the board up at 192.168.1.10.
 rem Not yet run on Windows: try it once before judging.
+rem listen.py writes live.jsonl and the API reads it (no --post: a slow console must never stop the board's heartbeat).
+rem replay.py sends hb_timeout_ms = 0, so the board never goes AUTONOMOUS (open issue B4) even if listen.py is late.
 set "ML=%~dp0"
 set "ROOT=%~dp0.."
 set "PY=%USERPROFILE%\anaconda3\python.exe"
@@ -26,11 +28,10 @@ set "HOSTNAME=127.0.0.1"
 set "DATA_ROOT=%HUTD_REF%;%DS%\.."
 set "BOARD_JSONL=%LIVE%"
 set "BOARD_SOURCE=fpga"
-set "BOARD_INGEST=1"
 start "HUTD API" /D "%ROOT%" cmd /k bun apps\api\src\index.ts
 start "HUTD console" /D "%ROOT%" cmd /k bun run dev:web
 timeout /t 15 /nobreak > nul
-start "HUTD listen" /D "%ML%" cmd /k ""%PY%" -m hutd_ml.listen --data "%DS%" --model artifacts\v4 --source fpga --jsonl "%LIVE%" --post http://127.0.0.1:3000/api/ingest"
+start "HUTD listen" /D "%ML%" cmd /k ""%PY%" -m hutd_ml.listen --data "%DS%" --model artifacts\v4 --source fpga --jsonl "%LIVE%""
 timeout /t 3 /nobreak > nul
 start "HUTD replay" /D "%ML%" cmd /k ""%PY%" -m hutd_ml.replay --data "%DS%" --weights artifacts\v4\weights.bin --weights-version 4 --config artifacts\v4\global_config.json --step-seconds %REPLAY_STEP%"
 start "" http://127.0.0.1:3000/
