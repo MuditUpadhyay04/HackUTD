@@ -13,6 +13,7 @@ results go to listen.py or the server. With --loop, each pass adds a time offset
 """
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -39,7 +40,13 @@ def main(argv=None):
                     help="live weight swap demo: send --swap-weights once this step has been streamed")
     ap.add_argument("--swap-weights", default=None, help="weights.bin to swap in mid-stream")
     ap.add_argument("--swap-version", type=int, default=None, help="weights_ver of the swapped-in blob")
+    ap.add_argument("--allow-no-model", action="store_true",
+                    help="stream DATA even without a confirmed model (bring-up only: with no model the logits are 0, "
+                         "and trained configs have negative leak/degradation thresholds, so the board would alarm)")
     a = ap.parse_args(argv)
+    if not a.weights and not a.allow_no_model:
+        ap.error("--weights is required (or --allow-no-model for bring-up): without a model the board's alarms "
+                 "count logit 0 as a hit under the trained thresholds")
 
     gkw = {}
     if a.config:
@@ -57,6 +64,10 @@ def main(argv=None):
     if a.weights:
         status, active = b.send_weights(Path(a.weights).read_bytes(), a.weights_version)
         print(f"WEIGHTS v{a.weights_version}: {status}, active version {active}")
+        if (status != "swapped" or active != (a.weights_version & 0xFF)) and not a.allow_no_model:
+            sys.exit(f"stopping: the board did not confirm weights v{a.weights_version} (status {status!r}, active "
+                     f"{active}); streaming without the model would raise false alarms. Fix the blob or the link, "
+                     f"or pass --allow-no-model for bring-up.")
 
     seq, loop = 0, 0
     while True:

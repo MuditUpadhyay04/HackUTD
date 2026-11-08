@@ -1,6 +1,6 @@
 # Global plan — Beat the Shutdown
 
-HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:30 CST** (integration of the backend/frontend, FPGA and
+HackUTD 2026: Zero Day · last updated **Sun Nov 8 2026, 03:45 CST** (integration of the backend/frontend, FPGA and
 ML branches onto `main`; weights v4; Lucas's board-run plan) · hacking ends **Sun Nov 8** (check the exact cutoff in the
 [Hackerpack](https://hackutd-2026.notion.site/HackUTD-2026-Zero-Day-Hackerpack-3b163cec774080bea6c5fb7358a42dac))
 
@@ -153,7 +153,7 @@ flowchart LR
 | C8 | Alarms: hit = logit **>** threshold, per-class K, E-STOP = gap rule + leak hit; latched Night Shift / E-STOP with CLEARED alerts; values from the deployed weights' `global_config.json` (**v4**: `persist_K4` [2,4,1,1], `logit_thr` [−128,−64,0,0], `gap_thr` 504) | DECIDED | spec v4 §9; `ml/artifacts/v4/` | Lucas (logic) / Mudit (values) |
 | C9 | Events and actions: the operator API builds incidents (onset / ongoing / resolved) from host interpretation; leak and degradation → inspection; failure → countdown + system plan from the bounded solver + independent validator (`best_feasible_found`); optional SPEC `events.json` export | **PROPOSED**: implemented in PR #4; Jason + Gurneal to confirm | `agent-backend-architecture.md` §"Deterministic domain layer" | Jason + Gurneal |
 | C10 | Server ↔ web API: the operator API (Elysia, Eden-typed `App`, SSE cursors), proxied by the Next app with a server-side token | **PROPOSED**: implemented in PR #4; Jason + Gurneal to confirm | `agent-backend-architecture.md` §"Feature API"; `apps/api/src/app.ts`; `packages/contracts/` | Jason + Gurneal |
-| C11 | Board → server JSON: `result` / `alert` / `stats` objects from `listen.py` (names, calibrated probability, `above_threshold`, status, reasons, countdown, `weights_ver`), POSTed as arrays; `[]` while idle | DECIDED for what `listen.py` emits (Mudit); the console consumes it today; the operator API's ingest is I-1 (Jason to confirm the shape) | `ml/INTEGRATION.md` §3 | Mudit + Jason + Gurneal |
+| C11 | Board → server JSON: `result` / `alert` / `stats` objects from `listen.py` (names, calibrated probability, `above_threshold` per record, **`active` = K hits in a row, the detection**, status, reasons, countdown, `weights_ver`), POSTed as arrays; `[]` while idle | DECIDED for what `listen.py` emits (Mudit); the console consumes it today; the operator API's ingest is I-1 (Jason to confirm the shape) | `ml/INTEGRATION.md` §3 | Mudit + Jason + Gurneal |
 | C12 | Agent scope: one coordinator, scoped tools, server-validated finalization; Nemotron endpoint per `nemotron-inference-operations.md`; AI SDK fallback; draft without a provider | **PROPOSED**: implemented in PR #4; Jason to confirm | `agent-backend-architecture.md` §"Agent design" | Jason |
 
 ## 6. Superseded — do not build
@@ -263,6 +263,7 @@ Mudit's integration branch; `main` receives merges from them.
 | O10 | Throughput demo (loop / scale-out replay) | Lucas | T3.perf; never mixed with operator runs |
 | O11 | Server → web app API | Jason + Gurneal | Proposed resolution: C10 (implemented in PR #4) |
 | O12 | Nemotron agent scope and inputs | Jason | Proposed resolution: C12 (implemented in PR #4); the AI SDK fallback issues are I-8 |
+| O15 | With **no model** loaded (`weights_ver` 0) the logits are 0, and v4's leak / degradation thresholds are negative (−128 / −64), so the board's alarm stage would count every record as a hit and raise Night Shift. That is spec v4 as written (the FPGA is fixed). **Guarded on the host:** `replay.py` refuses to stream DATA unless the board confirms the weights swapped in (`--allow-no-model` for bring-up only), and `listen.py` reports no `above_threshold` / `active` at `weights_ver` 0. A board reset mid-run would still lose the model: re-run `replay.py`. | Lucas (informational) + Mudit | Found Sun 03:40 |
 
 Resolved since the last version:
 
@@ -294,6 +295,7 @@ Resolved since the last version:
 
 | When (CST) | Change |
 | --- | --- |
+| Sun Nov 8 03:45 | **`active` added to the board JSON (C11, additive):** heads over threshold K records in a row, mirroring the board's persistence exactly (tested against the engine on the v4 edge-case set and the full week). Events should open on `active`, not on per-record `above_threshold`: the v4 thresholds were tuned with K, so the measured false-alert rates assume it. `ml/INTEGRATION.md`, Jason's briefing and the console's live store updated. New O15 (no-model alarms, guarded on the host). |
 | Sun Nov 8 03:30 | **Briefing for Jason** (`docs/plan/jason/START_HERE.md`): what the board side delivers (C11 JSON, weights v4, board timeline), the three-terminal software path re-verified with v4 (600 results, 9 alerts, 35 POST batches), his open items in a suggested order. New I-15 (Nemotron context limit and tool-call parser). |
 | Sun Nov 8 03:25 | **Plan statuses made honest** (PR #6 review): hard rules 11–13 and C9 / C10 / C12 are PROPOSED until their owners confirm (§8 approvers); O6, O7 (server side), O11, O12 reopened with their proposed resolutions; the final say is a tiebreaker after the §8 approvers are consulted; tracked review findings I-11 … I-14. I-11 (hard rule 9 in the console) fixed in PR #6 for Gurneal to review. |
 | Sun Nov 8 02:55 | **The FPGA is the fixed point** (Mudit): spec v4 and the RTL stay as they are; every other part adapts to them ("How this file works", §8). |

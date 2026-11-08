@@ -86,6 +86,7 @@ answer 2xx quickly. Three types:
  "logits": {"pipeline_leak": -10.87, "pump_degradation": -6.45, "pump_failure": 9.2, "facility_shut_in": -5.3},
  "probability": {"pipeline_leak": 0.0, "pump_degradation": 0.0, "pump_failure": 1.0, "facility_shut_in": 0.0},
  "above_threshold": ["pump_failure"],
+ "active": ["pump_failure"],
  "rules": ["pump_fault"],
  "countdown_min": {"p10": 120, "p50": 124, "p90": 129},
  "weights_ver": 1, "result_no": 4}
@@ -100,7 +101,8 @@ answer 2xx quickly. Three types:
 | `since_reset` | How much history backs the scores (saturates at 255). Small right after startup or a data gap. |
 | `logits` | Raw model scores, one per problem. > 0 leans "problem", < 0 leans "normal". |
 | `probability` | Calibrated confidence 0–1. Needs `--weights-json`. **Show this as the "confidence" in the UI.** |
-| `above_threshold` | Problems whose score is over the tuned alarm threshold. Needs `--config`. **This is the detection.** |
+| `above_threshold` | Problems whose score is over the tuned threshold **on this record alone**. Needs `--config`. Empty when no model is loaded (`weights_ver` 0). Useful for charts, too twitchy for events. |
+| `active` | Problems over the threshold for **K records in a row** (K per problem from `global_config.json` `persist_k_per_class`; v4: leak 2, degradation 4, failure 1, shut-in 1). Needs `--config`. **This is the detection:** the thresholds were tuned together with K, so the measured false-alert rates assume it. Same rule as the board's own alarms: INVALID clears the count, a history reset restarts it; empty on INVALID / DROPPED records and with no model. |
 | `rules` | Hard facts, not ML: `pump_fault` (pump reports a fault), `shut_in` (all wells off), `level_at_shutdown`, `level_at_warning`, `not_filling` (normal while the pump runs; ignore it for alerting). |
 | `countdown_min` | Minutes until the tank reaches its shutdown level if nothing changes. p50 = best estimate; p10 = soonest; p90 = latest. `null` = not filling / > 45 days. It assumes the pump moves nothing, so **show it only while `pump_fault`**. 0 / 0 / 0 = the tank is already at its shutdown level (tripped). |
 | `weights_ver` | Which model made the call: **4** = current trained model (v4); **3** / **2** = previous trained models; **240** = untrained test weights (scores meaningless); **0** = no model loaded (scores 0; rules and countdown still valid). |
@@ -138,8 +140,8 @@ buffering.
 
 ## 4. What the server should build on top (challenge rules)
 
-1. **Events.** For each facility and problem, open an event when the problem appears in `above_threshold`, or for
-   failure / shut-in when the matching rule appears. Keep it `ongoing` while it stays. Mark it `resolved` after
+1. **Events.** For each facility and problem, open an event when the problem appears in `active` (not
+   `above_threshold`: see §3), or for failure / shut-in when the matching rule appears. Keep it `ongoing` while it stays. Mark it `resolved` after
    about 3 consecutive steps without it (tune this).
    - `onset_ts` = the first step it appeared.
    - The challenge's optional `events.json` shape is in its SPEC (`event_id`, `category`, `status`, `onset_ts`,
@@ -212,7 +214,8 @@ reference decoder.
 > - "Now" is the newest telemetry timestamp received, never the wall clock.
 > - Build events, inspections, countdowns and per-system truck plans on the server as in §4. Read `ops.json` /
 >   `network.json` from the same dataset folder.
-> - Show `probability` as confidence and `above_threshold` + `rules` as detections. Treat INVALID / DROPPED as
+> - Show `probability` as confidence and `active` + `rules` as detections (`active` = K hits in a row, the rule the
+>   thresholds were tuned for; `above_threshold` is per record only). Treat INVALID / DROPPED as
 >   data-quality states, never as healthy.
 > - E-STOP is a local alarm signal only; leaks still get `field_inspection`.
 > - Never load `answer_key.json` at runtime and never hardcode asset names or counts: the judging dataset is a

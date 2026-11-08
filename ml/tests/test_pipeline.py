@@ -15,6 +15,7 @@ from hutd_ml import encode, features_int as fi, golden, model_int, wire
 DATA = os.environ.get("HUTD_DATA")
 needs_data = pytest.mark.skipif(not DATA, reason="set HUTD_DATA to a dataset folder")
 REPO = Path(__file__).resolve().parents[2]
+ART = Path(__file__).resolve().parents[1] / "artifacts"
 
 
 def test_layout_sizes():
@@ -66,6 +67,33 @@ def test_fpga_rulings_46_48_75():
     glob = np.zeros(1, dtype=wire.GLOBAL_CONFIG_DTYPE)
     glob["S"], glob["hold_max"], glob["cd_log2"] = 17, 2, 4
     assert fi.Engine(glob[0], fac).fac[0].n_wells == 8
+
+
+def test_listen_active_mirrors_board_persistence():
+    """listen.py's "active" (>= K consecutive hits) equals the engine's own per-record active classes on every
+    VALID / HELD record of the v4 golden sets (edge cases + the full week), and is empty with no model."""
+    from hutd_ml.listen import Decoder
+    cfg = json.loads((ART / "v4" / "global_config.json").read_text())
+    for name in ("g2", "g1"):
+        g = ART / "v4" / "golden" / name
+        glob = np.fromfile(g / "global_config.bin", dtype=wire.GLOBAL_CONFIG_DTYPE)
+        fac = np.fromfile(g / "facility_config.bin", dtype=wire.FAC_CONFIG_DTYPE)
+        data = np.fromfile(g / "data.bin", dtype=wire.DATA_DTYPE)
+        wts = model_int.to_weights((g / "weights.bin").read_bytes(), 4)
+        res, stages, _ = fi.run(data, glob, fac, wts)
+        assert res.tobytes() == (g / "expected_results.bin").read_bytes()
+        dec = Decoder([], None, cfg["logit_thr"], cfg["persist_k_per_class"])
+        checked = 0
+        for r, s in zip(res, stages):
+            act = dec.result(r)["active"]
+            if s is not None and int(r["status"]) in (wire.ST_VALID, wire.ST_HELD):
+                assert sum(1 << wire.HEADS.index(h) for h in act) == s["classes"], (name, int(r["result_no"]))
+                checked += 1
+        assert checked > 0
+    r = res[0].copy()
+    r["weights_ver"], r["logits"] = 0, 0
+    out = Decoder([], None, cfg["logit_thr"], cfg["persist_k_per_class"]).result(r)
+    assert out["above_threshold"] == [] and out["active"] == []
 
 
 def test_quantize_close_to_float():
