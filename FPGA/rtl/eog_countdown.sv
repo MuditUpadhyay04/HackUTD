@@ -18,9 +18,10 @@
 //   t+TL+1         out_valid (if the record is the oldest).
 //
 // Defaults (N_FAC 32, CD_N 16, II 16): latency 57 cycles (accept -> out_valid), front end accepts every 7 cycles,
-// FIFO depth P = 7, worst gap between accepts with out_ready = 1 is 16 cycles. CD_N = 4: latency 56, every 6
-// cycles, P = 8. P is derived from the II parameter (the smallest depth that keeps an accept every II cycles); with
-// II >= latency + 2 it is 1 (one record at a time). Requires II >= F (7 at CD_N 16, 6 at CD_N 4).
+// FIFO depth P = 8, worst gap between accepts with in_valid = out_ready = 1 is 9 cycles. CD_N = 4: latency 56,
+// every 6 cycles, P = 8, worst gap 15. P is derived from the II parameter: the smallest depth whose worst gap is
+// at most II - 1 (one cycle of margin); with II >= latency + 3 it is 1 (one record at a time: then the record is
+// on out_data, or at most latency cycles from it). Requires II > F (7 at CD_N 16, 6 at CD_N 4).
 //
 // Rules (numerics.md section 7):
 //   - only VALID/HELD records with FAC < N_FAC ("upd") touch the slot; every other record gets CD = 3 x 0xFFFF and
@@ -68,7 +69,7 @@ module eog_countdown #(
     // ---------------------------------------------------------------------------------------------------------
     // FIFO depth: records are accepted at least F cycles apart, and a FIFO slot can be reused D cycles after its
     // record was accepted (out_ready = 1), so with P slots the longest gap between accepts is max(F, D - (P-1)*F).
-    // Smallest P with D - (P-1)*F <= ii.
+    // Smallest P with D - (P-1)*F <= ii (called with ii = II - 1).
     function automatic integer fifo_depth(input integer d, input integer f, input integer ii);
         integer p, gap, k;
         begin
@@ -115,7 +116,7 @@ module eog_countdown #(
     localparam integer F    = I0 + 2;                             // cycles between accepts (front end)
     localparam integer TL   = I0 + DLAT + 2;                      // result written in cycle t+TL
     localparam integer D    = TL + 2;                             // FIFO slot reusable from cycle t+D
-    localparam integer P    = fifo_depth(D, F, II);               // FIFO depth (records in flight)
+    localparam integer P    = fifo_depth(D, F, II - 1);           // FIFO depth (max records in flight)
     localparam integer PB   = (P > 1) ? $clog2(P) : 1;            // FIFO pointer width
     localparam integer CB   = $clog2(P + 1);                      // FIFO count width
 
