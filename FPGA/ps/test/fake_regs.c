@@ -1,5 +1,7 @@
 /* fake_regs.c — see fake_regs.h. Behavior is regmap.md; nothing here is RTL-accurate timing. */
+#ifndef _POSIX_C_SOURCE
 #define _POSIX_C_SOURCE 199309L
+#endif
 #include "fake_regs.h"
 
 #include <string.h>
@@ -51,7 +53,18 @@ void fr_push_result(const uint8_t r[32])
 {
     memcpy(FR.res[(FR.res_head + FR.res_n) % FR_RES_DEPTH], r, 32);
     FR.res_n++;
+    /* STATS words 1-9 come from the RESULT tap (status/reason of each record leaving the engine) */
+    uint8_t st = r[2];
+    uint32_t reason = eog_le32(r + 8);
     stat_inc(EOG_HS_RES_OUT);
+    if (st == 0) stat_inc(EOG_HS_VALID);
+    if (st == 1) stat_inc(EOG_HS_HELD);
+    if (st == 3) stat_inc(EOG_HS_INVALID);
+    if (st == 4 && (reason & (1u << 8))) stat_inc(EOG_HS_DUP);
+    if (st == 4 && (reason & (1u << 9))) stat_inc(EOG_HS_OOO);
+    if (st == 4 && (reason & (1u << 10))) stat_inc(EOG_HS_UNKNOWN);
+    if (st == 4 && (reason & (1u << 12))) stat_inc(EOG_HS_FRAMING);
+    if (st != 4 && (reason & (1u << 2))) stat_inc(EOG_HS_HIST_RESET);
 }
 
 void fr_push_alert(const uint8_t a[16])
@@ -72,7 +85,6 @@ void fr_echo_engine(const uint8_t rec[48], int autonomous)
     r[21] = (uint8_t)FR.active_ver;
     memset(r + 22, 0xFF, 6);
     eog_put32(r + 28, FR.result_no++);
-    stat_inc(EOG_HS_VALID);
     fr_push_result(r);
 }
 
