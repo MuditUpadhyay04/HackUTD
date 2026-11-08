@@ -11,6 +11,15 @@ numerics.md v4 text where it differs: countdown ring of `max(INFLOW, 0)`, `NOT_F
 agrees with his engine **byte for byte** on every RESULT and ALERT. `check_mudit.py` enforces that; a disagreement is
 a spec question, not a choice.
 
+**Spec question #70 (R7 option C, Lucas Sun 02:03, task T0.2c)** replaces numerics.md §3 step 5 ahead of Mudit's code
+(his task T0.5): `hold_run = any field held ? min(hold_run + 1, 3) : 0`; if `hold_run > hold` every held field
+becomes missing, so the record is INVALID with `FIELD_LOST`, with **no history reset and no `HIST_RESET`**
+(`last_valid` kept, `since_reset` not incremented). History resets come only from time gaps, CONFIG writes and a
+facility's first record. Spec question #71 (proposed, as the validate RTL does it): on a hold-limit record
+`FIELD_HELD` = 0 (the held fields became missing), `SINCE_RESET` is the current value, `HIST_RESET` = 0,
+`PREV_LEVEL`/`PREV_OK` are unchanged, and a field that is OK on it still updates `last_valid`. Until T0.5 lands, `check_mudit.py` runs his engine with a stand-in for that one rule and
+lists every record it touches as a pre-T0.5 GAP (exit 2); everything else must still agree byte for byte.
+
 ## Deliverables
 
 | File | Contents |
@@ -18,7 +27,7 @@ a spec question, not a choice.
 | `eog_ref.py` | `class Engine`: `configure(glb: bytes, rows: dict[int, bytes])`, `load_weights(image: list[int])` (71-word window), `swap()`, `push(record: bytes) -> dict` (`result_bytes`, `result`, `alerts`, `alert_dicts`, buses). Internally one function per stage (`validate`, `features`, `memory`, `countdown`, `head`, `alarm`, `pack`) that returns that stage's **output bus as an int** laid out per `spec/gen/buses.py`, so per-module vectors come for free. `encode_weights`, `window_from_blob`, `decode_weights` handle the weight window (Mudit's blob bytes 0–279 + version word) |
 | `ingest.py` | Reference ingest: dataset folder (`network.json`, `ops.json`, `telemetry.csv`) → GLOBAL record, CONFIG rows (numerics.md §10, with the range checks) and 48 B DATA records in timestep-major order. Mirrors Mudit's `encode.py` at S = 17 (float64 formulas, `floor(v·scale + 0.5)`, metadata LO/HI in present-bit order); `check_mudit.py` proves the CONFIG rows, GLOBAL and the practice-week DATA are byte-identical to his |
 | `gen_vectors.py` | Writes `tb/vectors/<module>_<case>.*` (format below) and `INDEX.txt` |
-| `cases.py` | Synthetic bad-data cases (absent fields, illegal enums, out of range incl. the pump-status bound, hold runs, gaps of 1/2/3 steps, duplicates, out of order, framing errors, unknown/disabled slots, CONFIG touch mid-stream, weight swaps, saturation, latches/acks, fuzz), practice-data cases, and **golden cases** `g0`, `g1`, `g2` (trained v2 weights) and `g0v0`, `g2v0` (pseudo-random v0 weights) replaying Mudit's golden sets |
+| `cases.py` | Synthetic bad-data cases (absent fields, illegal enums, out of range incl. the pump-status bound, hold runs and the hold limit (`hold_h0/1/2`, #70), gaps of 1/2/3 steps, duplicates, out of order, framing errors, unknown/disabled slots, CONFIG touch mid-stream, weight swaps, saturation, latches/acks, fuzz), practice-data cases, and **golden cases** replaying Mudit's golden sets: `g0`, `g1`, `g2` (trained v2 weights), `g0v0`, `g2v0` (pseudo-random v0 weights), `g0v3`, `g2v3` (release-candidate v3 weights) |
 | `check_mudit.py` | Runs Mudit's `Engine` and `eog_ref.Engine` on the same GLOBAL/CONFIG/weights/DATA (every `cases.py` case, the practice week, every golden set) and compares the RESULT and ALERT bytes; checks `eog_ref` reproduces each golden set's `expected_results.bin` / `expected_alerts.json`; probes the §11 changes (S = 17, `review_r1r2`, latched Night Shift / E-STOP, FRAMING, `persist_K4`, regenerated goldens); checks the ingest against `encode.py`. Acknowledge, heartbeat, CONFIG touch/rewrite and mid-stream weight events, records cut short by TLAST and AUTONOMOUS are FPGA-only and are left out of the engine comparison (for both engines). Exit 0 = all agree, 1 = a disagreement, 2 = only §11 checks fail |
 | `test_model.py` | Self-checks (no Mudit code needed): layouts, arithmetic, weight window layout, ingest, directed v4 semantics, the R1 check (p50 near `trips_at` at all 13 practice failure onsets, offline use of the answer key only), invariants (stage contract, DROPPED/INVALID rules, averages within input range, p10 ≤ p50 ≤ p90), vectors up to date |
 
@@ -68,5 +77,7 @@ no wells (`SHUT_IN` holds vacuously, as in `features_int.py`).
 - `alarm_<case>.al.hex` / `top_<case>.al.hex`: the ALERT records (128 bits) in push order; `.al.txt` adds the record
   index and the cause (`rec`, or `ack` for an ACKED sweep before that record).
 - `top_<case>.in.hex` holds 48 B DATA records (384 bits); `top_<case>.out.hex` the 32 B RESULT records (256 bits).
-  For the golden cases these equal Mudit's `data.bin` / `expected_results.bin`.
+  For the golden cases `top_<case>.in.hex` equals Mudit's `data.bin` and `top_<case>.out.hex` his
+  `expected_results.bin`, except that his sets predate #70 (R7): `g2`, `g2v0`, `g2v3` differ from their first
+  hold-limit record (record 14) on until his T0.5 regenerates them; `g0*` and `g1` have no hold-limit record.
 - Per-module files of `week` and `g1` (30,240 records each) are git-ignored; `top_week.*`, `top_g1.*` are committed.
