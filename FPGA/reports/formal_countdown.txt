@@ -1,0 +1,4 @@
+# formal countdown  2026-11-08T12:24:37Z  sby rc=0  (formal/countdown/eog_countdown.sby)
+eog_countdown_bmc: PASS 0 66
+eog_countdown_cover: PASS 0 2473
+eog_countdown_prove: PASS 0 13
