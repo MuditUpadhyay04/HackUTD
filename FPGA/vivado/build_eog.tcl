@@ -8,6 +8,7 @@
 # Reports are also copied into FPGA/build/ (gitignored) so a session without access to out_dir can read them:
 #   build/eog_status.txt (one line per step), build/eog_timing.rpt, build/eog_util.rpt, build/eog_util_hier.rpt,
 #   build/eog_timing_paths.rpt (10 worst setup paths).
+# Routed checkpoint: <out_dir>/eclypse_eog_routed_<N>mhz.dcp (open with File > Checkpoint > Open).
 
 set out_dir  C:/vb2
 set build_bit 1
@@ -181,6 +182,16 @@ foreach m {unpack validate features memory countdown head alarm pack regs} {
         [get_property LOGIC_LEVELS $p] [get_property STARTPOINT_PIN $p] [get_property ENDPOINT_PIN $p]]
 }
 close $mf
+# Routed checkpoint for exploring the implemented design in the GUI (File > Checkpoint > Open).
+# Written before the timing check so a failing build can be inspected too. .dcp writes fail
+# intermittently on this PC, so retry, and never fail the build over it.
+set dcp_out [file join $out_dir ${proj_name}_routed_${fclk_mhz}mhz.dcp]
+for {set try 1} {$try <= 3} {incr try} {
+    if {![catch {write_checkpoint -force $dcp_out} err]} { status "checkpoint $dcp_out"; break }
+    puts "WARNING: write_checkpoint attempt $try failed: $err"
+    if {$try == 3} { status "WARNING checkpoint not written: $err" }
+    after 2000
+}
 status "WNS $wns WHS $whs (fclk ${fclk_mhz} MHz)"
 if {$wns < 0 || $whs < 0} { status "FAIL timing not met"; error "Timing not met (WNS $wns, WHS $whs)" }
 

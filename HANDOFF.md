@@ -107,6 +107,8 @@ What was left on disk, and what this session did with it:
 then rework validate, features, memory, countdown, head and alarm from their existing branches (verifiers re-read
 their specs), write pack and regs to v4 from the start, leave mul, div and unpack alone.
 
+**STATE Nov 18 (board session, Lucas): FPGA → main prepared.** `eog/T2.bd1` contains all of `FPGA` and `eog/T2.sd`; `FPGA` fast-forwarded to it (D4). RTL/formal/tb/model/spec unchanged since the ALL PASS `check_all` @ 3560bda; on the merged tree: `ps/test` host tests PASS (test_proto 365/365, test_wire 86/86, loopback g0, sd_boot), `hutd_ml.fpga_sync` v4 g0/g2/g1 PASS. Board: v4 suite 12/12 at 50 MHz. Still open after the merge: B4 (O16), T2.top top formal, T3.dma/T3.perf, 100 MHz timing (D2 skipped).
+
 **STATE ~08:15: every T1 module DONE on spec v4** (regs last, e921032). `FPGA/reports/RTL_DONE_HANDOFF.md` is written
 (proven / bounded / simulated per module, estimates, open items, board steps). T2.top REVIEW (top formal not closed).
 T2.ps1, T2.sd DONE (host). **Final `check_all.sh` on FPGA @ 3560bda: ALL PASS** (lint/sim/formal every module, top
