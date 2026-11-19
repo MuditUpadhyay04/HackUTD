@@ -1,0 +1,6 @@
+# formal memory  2026-11-08T12:52:06Z  sby rc=0  (formal/memory/eog_memory.sby)
+eog_memory_bmc: PASS 0 169
+eog_memory_bmcarith: PASS 0 347
+eog_memory_cover: PASS 0 14
+eog_memory_cover64: PASS 0 5
+eog_memory_prove: PASS 0 602

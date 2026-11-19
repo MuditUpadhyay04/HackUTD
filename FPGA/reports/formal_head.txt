@@ -1,0 +1,7 @@
+# formal head  2026-11-08T12:47:36Z  sby rc=0  (formal/head/eog_head.sby)
+eog_head_bmc_arith: PASS 0 1567
+eog_head_bmc_bank: PASS 0 673
+eog_head_bmc_h7: PASS 0 2653
+eog_head_bmc_rb: PASS 0 136
+eog_head_cover: PASS 0 47
+eog_head_prove: PASS 0 251
